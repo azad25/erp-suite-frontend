@@ -28,6 +28,9 @@ RUN npm ci
 # Copy source code with correct ownership
 COPY --chown=nextjs:nodejs . .
 
+# Copy .env.example to .env.local if .env.local does not exist
+RUN if [ ! -f .env.local ] && [ -f .env.example ]; then cp .env.example .env.local; fi
+
 # Create necessary directories with correct permissions
 RUN mkdir -p .next node_modules
 
