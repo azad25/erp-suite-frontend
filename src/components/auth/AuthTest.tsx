@@ -32,7 +32,9 @@ export default function AuthTest() {
         last_name: 'User',
         email: 'test@example.com',
         password: 'password123',
-        password_confirmation: 'password123'
+        password_confirmation: 'password123',
+        organization_name: 'Test Organization',
+        domain: 'test'
       });
       
       setResult(JSON.stringify(response, null, 2));

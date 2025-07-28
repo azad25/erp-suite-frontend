@@ -1,7 +1,8 @@
 import { getErrorMessage, parseFieldErrors, extractMainError } from './errorMessages';
+import config from './config';
 
 // API configuration and base client
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = config.apiUrls.base;
 
 export interface ApiResponse<T = any> {
   success: boolean;

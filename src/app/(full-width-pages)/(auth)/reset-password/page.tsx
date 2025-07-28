@@ -1,11 +1,15 @@
 import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
-import { Metadata } from "next";
+import { Suspense } from 'react';
 
-export const metadata: Metadata = {
-  title: "Reset Password | ERP Suite - Create New Password",
-  description: "Create a new password for your ERP Suite account.",
+export const metadata = {
+  title: "Reset Password | Unibase ERP - Create New Password",
+  description: "Create a new password for your Unibase ERP account.",
 };
 
 export default function ResetPassword() {
-  return <ResetPasswordForm />;
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResetPasswordForm />
+    </Suspense>
+  );
 }
