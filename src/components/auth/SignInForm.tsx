@@ -3,13 +3,98 @@ import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import Alert from "@/components/ui/alert/Alert";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import { useAuth } from "@/hooks/useAuth";
+import { extractMainError } from "@/lib/errorMessages";
 import Link from "next/link";
 import React, { useState } from "react";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { login, loading } = useAuth();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+    
+    // Clear errors when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: [],
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string[]> = {};
+
+    if (!formData.email) {
+      newErrors.email = ["Email is required"];
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = ["Please enter a valid email address"];
+    }
+
+    if (!formData.password) {
+      newErrors.password = ["Password is required"];
+    } else if (formData.password.length < 6) {
+      newErrors.password = ["Password must be at least 6 characters"];
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await login({
+        email: formData.email,
+        password: formData.password,
+        remember_me: rememberMe,
+      });
+
+      if (!result.success) {
+        if (result.errors) {
+          setErrors(result.errors);
+        }
+        if (result.message) {
+          setMessage(extractMainError(result.message));
+        }
+      }
+    } catch (error) {
+      setMessage(extractMainError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    // TODO: Implement social login
+    console.log(`Social login with ${provider}`);
+  };
+
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
@@ -31,9 +116,20 @@ export default function SignInForm() {
               Enter your email and password to sign in!
             </p>
           </div>
+          
+          {message && (
+            <div className="mb-6">
+              <Alert variant="error" message={message} />
+            </div>
+          )}
+
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialLogin('google')}
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -60,7 +156,11 @@ export default function SignInForm() {
                 </svg>
                 Sign in with Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialLogin('twitter')}
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -84,22 +184,33 @@ export default function SignInForm() {
                 </span>
               </div>
             </div>
-            <form>
+            <form onSubmit={handleSubmit}>
               <div className="space-y-6">
                 <div>
                   <Label>
-                    Email <span className="text-error-500">*</span>{" "}
+                    Email <span className="text-error-500">*</span>
                   </Label>
-                  <Input placeholder="info@gmail.com" type="email" />
+                  <Input 
+                    name="email"
+                    type="email"
+                    placeholder="info@gmail.com"
+                    onChange={handleInputChange}
+                    error={!!errors.email}
+                    hint={errors.email?.[0]}
+                  />
                 </div>
                 <div>
                   <Label>
-                    Password <span className="text-error-500">*</span>{" "}
+                    Password <span className="text-error-500">*</span>
                   </Label>
                   <div className="relative">
                     <Input
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
+                      onChange={handleInputChange}
+                      error={!!errors.password}
+                      hint={errors.password?.[0]}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -115,21 +226,25 @@ export default function SignInForm() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
+                    <Checkbox checked={rememberMe} onChange={setRememberMe} />
                     <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
                       Keep me logged in
                     </span>
                   </div>
                   <Link
-                    href="/reset-password"
+                    href="/forgot-password"
                     className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
                   >
                     Forgot password?
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm">
-                    Sign in
+                  <Button 
+                    className="w-full" 
+                    size="sm"
+                    disabled={isSubmitting || loading}
+                  >
+                    {isSubmitting || loading ? "Signing in..." : "Sign in"}
                   </Button>
                 </div>
               </div>
@@ -137,7 +252,7 @@ export default function SignInForm() {
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Don&apos;t have an account? {""}
+                Don&apos;t have an account?{" "}
                 <Link
                   href="/signup"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"

@@ -3,7 +3,7 @@ import React from "react";
 
 interface AlertProps {
   variant: "success" | "error" | "warning" | "info"; // Alert type
-  title: string; // Title of the alert
+  title?: string; // Title of the alert (optional)
   message: string; // Message of the alert
   showLink?: boolean; // Whether to show the "Learn More" link
   linkHref?: string; // Link URL
@@ -122,9 +122,11 @@ const Alert: React.FC<AlertProps> = ({
         </div>
 
         <div>
-          <h4 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">
-            {title}
-          </h4>
+          {title && (
+            <h4 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">
+              {title}
+            </h4>
+          )}
 
           <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
 

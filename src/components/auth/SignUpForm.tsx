@@ -2,13 +2,133 @@
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
+import Button from "@/components/ui/button/Button";
+import Alert from "@/components/ui/alert/Alert";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import { useAuth } from "@/hooks/useAuth";
+import { extractMainError } from "@/lib/errorMessages";
 import Link from "next/link";
 import React, { useState } from "react";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    password: "",
+    password_confirmation: "",
+    organization_name: "",
+    domain: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { register, loading } = useAuth();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+    
+    // Clear errors when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: [],
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string[]> = {};
+
+    if (!formData.first_name.trim()) {
+      newErrors.first_name = ["First name is required"];
+    }
+
+    if (!formData.last_name.trim()) {
+      newErrors.last_name = ["Last name is required"];
+    }
+
+    if (!formData.email) {
+      newErrors.email = ["Email is required"];
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = ["Please enter a valid email address"];
+    }
+
+    if (!formData.password) {
+      newErrors.password = ["Password is required"];
+    } else if (formData.password.length < 8) {
+      newErrors.password = ["Password must be at least 8 characters"];
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = ["Password must contain at least one uppercase letter, one lowercase letter, and one number"];
+    }
+
+    if (!formData.password_confirmation) {
+      newErrors.password_confirmation = ["Please confirm your password"];
+    } else if (formData.password !== formData.password_confirmation) {
+      newErrors.password_confirmation = ["Passwords do not match"];
+    }
+
+    if (!formData.organization_name.trim()) {
+      newErrors.organization_name = ["Organization name is required"];
+    } else if (formData.organization_name.length < 2) {
+      newErrors.organization_name = ["Organization name must be at least 2 characters"];
+    }
+
+    if (!formData.domain.trim()) {
+      newErrors.domain = ["Domain is required"];
+    } else if (!/^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/.test(formData.domain)) {
+      newErrors.domain = ["Please enter a valid domain (e.g., company.com)"];
+    }
+
+    if (!agreeToTerms) {
+      newErrors.terms = ["You must agree to the Terms and Conditions"];
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await register(formData);
+
+      if (!result.success) {
+        if (result.errors) {
+          setErrors(result.errors);
+        }
+        if (result.message) {
+          setMessage(extractMainError(result.message));
+        }
+      }
+    } catch (error) {
+      setMessage(extractMainError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    // TODO: Implement social login
+    console.log(`Social login with ${provider}`);
+  };
+
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
@@ -27,12 +147,23 @@ export default function SignUpForm() {
               Sign Up
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign up!
+              Enter your details to create your account!
             </p>
           </div>
+
+          {message && (
+            <div className="mb-6">
+              <Alert variant="error" message={message} />
+            </div>
+          )}
+
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialLogin('google')}
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -59,7 +190,11 @@ export default function SignUpForm() {
                 </svg>
                 Sign up with Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialLogin('twitter')}
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -83,55 +218,87 @@ export default function SignUpForm() {
                 </span>
               </div>
             </div>
-            <form>
+            <form onSubmit={handleSubmit}>
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* <!-- First Name --> */}
                   <div className="sm:col-span-1">
                     <Label>
                       First Name<span className="text-error-500">*</span>
                     </Label>
                     <Input
                       type="text"
-                      id="fname"
-                      name="fname"
+                      name="first_name"
                       placeholder="Enter your first name"
+                      onChange={handleInputChange}
+                      error={!!errors.first_name}
+                      hint={errors.first_name?.[0]}
                     />
                   </div>
-                  {/* <!-- Last Name --> */}
                   <div className="sm:col-span-1">
                     <Label>
                       Last Name<span className="text-error-500">*</span>
                     </Label>
                     <Input
                       type="text"
-                      id="lname"
-                      name="lname"
+                      name="last_name"
                       placeholder="Enter your last name"
+                      onChange={handleInputChange}
+                      error={!!errors.last_name}
+                      hint={errors.last_name?.[0]}
                     />
                   </div>
                 </div>
-                {/* <!-- Email --> */}
                 <div>
                   <Label>
                     Email<span className="text-error-500">*</span>
                   </Label>
                   <Input
                     type="email"
-                    id="email"
                     name="email"
                     placeholder="Enter your email"
+                    onChange={handleInputChange}
+                    error={!!errors.email}
+                    hint={errors.email?.[0]}
                   />
                 </div>
-                {/* <!-- Password --> */}
+                <div>
+                  <Label>
+                    Organization Name<span className="text-error-500">*</span>
+                  </Label>
+                  <Input
+                    type="text"
+                    name="organization_name"
+                    placeholder="Enter your organization name"
+                    onChange={handleInputChange}
+                    error={!!errors.organization_name}
+                    hint={errors.organization_name?.[0]}
+                  />
+                </div>
+                <div>
+                  <Label>
+                    Domain<span className="text-error-500">*</span>
+                  </Label>
+                  <Input
+                    type="text"
+                    name="domain"
+                    placeholder="Enter your domain (e.g., company.com)"
+                    onChange={handleInputChange}
+                    error={!!errors.domain}
+                    hint={errors.domain?.[0]}
+                  />
+                </div>
                 <div>
                   <Label>
                     Password<span className="text-error-500">*</span>
                   </Label>
                   <div className="relative">
                     <Input
+                      name="password"
                       placeholder="Enter your password"
                       type={showPassword ? "text" : "password"}
+                      onChange={handleInputChange}
+                      error={!!errors.password}
+                      hint={errors.password?.[0]}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -145,36 +312,68 @@ export default function SignUpForm() {
                     </span>
                   </div>
                 </div>
-                {/* <!-- Checkbox --> */}
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    className="w-5 h-5"
-                    checked={isChecked}
-                    onChange={setIsChecked}
-                  />
-                  <p className="inline-block font-normal text-gray-500 dark:text-gray-400">
-                    By creating an account means you agree to the{" "}
-                    <span className="text-gray-800 dark:text-white/90">
-                      Terms and Conditions,
-                    </span>{" "}
-                    and our{" "}
-                    <span className="text-gray-800 dark:text-white">
-                      Privacy Policy
-                    </span>
-                  </p>
-                </div>
-                {/* <!-- Button --> */}
                 <div>
-                  <button className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600">
-                    Sign Up
-                  </button>
+                  <Label>
+                    Confirm Password<span className="text-error-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      name="password_confirmation"
+                      placeholder="Confirm your password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      onChange={handleInputChange}
+                      error={!!errors.password_confirmation}
+                      hint={errors.password_confirmation?.[0]}
+                    />
+                    <span
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
+                      ) : (
+                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
+                      )}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    className="w-5 h-5 mt-0.5"
+                    checked={agreeToTerms}
+                    onChange={setAgreeToTerms}
+                  />
+                  <div>
+                    <p className="inline-block font-normal text-gray-500 dark:text-gray-400">
+                      By creating an account means you agree to the{" "}
+                      <Link href="/terms" className="text-gray-800 dark:text-white/90 hover:underline">
+                        Terms and Conditions
+                      </Link>{" "}
+                      and our{" "}
+                      <Link href="/privacy" className="text-gray-800 dark:text-white hover:underline">
+                        Privacy Policy
+                      </Link>
+                    </p>
+                    {errors.terms && (
+                      <p className="mt-1 text-xs text-error-500">{errors.terms[0]}</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <Button 
+                    className="w-full" 
+                    size="sm"
+                    disabled={isSubmitting || loading}
+                  >
+                    {isSubmitting || loading ? "Creating Account..." : "Sign Up"}
+                  </Button>
                 </div>
               </div>
             </form>
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Already have an account?
+                Already have an account?{" "}
                 <Link
                   href="/signin"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
