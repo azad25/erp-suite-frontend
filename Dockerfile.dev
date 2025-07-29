@@ -25,8 +25,11 @@ USER nextjs
 # Install dependencies
 RUN npm ci
 
-# Copy source code with correct ownership
-COPY --chown=nextjs:nodejs . .
+# Copy source code with correct ownership (only essential files for faster builds)
+COPY --chown=nextjs:nodejs next.config.ts ./
+COPY --chown=nextjs:nodejs tsconfig.json ./
+COPY --chown=nextjs:nodejs postcss.config.js ./
+COPY --chown=nextjs:nodejs prettier.config.js ./
 
 # Copy .env.example to .env.local if .env.local does not exist
 RUN if [ ! -f .env.local ] && [ -f .env.example ]; then cp .env.example .env.local; fi

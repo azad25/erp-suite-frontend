@@ -1,8 +1,8 @@
 import { getErrorMessage, parseFieldErrors, extractMainError } from './errorMessages';
-import config from './config';
+import { getRuntimeConfig } from './runtime-config';
 
-// API configuration and base client
-const API_BASE_URL = config.apiUrls.base;
+// API configuration will be loaded at runtime
+let API_BASE_URL = 'http://localhost:8000'; // fallback
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -57,17 +57,32 @@ export interface AuthResponse {
 
 class ApiClient {
   private baseURL: string;
+  private configLoaded: boolean = false;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  private async ensureConfigLoaded(): Promise<void> {
+    if (this.configLoaded) return;
+
+    try {
+      const config = await getRuntimeConfig();
+      this.baseURL = config.apiUrls.base;
+      this.configLoaded = true;
+    } catch (error) {
+      console.warn('Failed to load runtime config, using fallback URL:', error);
+      // Keep the fallback URL
+    }
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    await this.ensureConfigLoaded();
     const url = `${this.baseURL}${endpoint}`;
-    
+
     const defaultHeaders: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -89,7 +104,7 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      
+
       // Handle non-JSON responses
       let data;
       try {
@@ -156,7 +171,7 @@ class ApiClient {
       };
     } catch (error) {
       console.error('API request failed:', error);
-      
+
       // Provide more specific network error messages
       if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
@@ -164,7 +179,7 @@ class ApiClient {
           message: 'Unable to connect to the server. Please check your internet connection',
         };
       }
-      
+
       return {
         success: false,
         message: 'Network error occurred. Please try again',
@@ -192,7 +207,7 @@ class ApiClient {
 
   // Auth methods
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>('/api/v1/auth/login/', {
+    const response = await this.request<AuthResponse>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
