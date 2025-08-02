@@ -9,7 +9,6 @@ export async function GET() {
   // Required environment variables
   const requiredEnvVars = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    NEXT_PUBLIC_AUTH_API_URL: process.env.NEXT_PUBLIC_AUTH_API_URL,
     NEXT_PUBLIC_GRAPHQL_URL: process.env.NEXT_PUBLIC_GRAPHQL_URL,
     NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
   };
@@ -33,7 +32,6 @@ export async function GET() {
   const config = {
     apiUrls: {
       base: process.env.NEXT_PUBLIC_API_URL!,
-      auth: process.env.NEXT_PUBLIC_AUTH_API_URL!,
       graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL!,
       websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL!,
     },

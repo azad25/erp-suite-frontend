@@ -6,7 +6,6 @@
 interface RuntimeConfig {
   apiUrls: {
     base: string;
-    auth: string;
     graphql: string;
     websocket: string;
   };

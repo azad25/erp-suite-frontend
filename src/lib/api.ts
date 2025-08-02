@@ -1,8 +1,7 @@
-import { getErrorMessage, parseFieldErrors, extractMainError } from './errorMessages';
+import { getErrorMessage, parseFieldErrors } from './errorMessages';
 import { getRuntimeConfig } from './runtime-config';
 
-// API configuration will be loaded at runtime
-let API_BASE_URL = 'http://localhost:8000'; // fallback
+// API configuration will be loaded at runtime - no hardcoded URLs
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -56,11 +55,11 @@ export interface AuthResponse {
 }
 
 class ApiClient {
-  private baseURL: string;
+  private baseURL: string = '';
   private configLoaded: boolean = false;
 
-  constructor(baseURL: string) {
-    this.baseURL = baseURL;
+  constructor() {
+    // No hardcoded URLs - everything comes from runtime config
   }
 
   private async ensureConfigLoaded(): Promise<void> {
@@ -71,8 +70,8 @@ class ApiClient {
       this.baseURL = config.apiUrls.base;
       this.configLoaded = true;
     } catch (error) {
-      console.warn('Failed to load runtime config, using fallback URL:', error);
-      // Keep the fallback URL
+      console.error('Failed to load runtime config:', error);
+      throw new Error('Configuration not available. Please ensure environment variables are set.');
     }
   }
 
@@ -205,7 +204,7 @@ class ApiClient {
     localStorage.removeItem('user');
   }
 
-  // Auth methods
+  // Auth methods - all go through API Gateway
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     const response = await this.request<AuthResponse>('/auth/login/', {
       method: 'POST',
@@ -222,7 +221,7 @@ class ApiClient {
   }
 
   async register(userData: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>('/api/v1/auth/register/', {
+    const response = await this.request<AuthResponse>('/auth/register/', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -237,7 +236,7 @@ class ApiClient {
   }
 
   async logout(): Promise<ApiResponse> {
-    const response = await this.request('/api/v1/auth/logout/', {
+    const response = await this.request('/auth/logout/', {
       method: 'POST',
     });
 
@@ -246,14 +245,14 @@ class ApiClient {
   }
 
   async forgotPassword(data: ForgotPasswordRequest): Promise<ApiResponse> {
-    return this.request('/api/v1/auth/forgot-password/', {
+    return this.request('/auth/forgot-password/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async resetPassword(data: ResetPasswordRequest): Promise<ApiResponse> {
-    return this.request('/api/v1/auth/reset-password/', {
+    return this.request('/auth/reset-password/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -265,7 +264,7 @@ class ApiClient {
       return { success: false, message: 'No refresh token available' };
     }
 
-    const response = await this.request<AuthResponse>('/api/v1/auth/refresh/', {
+    const response = await this.request<AuthResponse>('/auth/refresh/', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -279,7 +278,7 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request<User>('/api/v1/auth/me/');
+    return this.request<User>('/auth/me/');
   }
 
   // Check if user is authenticated
@@ -295,4 +294,4 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+export const apiClient = new ApiClient();
