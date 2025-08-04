@@ -302,6 +302,7 @@ const AppSidebar: React.FC = () => {
         lg:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={{ pointerEvents: 'auto' }}
     >
       <div
         className={`py-8 flex  ${

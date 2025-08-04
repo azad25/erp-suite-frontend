@@ -19,10 +19,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is logged in on mount
     const initAuth = async () => {
       try {
         if (apiClient.isAuthenticated()) {
@@ -30,33 +30,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (storedUser) {
             setUser(storedUser);
           } else {
-            // Fetch user from API if not in storage
             try {
               const response = await apiClient.getCurrentUser();
               if (response.success && response.data) {
                 setUser(response.data);
+                localStorage.setItem('user', JSON.stringify(response.data));
               } else {
-                // Token might be invalid, clear it
-                console.warn('Failed to fetch current user:', response.message);
-                await logout();
+                await apiClient.logout();
+                setUser(null);
               }
             } catch (apiError) {
-              console.warn('API call failed, but user has token. Using stored user data.');
-              // If API call fails but we have a token, keep the user logged in
-              // This handles cases where the API is temporarily unavailable
+              setUser(null);
             }
           }
+        } else {
+          setUser(null);
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        await logout();
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        }
+        setUser(null);
       } finally {
         setLoading(false);
+        setInitialized(true);
       }
     };
 
-    initAuth();
-  }, []);
+    if (!initialized) {
+      initAuth();
+    }
+  }, [initialized]);
 
   const login = async (credentials: LoginRequest) => {
     try {
@@ -65,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (response.success && response.data) {
         setUser(response.data.user);
-        router.push('/');
+        // Use replace to avoid back button issues and refresh to ensure middleware sees cookie
+        router.replace('/');
+        router.refresh();
         return { success: true };
       } else {
         return {
@@ -75,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     } catch (error) {
-      console.error('Login error:', error);
       return {
         success: false,
         message: 'An unexpected error occurred',

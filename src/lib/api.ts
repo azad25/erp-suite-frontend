@@ -189,13 +189,18 @@ class ApiClient {
   // Token management
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token');
+    if (token === 'undefined' || token === 'null') {
+      localStorage.removeItem('access_token');
+      return null;
+    }
+    return token;
   }
 
   private setToken(token: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem('access_token', token);
-    // Also set as cookie for middleware
+    // Set cookie for middleware - ensure it's available immediately
     document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
   }
 
@@ -215,13 +220,21 @@ class ApiClient {
       body: JSON.stringify(credentials),
     });
 
-    if (response.success && response.data) {
-      this.setToken(response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+    if (response.success && response.data && response.data.data) {
+      const authData = response.data.data;
+
+      this.setToken(authData.access_token);
+      localStorage.setItem('refresh_token', authData.refresh_token);
+      localStorage.setItem('user', JSON.stringify(authData.user));
     }
 
-    return response;
+    // Return the nested data structure for consistency
+    return {
+      success: response.success,
+      data: response.data?.data,
+      message: response.data?.message,
+      errors: response.errors
+    };
   }
 
   async register(userData: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
@@ -294,7 +307,17 @@ class ApiClient {
   getCurrentUserFromStorage(): User | null {
     if (typeof window === 'undefined') return null;
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+
+    if (!userStr || userStr === 'undefined' || userStr === 'null') {
+      return null;
+    }
+
+    try {
+      return JSON.parse(userStr);
+    } catch (error) {
+      localStorage.removeItem('user');
+      return null;
+    }
   }
 }
 

@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 
 export default function Ecommerce() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
-      {/* Test content to ensure page is rendering */}
+    <>
+      {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Dashboard
@@ -25,6 +25,7 @@ export default function Ecommerce() {
         </p>
       </div>
 
+      {/* Dashboard Content */}
       <div className="grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12 space-y-6 xl:col-span-7">
           <EcommerceMetrics />
@@ -47,6 +48,6 @@ export default function Ecommerce() {
           <RecentOrders />
         </div>
       </div>
-    </div>
+    </>
   );
 }
