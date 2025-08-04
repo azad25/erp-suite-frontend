@@ -10,6 +10,17 @@ export interface ApiResponse<T = any> {
   errors?: Record<string, string[]>;
 }
 
+// Add a nested response interface for login endpoint
+export interface NestedApiResponse<T = any> {
+  success: boolean;
+  data?: {
+    data: T;
+    message?: string;
+  };
+  message?: string;
+  errors?: Record<string, string[]>;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -209,13 +220,17 @@ class ApiClient {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-    // Also clear the cookie
-    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    
+    // Clear the cookie with multiple variations to ensure it's removed
+    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=localhost; SameSite=Lax';
+    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   }
 
   // Auth methods - all go through API Gateway
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>('/auth/login/', {
+    // Use type assertion since we know this endpoint returns nested data
+    const response = await this.request<{data: AuthResponse; message?: string}>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -228,11 +243,11 @@ class ApiClient {
       localStorage.setItem('user', JSON.stringify(authData.user));
     }
 
-    // Return the nested data structure for consistency
+    // Return the flattened structure for consistency
     return {
       success: response.success,
       data: response.data?.data,
-      message: response.data?.message,
+      message: response.data?.message || response.message,
       errors: response.errors
     };
   }
@@ -253,12 +268,23 @@ class ApiClient {
   }
 
   async logout(): Promise<ApiResponse> {
-    const response = await this.request('/auth/logout/', {
-      method: 'POST',
-    });
+    try {
+      const response = await this.request('/auth/logout/', {
+        method: 'POST',
+      });
 
-    this.removeToken();
-    return response;
+      // Always remove token regardless of API response
+      this.removeToken();
+      return response;
+    } catch (error) {
+      // Even if logout API fails, clear local tokens
+      this.removeToken();
+      console.error('Logout API error:', error);
+      return {
+        success: true, // Return success since we cleared local tokens
+        message: 'Logged out successfully',
+      };
+    }
   }
 
   async forgotPassword(data: ForgotPasswordRequest): Promise<ApiResponse> {

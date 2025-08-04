@@ -127,7 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      router.push('/signin');
+      
+      // Force a hard redirect to ensure middleware sees the cleared cookie
+      window.location.href = '/signin';
     }
   };
 

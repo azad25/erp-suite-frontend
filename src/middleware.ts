@@ -18,6 +18,7 @@ const protectedRoutes = [
   '/videos',
   '/modals',
   '/blank',
+  '/subscriptions',
 ];
 
 // Define public routes that don't require authentication
