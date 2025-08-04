@@ -31,12 +31,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(storedUser);
           } else {
             // Fetch user from API if not in storage
-            const response = await apiClient.getCurrentUser();
-            if (response.success && response.data) {
-              setUser(response.data);
-            } else {
-              // Token might be invalid, clear it
-              await logout();
+            try {
+              const response = await apiClient.getCurrentUser();
+              if (response.success && response.data) {
+                setUser(response.data);
+              } else {
+                // Token might be invalid, clear it
+                console.warn('Failed to fetch current user:', response.message);
+                await logout();
+              }
+            } catch (apiError) {
+              console.warn('API call failed, but user has token. Using stored user data.');
+              // If API call fails but we have a token, keep the user logged in
+              // This handles cases where the API is temporarily unavailable
             }
           }
         }

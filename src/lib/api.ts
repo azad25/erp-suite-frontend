@@ -195,6 +195,8 @@ class ApiClient {
   private setToken(token: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem('access_token', token);
+    // Also set as cookie for middleware
+    document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
   }
 
   private removeToken(): void {
@@ -202,6 +204,8 @@ class ApiClient {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+    // Also clear the cookie
+    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   }
 
   // Auth methods - all go through API Gateway

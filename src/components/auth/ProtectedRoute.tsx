@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center space-x-2">
           <div className="w-4 h-4 bg-brand-500 rounded-full animate-pulse"></div>
           <div className="w-4 h-4 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>

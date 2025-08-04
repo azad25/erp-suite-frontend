@@ -6,6 +6,7 @@
 interface RuntimeConfig {
   apiUrls: {
     base: string;
+    auth: string;
     graphql: string;
     websocket: string;
   };
@@ -27,7 +28,7 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
     const response = await fetch('/api/config');
     if (response.ok) {
       cachedConfig = await response.json();
-      return cachedConfig;
+      return cachedConfig!; // We know it's not null here
     }
   } catch (error) {
     console.warn('Failed to fetch runtime config:', error);

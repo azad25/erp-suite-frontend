@@ -1,38 +1,41 @@
 # Development Dockerfile for Next.js Frontend
 FROM node:20-alpine
 
-# Set working directory
-WORKDIR /app
-
 # Set environment variables for development
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NPM_CONFIG_CACHE=/home/appuser/.npm
+ENV NPM_CONFIG_PREFIX=/home/appuser/.npm-global
 
-# Install system dependencies
-RUN apk add --no-cache libc6-compat curl
+# Install system dependencies and create app user
+RUN apk add --no-cache libc6-compat curl && \
+    addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
 
-# Create app user and set up directories
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001 -G nodejs && \
-    chown -R nextjs:nodejs /app
-
-# Copy package files with correct ownership
-COPY --chown=nextjs:nodejs package*.json ./
+# Create necessary directories with proper permissions
+RUN mkdir -p /home/appuser/.npm /home/appuser/.npm-global /app && \
+    chown -R appuser:appgroup /home/appuser /app
 
 # Switch to non-root user
-USER nextjs
+USER appuser
 
-# Install dependencies
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY --chown=appuser:appgroup package*.json ./
+
+# Install dependencies as non-root user
 RUN npm ci
 
-# Copy source code with correct ownership (only essential files for faster builds)
-COPY --chown=nextjs:nodejs next.config.ts ./
-COPY --chown=nextjs:nodejs tsconfig.json ./
-COPY --chown=nextjs:nodejs postcss.config.js ./
-COPY --chown=nextjs:nodejs prettier.config.js ./
+# Copy source code (only essential files for faster builds)
+COPY --chown=appuser:appgroup next.config.ts ./
+COPY --chown=appuser:appgroup tsconfig.json ./
+COPY --chown=appuser:appgroup postcss.config.js ./
+COPY --chown=appuser:appgroup prettier.config.js ./
 
-# Create necessary directories with correct permissions
-RUN mkdir -p .next node_modules
+# Create .next directory with proper permissions
+RUN mkdir -p .next
 
 # Expose port
 EXPOSE 3000
@@ -41,5 +44,16 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || curl -f http://localhost:3000 || exit 1
 
+# Switch back to root to create entrypoint script
+USER root
+
+# Install su-exec for user switching
+RUN apk add --no-cache su-exec
+
+# Create entrypoint script that works with both root and non-root users
+RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
 # Run development server with hot reload
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["npm", "run", "dev"]
