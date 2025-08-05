@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React from "react";
 import dynamic from "next/dynamic";
 import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 
@@ -57,6 +57,14 @@ const DemographicCard = dynamic(
   }
 );
 
+const UserManagementDashboard = dynamic(
+  () => import("@/components/user-management/UserManagementDashboard"),
+  {
+    loading: () => <CardSkeleton className="h-64" />,
+    ssr: false
+  }
+);
+
 export default function Ecommerce() {
   return (
     <>
@@ -91,6 +99,10 @@ export default function Ecommerce() {
 
         <div className="col-span-12 xl:col-span-7">
           <RecentOrders />
+        </div>
+
+        <div className="col-span-12">
+          <UserManagementDashboard />
         </div>
       </div>
     </>
