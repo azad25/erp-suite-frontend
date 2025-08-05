@@ -210,9 +210,20 @@ class ApiClient {
 
   private setToken(token: string): void {
     if (typeof window === 'undefined') return;
+    
+    // Set localStorage first
     localStorage.setItem('access_token', token);
-    // Set cookie for middleware - ensure it's available immediately
+    
+    // Set cookie for middleware - ensure it's available immediately with multiple formats
     document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+    // Also set without SameSite for broader compatibility
+    document.cookie = `access_token=${token}; path=/; max-age=86400`;
+    
+    // If cookie wasn't set, try alternative approach
+    const cookieSet = document.cookie.includes('access_token=');
+    if (!cookieSet) {
+      document.cookie = `access_token=${token}; path=/`;
+    }
   }
 
   private removeToken(): void {
@@ -253,15 +264,40 @@ class ApiClient {
   }
 
   async register(userData: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>('/auth/register/', {
+    // Try both nested and flat response formats
+    const response = await this.request<any>('/auth/register/', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
 
     if (response.success && response.data) {
-      this.setToken(response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      let authData: AuthResponse;
+      
+      // Handle nested response format (like login)
+      if (response.data.data) {
+        authData = response.data.data;
+      } 
+      // Handle flat response format
+      else if (response.data.access_token) {
+        authData = response.data;
+      } else {
+        console.error('Unexpected registration response format:', response.data);
+        return {
+          success: false,
+          message: 'Invalid response format from server',
+        };
+      }
+
+      this.setToken(authData.access_token);
+      localStorage.setItem('refresh_token', authData.refresh_token);
+      localStorage.setItem('user', JSON.stringify(authData.user));
+
+      // Return flattened structure for consistency
+      return {
+        success: true,
+        data: authData,
+        message: response.data.message || response.message,
+      };
     }
 
     return response;

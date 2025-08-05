@@ -1,7 +1,6 @@
 "use client";
 
 import { useSidebar } from "@/context/SidebarContext";
-import { useAuth } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";

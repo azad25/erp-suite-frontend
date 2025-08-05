@@ -15,10 +15,12 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
 
   useEffect(() => {
     if (!loading && !user) {
+      // Use Next.js router for navigation
       router.push('/signin');
     }
   }, [user, loading, router]);
 
+  // Show loading state while authentication is being determined
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -31,8 +33,13 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
     );
   }
 
+  // If not authenticated, show fallback or nothing (redirect will happen via useEffect)
   if (!user) {
-    return fallback || null;
+    return fallback || (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="text-gray-600 dark:text-gray-400">Redirecting to login...</div>
+      </div>
+    );
   }
 
   return <>{children}</>;

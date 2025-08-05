@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { apiClient, User, LoginRequest, RegisterRequest } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { apiClient, User, LoginRequest, RegisterRequest } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +25,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // Add a small delay to ensure any cookies set during login are available
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         if (apiClient.isAuthenticated()) {
           const storedUser = apiClient.getCurrentUserFromStorage();
           if (storedUser) {
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(null);
               }
             } catch (apiError) {
+              console.error('Failed to get current user:', apiError);
               setUser(null);
             }
           }
@@ -47,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } catch (error) {
+        console.error('Auth initialization error:', error);
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
@@ -69,12 +74,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       const response = await apiClient.login(credentials);
-      
+
       if (response.success && response.data) {
         setUser(response.data.user);
-        // Use replace to avoid back button issues and refresh to ensure middleware sees cookie
+
+        // Verify tokens are set and wait for them to be available
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (attempts < maxAttempts) {
+          const hasToken = apiClient.isAuthenticated();
+          const storedUser = apiClient.getCurrentUserFromStorage();
+          const cookieExists = document.cookie.includes('access_token=');
+
+          if (hasToken && storedUser && cookieExists) {
+            break;
+          }
+
+          // Wait 50ms before next check
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
+        }
+
+        if (attempts >= maxAttempts) {
+          return {
+            success: false,
+            message: 'Authentication setup failed. Please try again.',
+          };
+        }
+
+        // Use replace instead of push to avoid back button issues
         router.replace('/');
-        router.refresh();
+
         return { success: true };
       } else {
         return {
@@ -84,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     } catch (error) {
+      console.error('Login error:', error);
       return {
         success: false,
         message: 'An unexpected error occurred',
@@ -97,10 +129,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       const response = await apiClient.register(userData);
-      
+
       if (response.success && response.data) {
         setUser(response.data.user);
-        router.push('/');
+
+        // Verify tokens are set and wait for them to be available
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (attempts < maxAttempts) {
+          const hasToken = apiClient.isAuthenticated();
+          const storedUser = apiClient.getCurrentUserFromStorage();
+          const cookieExists = document.cookie.includes('access_token=');
+
+          if (hasToken && storedUser && cookieExists) {
+            break;
+          }
+
+          // Wait 50ms before next check
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
+        }
+
+        if (attempts >= maxAttempts) {
+          return {
+            success: false,
+            message: 'Authentication setup failed. Please try logging in manually.',
+          };
+        }
+
+        // Use replace instead of push to avoid back button issues
+        router.replace('/');
+
         return { success: true };
       } else {
         return {
@@ -127,9 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      
-      // Force a hard redirect to ensure middleware sees the cleared cookie
-      window.location.href = '/signin';
+
+      // Use Next.js router for navigation
+      router.push('/signin');
     }
   };
 
