@@ -1,173 +1,279 @@
-# TailAdmin Next.js - Free Next.js Tailwind Admin Dashboard Template
+# UniBASE ERP Frontend
 
-TailAdmin is a free and open-source admin dashboard template built on **Next.js and Tailwind CSS** providing developers with everything they need to create a feature-rich and data-driven: back-end, dashboard, or admin panel solution for any sort of web project.
+A modern, enterprise-grade frontend application for the UniBASE ERP system, built with Next.js 15, React 19, and TypeScript. This application provides a comprehensive dashboard and management interface for enterprise resource planning.
 
-![TailAdmin - Next.js Dashboard Preview](./banner.png)
-
-With TailAdmin Next.js, you get access to all the necessary dashboard UI components, elements, and pages required to build a high-quality and complete dashboard or admin panel. Whether you're building a dashboard or admin panel for a complex web application or a simple website. 
-
-TailAdmin utilizes the powerful features of **Next.js 15** and common features of Next.js such as server-side rendering (SSR), static site generation (SSG), and seamless API route integration. Combined with the advancements of **React 19** and the robustness of **TypeScript**, TailAdmin is the perfect solution to help get your project up and running quickly.
+![UniBASE ERP Dashboard Preview](./preview.png)
 
 ## Overview
 
-TailAdmin provides essential UI components and layouts for building feature-rich, data-driven admin dashboards and control panels. It's built on:
+UniBASE ERP Frontend is a sophisticated web application that serves as the primary user interface for the UniBASE ERP system. It provides a modern, responsive dashboard with comprehensive features for managing various business operations including:
 
-- Next.js 15.x
-- React 19
-- TypeScript
-- Tailwind CSS V4
+- **Dashboard Analytics** - Real-time business metrics and KPIs
+- **Subscription Management** - Billing, usage tracking, and plan management
+- **User Authentication** - Secure login and role-based access control
+- **Dark/Light Mode** - Flexible theming options
+- **Responsive Design** - Optimized for desktop, tablet, and mobile devices
 
-### Quick Links
-- [✨ Visit Website](https://tailadmin.com)
-- [📄 Documentation](https://tailadmin.com/docs)
-- [⬇️ Download](https://tailadmin.com/download)
-- [🖌️ Figma Design File (Community Edition)](https://www.figma.com/community/file/1463141366275764364)
-- [⚡ Get PRO Version](https://tailadmin.com/pricing)
+## 🛠️ Technology Stack
 
-### Demos
-- [Free Version](https://nextjs-free-demo.tailadmin.com)
-- [Pro Version](https://nextjs-demo.tailadmin.com)
+- **Framework**: Next.js 15.2.3 with App Router
+- **UI Library**: React 19
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Charts**: ApexCharts
+- **Calendar**: FullCalendar
+- **Maps**: React JVectorMap
+- **Date Picker**: Flatpickr
+- **Drag & Drop**: React DnD
+- **File Upload**: React Dropzone
+- **Carousel**: Swiper
 
-### Other Versions
-- [HTML Version](https://github.com/TailAdmin/tailadmin-free-tailwind-dashboard-template)
-- [React Version](https://github.com/TailAdmin/free-react-tailwind-admin-dashboard)
-- [Vue.js Version](https://github.com/TailAdmin/vue-tailwind-admin-dashboard)
+## 📋 Prerequisites
 
-## Installation
+- Node.js 18.x or later (recommended Node.js 20.x)
+- npm or yarn package manager
+- Docker (for containerized deployment)
 
-### Prerequisites
-To get started with TailAdmin, ensure you have the following prerequisites installed and set up:
+## 🚀 Quick Start
 
-- Node.js 18.x or later (recommended to use Node.js 20.x or later)
+This frontend application is designed to run as part of the complete UniBASE ERP infrastructure. For the best experience and proper functionality, please use the infrastructure setup.
 
-### Cloning the Repository
-Clone the repository using the following command:
+### Infrastructure-Based Setup
 
-```bash
-git clone https://github.com/TailAdmin/free-nextjs-admin-dashboard.git
+1. **Navigate to the Infrastructure Directory**:
+   ```bash
+   cd ../erp-suit-infrastructure
+   ```
+
+2. **Start the Complete ERP Suite**:
+   ```bash
+   make up
+   # or
+   docker-compose up -d
+   ```
+
+3. **Access the Frontend**:
+   The UniBASE ERP frontend will be available at `http://localhost:3000`
+
+### Environment Configuration
+
+The frontend is automatically configured through the infrastructure setup. All environment variables are managed by the Docker Compose configuration in the infrastructure directory.
+
+For detailed environment setup instructions, see [ENV_SETUP.md](./ENV_SETUP.md).
+
+## 🏗️ Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── (admin)/           # Admin dashboard routes
+│   │   ├── subscriptions/ # Subscription management
+│   │   └── page.tsx       # Main dashboard
+│   ├── (full-width-pages)/ # Full-width layout pages
+│   ├── api/               # API routes
+│   └── layout.tsx         # Root layout
+├── components/            # Reusable UI components
+│   ├── auth/             # Authentication components
+│   ├── charts/           # Chart components
+│   ├── ecommerce/        # Dashboard components
+│   ├── form/             # Form components
+│   ├── tables/           # Table components
+│   └── ui/               # Base UI components
+├── context/              # React context providers
+├── hooks/                # Custom React hooks
+├── icons/                # SVG icons
+├── layout/               # Layout components
+└── lib/                  # Utility functions and config
 ```
 
-> Windows Users: place the repository near the root of your drive if you face issues while cloning.
+## 🎨 Features
 
-1. Install dependencies:
-    ```bash
-    npm install
-    # or
-    yarn install
-    ```
-    > Use `--legacy-peer-deps` flag if you face peer-dependency error during installation.
+### Dashboard
+- **Real-time Analytics** - Live business metrics and KPIs
+- **Interactive Charts** - ApexCharts integration for data visualization
+- **Monthly Targets** - Goal tracking and progress monitoring
+- **Recent Orders** - Latest transaction overview
+- **Demographics** - Customer and market insights
 
-2. Start the development server:
-    ```bash
-    npm run dev
-    # or
-    yarn dev
-    ```
+### Subscription Management
+- **Billing Dashboard** - Payment history and invoice management
+- **Usage Tracking** - Resource consumption monitoring
+- **Plan Management** - Subscription plan selection and upgrades
 
-## Components
+### User Experience
+- **Dark/Light Mode** - Toggle between themes
+- **Responsive Design** - Mobile-first approach
+- **Accessibility** - WCAG compliant components
+- **Internationalization** - Multi-language support ready
 
-TailAdmin is a pre-designed starting point for building a web-based dashboard using Next.js and Tailwind CSS. The template includes:
+### Authentication & Security
+- **JWT Authentication** - Secure token-based auth
+- **Role-based Access** - RBAC implementation
+- **Session Management** - Secure session handling
+- **Middleware Protection** - Route-level security
 
-- Sophisticated and accessible sidebar
-- Data visualization components
-- Profile management and custom 404 page
-- Tables and Charts(Line and Bar)
-- Authentication forms and input elements
-- Alerts, Dropdowns, Modals, Buttons and more
-- Can't forget Dark Mode 🕶️
+## 🐳 Docker Deployment
 
-All components are built with React and styled using Tailwind CSS for easy customization.
+This frontend application is designed to be deployed as part of the complete UniBASE ERP infrastructure using Docker Compose.
 
-## Feature Comparison
+### Infrastructure-Based Deployment
 
-### Free Version
-- 1 Unique Dashboard
-- 30+ dashboard components
-- 50+ UI elements
-- Basic Figma design files
-- Community support
+The frontend is automatically built and deployed when you start the infrastructure:
 
-### Pro Version
-- 5 Unique Dashboards: Analytics, Ecommerce, Marketing, CRM, Stocks (more coming soon)
-- 400+ dashboard components and UI elements
-- Complete Figma design file
-- Email support
+```bash
+# From the infrastructure directory
+cd ../erp-suit-infrastructure
 
-To learn more about pro version features and pricing, visit our [pricing page](https://tailadmin.com/pricing).
+# Start all services including the frontend
+make start-dev
 
-## Changelog
+# Or for production
+make up-prod
+```
 
-### Version 2.0.2 - [March 25, 2025]
+### Individual Container Management
 
-- Upgraded to Next v15.2.3 for [CVE-2025-29927](https://nextjs.org/blog/cve-2025-29927) concerns
-- Included overrides vectormap for packages to prevent peer dependency errors during installation.
-- Migrated from react-flatpickr to flatpickr package for React 19 support
+If you need to manage the frontend container individually:
 
-### Version 2.0.1 - [February 27, 2025]
+```bash
+# Rebuild the frontend container
+docker-compose build frontend
 
-#### Update Overview
+# Restart only the frontend service
+docker-compose restart frontend
 
-- Upgraded to Tailwind CSS v4 for better performance and efficiency.
-- Updated class usage to match the latest syntax and features.
-- Replaced deprecated class and optimized styles.
+# View frontend logs
+docker-compose logs -f frontend
+```
 
-#### Next Steps
+## 📊 Available Scripts
 
-- Run npm install or yarn install to update dependencies.
-- Check for any style changes or compatibility issues.
-- Refer to the Tailwind CSS v4 [Migration Guide](https://tailwindcss.com/docs/upgrade-guide) on this release. if needed.
-- This update keeps the project up to date with the latest Tailwind improvements. 🚀
+These scripts are primarily used during development and CI/CD processes:
+
+- `npm run dev` - Start development server (for local development only)
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+> **Note**: For production deployment, use the infrastructure-based approach with Docker Compose.
+
+## 🔧 Configuration
+
+### API Integration
+
+The application integrates with multiple microservices through the centralized configuration in `src/lib/config.ts`:
+
+```typescript
+import config from '@/lib/config';
+
+// Access API endpoints
+const authUrl = config.apiUrls.auth;
+const graphqlUrl = config.graphql.url;
+```
+
+### Feature Flags
+
+Control feature availability through environment variables:
+
+```typescript
+if (config.features.aiChatbot) {
+  // Enable AI chatbot
+}
+
+if (config.features.realtimeUpdates) {
+  // Enable real-time updates
+}
+```
+
+## 🧪 Testing
+
+### Infrastructure-Based Testing
+
+Run tests as part of the complete system:
+
+```bash
+# From the infrastructure directory
+cd ../erp-suit-infrastructure
+
+# Run all tests including frontend
+make test
+```
+
+### Local Testing
+
+For local development and testing:
+
+```bash
+# Run tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+## 📦 Build & Deployment
+
+### Infrastructure-Based Build
+
+The frontend is automatically built as part of the infrastructure deployment process:
+
+```bash
+# From the infrastructure directory
+cd ../erp-suit-infrastructure
+
+# Build all services including frontend
+make build
+
+# Or build only the frontend
+docker-compose build frontend
+```
+
+### Development Build
+
+For local development and testing:
+
+```bash
+npm run build
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+For support and questions:
+
+- 📧 Email: support@unibase-erp.com
+- 📖 Documentation: [docs.unibase-erp.com](https://docs.unibase-erp.com)
+- 🐛 Issues: [GitHub Issues](https://github.com/unibase-erp/frontend/issues)
+
+## 🔄 Version History
+
+### v2.0.2 (March 25, 2025)
+- Upgraded to Next.js 15.2.3 for security patches
+- Fixed peer dependency issues with vector maps
+- Migrated to flatpickr for React 19 compatibility
+
+### v2.0.1 (February 27, 2025)
+- Upgraded to Tailwind CSS v4
+- Enhanced performance and efficiency
+- Updated class usage to latest syntax
 
 ### v2.0.0 (February 2025)
-A major update focused on Next.js 15 implementation and comprehensive redesign.
+- Complete redesign with Next.js 15 App Router
+- React 19 integration
+- Enhanced UI components and accessibility
+- New dashboard features and analytics
 
-#### Major Improvements
-- Complete redesign using Next.js 15 App Router and React Server Components
-- Enhanced user interface with Next.js-optimized components
-- Improved responsiveness and accessibility
-- New features including collapsible sidebar, chat screens, and calendar
-- Redesigned authentication using Next.js App Router and server actions
-- Updated data visualization using ApexCharts for React
+---
 
-#### Breaking Changes
-
-- Migrated from Next.js 14 to Next.js 15
-- Chart components now use ApexCharts for React
-- Authentication flow updated to use Server Actions and middleware
-
-[Read more](https://tailadmin.com/docs/update-logs/nextjs) on this release.
-
-#### Breaking Changes
-- Migrated from Next.js 14 to Next.js 15
-- Chart components now use ApexCharts for React
-- Authentication flow updated to use Server Actions and middleware
-
-### v1.3.4 (July 01, 2024)
-- Fixed JSvectormap rendering issues
-
-### v1.3.3 (June 20, 2024)
-- Fixed build error related to Loader component
-
-### v1.3.2 (June 19, 2024)
-- Added ClickOutside component for dropdown menus
-- Refactored sidebar components
-- Updated Jsvectormap package
-
-### v1.3.1 (Feb 12, 2024)
-- Fixed layout naming consistency
-- Updated styles
-
-### v1.3.0 (Feb 05, 2024)
-- Upgraded to Next.js 14
-- Added Flatpickr integration
-- Improved form elements
-- Enhanced multiselect functionality
-- Added default layout component
-
-## License
-
-TailAdmin Next.js Free Version is released under the MIT License.
-
-## Support
-
-If you find this project helpful, please consider giving it a star on GitHub. Your support helps us continue developing and maintaining this template.
+**UniBASE ERP** - Empowering businesses with comprehensive enterprise resource planning solutions.
