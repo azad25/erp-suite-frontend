@@ -2,14 +2,14 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { useEffect, ReactNode } from "react";
+import { useEffect, ReactNode, memo } from "react";
 
 interface ProtectedRouteProps {
   children: ReactNode;
   fallback?: ReactNode;
 }
 
-export default function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
+function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -20,27 +20,22 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
     }
   }, [user, loading, router]);
 
-  // Show loading state while authentication is being determined
+  // Show minimal loading state - avoid heavy animations
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-brand-500 rounded-full animate-pulse"></div>
-          <div className="w-4 h-4 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-4 h-4 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-        </div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">Loading...</div>
       </div>
     );
   }
 
-  // If not authenticated, show fallback or nothing (redirect will happen via useEffect)
+  // If not authenticated, redirect immediately
   if (!user) {
-    return fallback || (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="text-gray-600 dark:text-gray-400">Redirecting to login...</div>
-      </div>
-    );
+    return null; // Don't render anything, just redirect
   }
 
   return <>{children}</>;
 }
+
+// Memoize to prevent unnecessary re-renders
+export default memo(ProtectedRoute);

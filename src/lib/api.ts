@@ -73,9 +73,26 @@ class ApiClient {
     // No hardcoded URLs - everything comes from runtime config
   }
 
+  private configPromise: Promise<void> | null = null;
+
   private async ensureConfigLoaded(): Promise<void> {
     if (this.configLoaded) return;
 
+    // Prevent multiple simultaneous config loads
+    if (this.configPromise) {
+      return this.configPromise;
+    }
+
+    this.configPromise = this.loadConfig();
+
+    try {
+      await this.configPromise;
+    } finally {
+      this.configPromise = null;
+    }
+  }
+
+  private async loadConfig(): Promise<void> {
     try {
       const config = await getRuntimeConfig();
       this.baseURL = config.apiUrls.base;
@@ -104,6 +121,7 @@ class ApiClient {
       defaultHeaders['Authorization'] = `Bearer ${token}`;
     }
 
+    // Add caching headers for GET requests
     const config: RequestInit = {
       ...options,
       headers: {
@@ -111,6 +129,23 @@ class ApiClient {
         ...options.headers,
       },
     };
+
+    // Enable browser caching for GET requests
+    if (!options.method || options.method === 'GET') {
+      config.cache = 'default'; // Use browser cache when available
+
+      // Add conditional request headers if we have cached data
+      const cacheKey = this.getCacheKey(endpoint);
+      const cachedETag = this.getCachedETag(cacheKey);
+      const cachedLastModified = this.getCachedLastModified(cacheKey);
+
+      if (cachedETag) {
+        defaultHeaders['If-None-Match'] = cachedETag;
+      }
+      if (cachedLastModified) {
+        defaultHeaders['If-Modified-Since'] = cachedLastModified;
+      }
+    }
 
     try {
       const response = await fetch(url, config);
@@ -175,6 +210,29 @@ class ApiClient {
         };
       }
 
+      // Handle 304 Not Modified responses
+      if (response.status === 304) {
+        const cacheKey = this.getCacheKey(endpoint);
+        const cachedData = this.getCachedData(cacheKey);
+        if (cachedData) {
+          return {
+            success: true,
+            data: cachedData,
+          };
+        }
+      }
+
+      // Cache response headers for future conditional requests
+      if (response.status === 200 && (!options.method || options.method === 'GET')) {
+        const cacheKey = this.getCacheKey(endpoint);
+        const etag = response.headers.get('ETag');
+        const lastModified = response.headers.get('Last-Modified');
+
+        if (etag) this.setCachedETag(cacheKey, etag);
+        if (lastModified) this.setCachedLastModified(cacheKey, lastModified);
+        this.setCachedData(cacheKey, data);
+      }
+
       return {
         success: true,
         data,
@@ -210,15 +268,15 @@ class ApiClient {
 
   private setToken(token: string): void {
     if (typeof window === 'undefined') return;
-    
+
     // Set localStorage first
     localStorage.setItem('access_token', token);
-    
+
     // Set cookie for middleware - ensure it's available immediately with multiple formats
     document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
     // Also set without SameSite for broader compatibility
     document.cookie = `access_token=${token}; path=/; max-age=86400`;
-    
+
     // If cookie wasn't set, try alternative approach
     const cookieSet = document.cookie.includes('access_token=');
     if (!cookieSet) {
@@ -231,7 +289,7 @@ class ApiClient {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-    
+
     // Clear the cookie with multiple variations to ensure it's removed
     document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=localhost; SameSite=Lax';
@@ -241,7 +299,7 @@ class ApiClient {
   // Auth methods - all go through API Gateway
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     // Use type assertion since we know this endpoint returns nested data
-    const response = await this.request<{data: AuthResponse; message?: string}>('/auth/login/', {
+    const response = await this.request<{ data: AuthResponse; message?: string }>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -272,11 +330,11 @@ class ApiClient {
 
     if (response.success && response.data) {
       let authData: AuthResponse;
-      
+
       // Handle nested response format (like login)
       if (response.data.data) {
         authData = response.data.data;
-      } 
+      }
       // Handle flat response format
       else if (response.data.access_token) {
         authData = response.data;
@@ -363,6 +421,65 @@ class ApiClient {
   // Check if user is authenticated
   isAuthenticated(): boolean {
     return !!this.getToken();
+  }
+
+  // Browser cache management for conditional requests
+  private getCacheKey(endpoint: string): string {
+    return `api_cache_${endpoint.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  }
+
+  private getCachedETag(cacheKey: string): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(`${cacheKey}_etag`);
+  }
+
+  private setCachedETag(cacheKey: string, etag: string): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(`${cacheKey}_etag`, etag);
+  }
+
+  private getCachedLastModified(cacheKey: string): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(`${cacheKey}_lastmodified`);
+  }
+
+  private setCachedLastModified(cacheKey: string, lastModified: string): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(`${cacheKey}_lastmodified`, lastModified);
+  }
+
+  private getCachedData(cacheKey: string): any {
+    if (typeof window === 'undefined') return null;
+    const cached = localStorage.getItem(`${cacheKey}_data`);
+    if (!cached) return null;
+
+    try {
+      const parsed = JSON.parse(cached);
+      // Check if cache is still valid (5 minutes for most data)
+      if (Date.now() - parsed.timestamp > 5 * 60 * 1000) {
+        this.clearCachedData(cacheKey);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  }
+
+  private setCachedData(cacheKey: string, data: any): void {
+    if (typeof window === 'undefined') return;
+    const cacheData = {
+      data,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`${cacheKey}_data`, JSON.stringify(cacheData));
+  }
+
+  private clearCachedData(cacheKey: string): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(`${cacheKey}_etag`);
+    localStorage.removeItem(`${cacheKey}_lastmodified`);
+    localStorage.removeItem(`${cacheKey}_data`);
   }
 
   // Get current user from localStorage

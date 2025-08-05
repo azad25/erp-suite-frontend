@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
  * This allows changing config without rebuilding the frontend
  * No hardcoded URLs - all must come from environment variables
  */
-export async function GET() {
+export async function GET(request: Request) {
   // Required environment variables
   const requiredEnvVars = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
@@ -41,7 +41,25 @@ export async function GET() {
       aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
       realtimeUpdates: process.env.NEXT_PUBLIC_ENABLE_REALTIME === 'true',
     },
+    version: process.env.npm_package_version || '1.0.0',
+    timestamp: Date.now(),
   };
 
-  return NextResponse.json(config);
+  // Generate ETag based on config content
+  const configString = JSON.stringify(config);
+  const etag = `"${Buffer.from(configString).toString('base64').slice(0, 16)}"`;
+
+  // Check if client has current version
+  const clientETag = request.headers.get('if-none-match');
+  if (clientETag === etag) {
+    return new NextResponse(null, { status: 304 });
+  }
+
+  return NextResponse.json(config, {
+    headers: {
+      'Cache-Control': 'public, max-age=300, s-maxage=300', // 5 minutes
+      'ETag': etag,
+      'Last-Modified': new Date().toUTCString(),
+    },
+  });
 }

@@ -23,33 +23,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const initAuth = async () => {
+    const initAuth = () => {
       try {
-        // Add a small delay to ensure any cookies set during login are available
-        await new Promise(resolve => setTimeout(resolve, 50));
-
+        // Synchronous check for immediate response
         if (apiClient.isAuthenticated()) {
           const storedUser = apiClient.getCurrentUserFromStorage();
           if (storedUser) {
+            // Use cached user data immediately - no async operations
             setUser(storedUser);
-          } else {
-            try {
-              const response = await apiClient.getCurrentUser();
-              if (response.success && response.data) {
-                setUser(response.data);
-                localStorage.setItem('user', JSON.stringify(response.data));
-              } else {
-                await apiClient.logout();
-                setUser(null);
-              }
-            } catch (apiError) {
-              console.error('Failed to get current user:', apiError);
-              setUser(null);
-            }
+            setLoading(false);
+            setInitialized(true);
+            return; // Exit early with cached data
           }
-        } else {
-          setUser(null);
         }
+        
+        // If no cached data, set as unauthenticated immediately
+        setUser(null);
+        setLoading(false);
+        setInitialized(true);
+        
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (typeof window !== 'undefined') {
@@ -59,7 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         }
         setUser(null);
-      } finally {
         setLoading(false);
         setInitialized(true);
       }

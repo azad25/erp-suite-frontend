@@ -17,25 +17,50 @@ interface RuntimeConfig {
 }
 
 let cachedConfig: RuntimeConfig | null = null;
+let configPromise: Promise<RuntimeConfig> | null = null;
 
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
   if (cachedConfig) {
     return cachedConfig;
   }
 
-  try {
-    // Fetch config from your API endpoint
-    const response = await fetch('/api/config');
-    if (response.ok) {
-      cachedConfig = await response.json();
-      return cachedConfig!; // We know it's not null here
-    }
-  } catch (error) {
-    console.warn('Failed to fetch runtime config:', error);
+  // Prevent multiple simultaneous config requests
+  if (configPromise) {
+    return configPromise;
   }
 
-  // If API config fails, throw error - no hardcoded fallbacks
-  throw new Error('Configuration not available. Please ensure environment variables are set.');
+  configPromise = fetchConfig();
+  
+  try {
+    cachedConfig = await configPromise;
+    return cachedConfig;
+  } finally {
+    configPromise = null;
+  }
+}
+
+async function fetchConfig(): Promise<RuntimeConfig> {
+  try {
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch('/api/config', {
+      signal: controller.signal,
+      cache: 'force-cache' // Enable browser caching
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      return await response.json();
+    }
+    
+    throw new Error(`Config API returned ${response.status}`);
+  } catch (error) {
+    console.warn('Failed to fetch runtime config:', error);
+    throw new Error('Configuration not available. Please ensure environment variables are set.');
+  }
 }
 
 // Clear cache when needed
