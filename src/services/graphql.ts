@@ -1,22 +1,57 @@
 // GraphQL service for ERP system integration
 import { GraphQLClient } from 'graphql-request';
 import { gql } from 'graphql-request';
-
-// GraphQL Configuration - Connect through API Gateway/nginx proxy
-const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql';
+import { getRuntimeConfig } from '@/lib/runtime-config';
+import {
+  User,
+  Organization,
+  OrganizationSettings,
+  Role,
+  Permission,
+  UserRole,
+  RolePermission,
+  UserStats,
+  SecurityStats,
+  ActivityLog
+} from '@/types/user';
 
 // Create GraphQL client
 class GraphQLService {
-  private client: GraphQLClient;
+  private client: GraphQLClient | null = null;
+  private configLoaded = false;
 
   constructor() {
-    this.client = new GraphQLClient(GRAPHQL_URL, {
-      headers: {},
-    });
+    this.initializeClient();
+  }
+
+  private async initializeClient() {
+    try {
+      const config = await getRuntimeConfig();
+      this.client = new GraphQLClient(config.apiUrls.graphql, {
+        headers: {},
+      });
+      this.configLoaded = true;
+    } catch (error) {
+      console.error('Failed to initialize GraphQL client:', error);
+      // Fallback to environment variable
+      const fallbackUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:4000/graphql';
+      this.client = new GraphQLClient(fallbackUrl, {
+        headers: {},
+      });
+      this.configLoaded = true;
+    }
+  }
+
+  private async ensureClientReady() {
+    if (!this.configLoaded || !this.client) {
+      await this.initializeClient();
+    }
   }
 
   // Update authorization header with current token
   private updateAuthHeader() {
+    if (!this.client) return;
+
     const token = localStorage.getItem('access_token');
     if (token) {
       this.client.setHeader('Authorization', `Bearer ${token}`);
@@ -27,8 +62,14 @@ class GraphQLService {
 
   // Execute GraphQL query with automatic token refresh
   async request<T = any>(query: string, variables?: any): Promise<T> {
+    await this.ensureClientReady();
+
+    if (!this.client) {
+      throw new Error('GraphQL client not initialized');
+    }
+
     this.updateAuthHeader();
-    
+
     try {
       return await this.client.request<T>(query, variables);
     } catch (error: any) {
@@ -42,6 +83,7 @@ class GraphQLService {
           // Refresh failed, redirect to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           window.location.href = '/signin';
           throw refreshError;
         }
@@ -56,23 +98,33 @@ class GraphQLService {
       throw new Error('No refresh token available');
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-      }),
-    });
+    try {
+      const config = await getRuntimeConfig();
+      const response = await fetch(`${config.apiUrls.base}/auth/refresh/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh_token: refreshToken,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Token refresh failed');
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        localStorage.setItem('access_token', data.data.access_token);
+        localStorage.setItem('refresh_token', data.data.refresh_token);
+      } else {
+        throw new Error('Invalid refresh response format');
+      }
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
   }
 }
 
@@ -624,101 +676,7 @@ export const USER_ACTIVITY_SUBSCRIPTION = gql`
   }
 `;
 
-// TypeScript interfaces for GraphQL responses
-export interface User {
-  id: string;
-  organizationId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  isActive: boolean;
-  isVerified: boolean;
-  twoFactorEnabled: boolean;
-  lastLoginAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  organization?: Organization;
-  userRoles?: UserRole[];
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  domain: string;
-  settings?: OrganizationSettings;
-}
-
-export interface OrganizationSettings {
-  timezone: string;
-  dateFormat: string;
-  currency: string;
-  language: string;
-  twoFactorEnabled: boolean;
-  sessionTimeout: number;
-}
-
-export interface Role {
-  id: string;
-  organizationId: string;
-  name: string;
-  description: string;
-  isSystem: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  rolePermissions?: RolePermission[];
-}
-
-export interface Permission {
-  id: string;
-  name: string;
-  resource: string;
-  action: string;
-  scope: string;
-  description: string;
-  isSystem: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface UserRole {
-  id: string;
-  role: Role;
-}
-
-export interface RolePermission {
-  permission: Permission;
-}
-
-export interface UserStats {
-  totalUsers: number;
-  activeUsers: number;
-  inactiveUsers: number;
-  verifiedUsers: number;
-  unverifiedUsers: number;
-  recentSignups: number;
-  recentLogins: number;
-}
-
-export interface SecurityStats {
-  failedLoginsToday: number;
-  lockedAccounts: number;
-  securityAlerts: number;
-  twoFactorEnabled: number;
-  passwordResetsToday: number;
-}
-
-export interface ActivityLog {
-  id: string;
-  userId: string;
-  action: string;
-  resource: string;
-  details: Record<string, any>;
-  ipAddress: string;
-  userAgent: string;
-  createdAt: string;
-  user?: User;
-}
+// GraphQL response and mutation types
 
 export interface GraphQLResponse<T> {
   data: T;

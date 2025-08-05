@@ -1,8 +1,6 @@
 // WebSocket service for real-time communication
 import { io, Socket } from 'socket.io-client';
-
-// WebSocket Configuration - Connect through API Gateway/nginx proxy
-const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 export interface WebSocketMessage {
   type: string;
@@ -76,12 +74,31 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private eventListeners: Map<string, Set<Function>> = new Map();
+  private websocketUrl: string | null = null;
 
   constructor() {
+    this.initializeConnection();
+  }
+
+  private async initializeConnection(): Promise<void> {
+    try {
+      const config = await getRuntimeConfig();
+      this.websocketUrl = config.apiUrls.websocket;
+    } catch (error) {
+      console.error('Failed to get WebSocket URL from config:', error);
+      // Fallback to environment variable
+      this.websocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:3001';
+    }
+    
     this.connect();
   }
 
   private connect(): void {
+    if (!this.websocketUrl) {
+      console.error('WebSocket URL not available');
+      return;
+    }
+
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -89,7 +106,7 @@ class WebSocketService {
       return;
     }
 
-    this.socket = io(WEBSOCKET_URL, {
+    this.socket = io(this.websocketUrl, {
       auth: {
         token: `Bearer ${token}`,
       },
@@ -213,7 +230,8 @@ class WebSocketService {
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/refresh`, {
+      const config = await getRuntimeConfig();
+      const response = await fetch(`${config.apiUrls.base}/auth/refresh/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,16 +246,21 @@ class WebSocketService {
       }
 
       const data = await response.json();
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
+      if (data.success && data.data) {
+        localStorage.setItem('access_token', data.data.access_token);
+        localStorage.setItem('refresh_token', data.data.refresh_token);
 
-      // Reconnect with new token
-      this.disconnect();
-      this.connect();
+        // Reconnect with new token
+        this.disconnect();
+        this.connect();
+      } else {
+        throw new Error('Invalid refresh response format');
+      }
     } catch (error) {
       console.error('Token refresh failed:', error);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
       window.location.href = '/signin';
     }
   }

@@ -7,7 +7,7 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import Badge from "../ui/badge/Badge";
 import { apiClient } from "../../lib/api";
-import type { User } from "../../lib/api";
+import type { User } from "../../types/user";
 
 interface EnhancedUserProfileProps {
   showSecuritySection?: boolean;
@@ -18,6 +18,9 @@ export default function EnhancedUserProfile({
   showSecuritySection = true, 
   showOrganizationSection = true 
 }: EnhancedUserProfileProps) {
+  // Suppress unused variable warning for showOrganizationSection
+  // This prop is kept for future use when organization section is implemented
+  void showOrganizationSection;
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +55,8 @@ export default function EnhancedUserProfile({
       if (response.success && response.data) {
         setUser(response.data);
         setEditForm({
-          first_name: response.data.first_name,
-          last_name: response.data.last_name,
+          first_name: response.data.first_name || response.data.firstName || '',
+          last_name: response.data.last_name || response.data.lastName || '',
           email: response.data.email
         });
       } else {
@@ -62,8 +65,8 @@ export default function EnhancedUserProfile({
         if (localUser) {
           setUser(localUser);
           setEditForm({
-            first_name: localUser.first_name,
-            last_name: localUser.last_name,
+            first_name: localUser.first_name || localUser.firstName || '',
+            last_name: localUser.last_name || localUser.lastName || '',
             email: localUser.email
           });
         } else {
@@ -169,12 +172,12 @@ export default function EnhancedUserProfile({
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800 bg-brand-100 dark:bg-brand-900/20 flex items-center justify-center">
                 <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
-                  {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+                  {(user.first_name || user.firstName || '').charAt(0)}{(user.last_name || user.lastName || '').charAt(0)}
                 </span>
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-                  {user.first_name} {user.last_name}
+                  {(user.first_name || user.firstName || '')} {(user.last_name || user.lastName || '')}
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {user.email}
@@ -219,14 +222,14 @@ export default function EnhancedUserProfile({
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">First Name</p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {user.first_name}
+                {user.first_name || user.firstName || 'N/A'}
               </p>
             </div>
             
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Last Name</p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {user.last_name}
+                {user.last_name || user.lastName || 'N/A'}
               </p>
             </div>
             
@@ -240,7 +243,7 @@ export default function EnhancedUserProfile({
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Member Since</p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {formatDate(user.created_at)}
+                {user.created_at || user.createdAt ? formatDate(user.created_at || user.createdAt || '') : 'N/A'}
               </p>
             </div>
           </div>

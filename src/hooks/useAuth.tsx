@@ -2,7 +2,8 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient, User, LoginRequest, RegisterRequest } from '@/lib/api';
+import { apiClient } from '@/lib/api';
+import { User, LoginRequest, RegisterRequest } from '@/types/user';
 
 interface AuthContextType {
   user: User | null;

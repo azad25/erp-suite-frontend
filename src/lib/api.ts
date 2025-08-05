@@ -1,14 +1,11 @@
 import { getErrorMessage, parseFieldErrors } from './errorMessages';
 import { getRuntimeConfig } from './runtime-config';
+import { User, LoginRequest, RegisterRequest, AuthResponse, ApiResponse, normalizeUser } from '@/types/user';
+
+// Re-export types for convenience
+export type { User, LoginRequest, RegisterRequest, AuthResponse, ApiResponse };
 
 // API configuration will be loaded at runtime - no hardcoded URLs
-
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  errors?: Record<string, string[]>;
-}
 
 // Add a nested response interface for login endpoint
 export interface NestedApiResponse<T = any> {
@@ -21,22 +18,6 @@ export interface NestedApiResponse<T = any> {
   errors?: Record<string, string[]>;
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-  remember_me?: boolean;
-}
-
-export interface RegisterRequest {
-  first_name: string;
-  last_name: string;
-  email: string;
-  password: string;
-  password_confirmation: string;
-  organization_name: string;
-  domain: string;
-}
-
 export interface ForgotPasswordRequest {
   email: string;
 }
@@ -46,23 +27,6 @@ export interface ResetPasswordRequest {
   email: string;
   password: string;
   password_confirmation: string;
-}
-
-export interface User {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  email_verified_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
 }
 
 class ApiClient {
@@ -492,7 +456,8 @@ class ApiClient {
     }
 
     try {
-      return JSON.parse(userStr);
+      const rawUser = JSON.parse(userStr);
+      return normalizeUser(rawUser);
     } catch (error) {
       localStorage.removeItem('user');
       return null;

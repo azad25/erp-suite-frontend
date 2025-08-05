@@ -51,7 +51,7 @@ USER root
 RUN apk add --no-cache su-exec
 
 # Create entrypoint script that works with both root and non-root users
-RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
+RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# Install dependencies if node_modules is missing or incomplete\nif [ ! -d "/app/node_modules" ] || [ ! -d "/app/node_modules/graphql-request" ]; then\n  echo "Installing dependencies..."\n  npm install --prefer-offline --no-audit --progress=false\nfi\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Run development server with hot reload
