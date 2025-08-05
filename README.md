@@ -61,6 +61,36 @@ The frontend is automatically configured through the infrastructure setup. All e
 
 For detailed environment setup instructions, see [ENV_SETUP.md](./ENV_SETUP.md).
 
+### Test User Credentials
+
+Once the infrastructure is running, you can log in with the following test users:
+
+**Minimal Test Users (for development):**
+- **Admin User**: `admin@test.com` / `admin123`
+- **Regular User**: `user@test.com` / `user123`
+
+**Generated Test Users (100 users created automatically):**
+- **Password for all users**: `password123`
+- **Email format**: `firstname.lastname{number}@domain.com`
+- **Example users** (check the seeding logs for actual emails):
+  - `john.smith1@gmail.com` / `password123`
+  - `jane.doe2@company.com` / `password123`
+  - `michael.johnson3@yahoo.com` / `password123`
+
+**Available Roles:**
+- **Super Admin** - Full system access
+- **Organization Admin** - Organization-level admin
+- **Manager** - Management access
+- **Employee** - Standard access
+- **HR Manager** - HR management
+- **Finance Manager** - Financial management
+- **Sales Manager** - Sales and CRM
+- **Project Manager** - Project management
+- **Inventory Manager** - Inventory management
+- **Viewer** - Read-only access
+
+> **Note**: These are development/test credentials. Change passwords and create proper user accounts for production use.
+
 ## 🏗️ Project Structure
 
 ```
