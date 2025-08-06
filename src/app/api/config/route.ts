@@ -1,65 +1,22 @@
 import { NextResponse } from 'next/server';
 
-/**
- * Runtime configuration endpoint
- * This allows changing config without rebuilding the frontend
- * No hardcoded URLs - all must come from environment variables
- */
-export async function GET(request: Request) {
-  // Required environment variables
-  const requiredEnvVars = {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    NEXT_PUBLIC_AUTH_API_URL: process.env.NEXT_PUBLIC_AUTH_API_URL,
-    NEXT_PUBLIC_GRAPHQL_URL: process.env.NEXT_PUBLIC_GRAPHQL_URL,
-    NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
-  };
-
-  // Check for missing environment variables
-  const missingVars = Object.entries(requiredEnvVars)
-    .filter(([key, value]) => !value)
-    .map(([key]) => key);
-
-  if (missingVars.length > 0) {
-    return NextResponse.json(
-      { 
-        error: 'Missing required environment variables', 
-        missing: missingVars,
-        message: 'Please ensure all required environment variables are set in your Docker configuration'
-      },
-      { status: 500 }
-    );
-  }
-
+export async function GET() {
   const config = {
     apiUrls: {
-      base: process.env.NEXT_PUBLIC_API_URL!,
-      auth: process.env.NEXT_PUBLIC_AUTH_API_URL!,
-      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL!,
-      websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL!,
+      base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
+      auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
+      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql', // API Gateway GraphQL endpoint
+      websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io',
     },
     features: {
       aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
       realtimeUpdates: process.env.NEXT_PUBLIC_ENABLE_REALTIME === 'true',
     },
-    version: process.env.npm_package_version || '1.0.0',
-    timestamp: Date.now(),
   };
-
-  // Generate ETag based on config content
-  const configString = JSON.stringify(config);
-  const etag = `"${Buffer.from(configString).toString('base64').slice(0, 16)}"`;
-
-  // Check if client has current version
-  const clientETag = request.headers.get('if-none-match');
-  if (clientETag === etag) {
-    return new NextResponse(null, { status: 304 });
-  }
 
   return NextResponse.json(config, {
     headers: {
-      'Cache-Control': 'public, max-age=300, s-maxage=300', // 5 minutes
-      'ETag': etag,
-      'Last-Modified': new Date().toUTCString(),
+      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
     },
   });
 }

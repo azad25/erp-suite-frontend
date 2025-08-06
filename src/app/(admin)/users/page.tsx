@@ -1,3 +1,4 @@
+import UserManagementDashboard from "@/components/user-management/UserManagementDashboard";
 import UserListTable from "@/components/user-management/UserListTable";
 import { Metadata } from "next";
 import React from "react";
@@ -19,6 +20,7 @@ export default function UsersPage() {
         </p>
       </div>
       
+      <UserManagementDashboard />
       <UserListTable />
     </div>
   );

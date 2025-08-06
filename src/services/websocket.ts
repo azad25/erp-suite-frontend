@@ -77,7 +77,10 @@ class WebSocketService {
   private websocketUrl: string | null = null;
 
   constructor() {
-    this.initializeConnection();
+    // Only initialize on client-side
+    if (typeof window !== 'undefined') {
+      this.initializeConnection();
+    }
   }
 
   private async initializeConnection(): Promise<void> {
@@ -94,6 +97,11 @@ class WebSocketService {
   }
 
   private connect(): void {
+    // Skip connection on server-side
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (!this.websocketUrl) {
       console.error('WebSocket URL not available');
       return;
@@ -224,6 +232,10 @@ class WebSocketService {
   }
 
   private async refreshTokenAndReconnect(): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -247,8 +259,10 @@ class WebSocketService {
 
       const data = await response.json();
       if (data.success && data.data) {
-        localStorage.setItem('access_token', data.data.access_token);
-        localStorage.setItem('refresh_token', data.data.refresh_token);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('access_token', data.data.access_token);
+          localStorage.setItem('refresh_token', data.data.refresh_token);
+        }
 
         // Reconnect with new token
         this.disconnect();
@@ -258,10 +272,12 @@ class WebSocketService {
       }
     } catch (error) {
       console.error('Token refresh failed:', error);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/signin';
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/signin';
+      }
     }
   }
 

@@ -30,7 +30,7 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
   }
 
   configPromise = fetchConfig();
-  
+
   try {
     cachedConfig = await configPromise;
     return cachedConfig;
@@ -40,8 +40,25 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
 }
 
 async function fetchConfig(): Promise<RuntimeConfig> {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    // Server-side: use environment variables directly
+    return {
+      apiUrls: {
+        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
+        auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
+        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io',
+      },
+      features: {
+        aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
+        realtimeUpdates: process.env.NEXT_PUBLIC_ENABLE_REALTIME === 'true',
+      },
+    };
+  }
+
   try {
-    // Add timeout to prevent hanging requests
+    // Client-side: fetch from API
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -49,17 +66,30 @@ async function fetchConfig(): Promise<RuntimeConfig> {
       signal: controller.signal,
       cache: 'force-cache' // Enable browser caching
     });
-    
+
     clearTimeout(timeoutId);
 
     if (response.ok) {
       return await response.json();
     }
-    
+
     throw new Error(`Config API returned ${response.status}`);
   } catch (error) {
-    console.warn('Failed to fetch runtime config:', error);
-    throw new Error('Configuration not available. Please ensure environment variables are set.');
+    console.warn('Failed to fetch runtime config, falling back to environment variables:', error);
+
+    // Fallback to environment variables
+    return {
+      apiUrls: {
+        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
+        auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
+        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io',
+      },
+      features: {
+        aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
+        realtimeUpdates: process.env.NEXT_PUBLIC_ENABLE_REALTIME === 'true',
+      },
+    };
   }
 }
 

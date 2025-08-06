@@ -9,7 +9,9 @@ export interface User {
     first_name?: string; // API compatibility
     last_name?: string;  // API compatibility
     isActive?: boolean;
+    is_active?: boolean; // API compatibility
     isVerified?: boolean;
+    is_verified?: boolean; // API compatibility
     twoFactorEnabled?: boolean;
     lastLoginAt?: string;
     last_login_at?: string; // API compatibility

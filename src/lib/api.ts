@@ -387,6 +387,14 @@ class ApiClient {
     return !!this.getToken();
   }
 
+  // Public method for making API requests (for GraphQL service)
+  async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, options);
+  }
+
   // Browser cache management for conditional requests
   private getCacheKey(endpoint: string): string {
     return `api_cache_${endpoint.replace(/[^a-zA-Z0-9]/g, '_')}`;

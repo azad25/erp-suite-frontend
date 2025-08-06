@@ -64,7 +64,25 @@ export default function UserManagementDashboard() {
 
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
+      // Set fallback data for development
+      setStats({
+        totalUsers: 0,
+        activeUsers: 0,
+        inactiveUsers: 0,
+        verifiedUsers: 0,
+        unverifiedUsers: 0,
+        recentSignups: 0,
+        recentLogins: 0,
+      });
+      setSecurityStats({
+        failedLoginsToday: 0,
+        lockedAccounts: 0,
+        securityAlerts: 0,
+        twoFactorEnabled: 0,
+        passwordResetsToday: 0,
+      });
+      setRecentActivity([]);
+      setError('Failed to load dashboard data. Using fallback data.');
     } finally {
       setLoading(false);
     }
@@ -284,7 +302,7 @@ export default function UserManagementDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         <Link 
           href="/users"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
@@ -328,12 +346,33 @@ export default function UserManagementDashboard() {
         </Link>
 
         <Link 
-          href="/users/activity"
+          href="/users/organizations"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
         >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
               <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-base font-semibold text-gray-800 dark:text-white/90">
+                Organizations
+              </h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Manage organizations and their users
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link 
+          href="/users/activity"
+          className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>

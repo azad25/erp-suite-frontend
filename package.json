@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "docker:install": "npm install --prefer-offline --no-audit --progress=false",
+    "docker:rebuild": "npm rebuild lightningcss --verbose || echo 'LightningCSS rebuild failed, continuing...'"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",

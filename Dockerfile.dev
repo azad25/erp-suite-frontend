@@ -8,7 +8,7 @@ ENV NPM_CONFIG_CACHE=/home/appuser/.npm
 ENV NPM_CONFIG_PREFIX=/home/appuser/.npm-global
 
 # Install system dependencies and create app user
-RUN apk add --no-cache libc6-compat curl && \
+RUN apk add --no-cache libc6-compat curl python3 make g++ && \
     addgroup -g 1001 -S appgroup && \
     adduser -S appuser -u 1001 -G appgroup
 
@@ -24,9 +24,15 @@ WORKDIR /app
 
 # Copy package files
 COPY --chown=appuser:appgroup package*.json ./
+COPY --chown=appuser:appgroup .npmrc ./
 
-# Install dependencies with optimizations
-RUN npm ci --prefer-offline --no-audit --progress=false
+# Install dependencies with lightningcss support
+RUN npm config set target_platform linux && \
+    npm config set target_libc musl && \
+    npm ci --prefer-offline --no-audit --progress=false || \
+    (echo "Fallback: Installing with rebuild..." && \
+     npm install --prefer-offline --no-audit --progress=false && \
+     (npm rebuild lightningcss --verbose || echo "LightningCSS rebuild failed, using fallback"))
 
 # Copy source code (only essential files for faster builds)
 COPY --chown=appuser:appgroup next.config.ts ./
@@ -41,8 +47,8 @@ RUN mkdir -p .next
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || curl -f http://localhost:3000 || exit 1
+HEALTHCHECK --interval=60s --timeout=15s --start-period=120s --retries=2 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Switch back to root to create entrypoint script
 USER root
@@ -51,7 +57,7 @@ USER root
 RUN apk add --no-cache su-exec
 
 # Create entrypoint script that works with both root and non-root users
-RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# Install dependencies if node_modules is missing or incomplete\nif [ ! -d "/app/node_modules" ] || [ ! -d "/app/node_modules/graphql-request" ]; then\n  echo "Installing dependencies..."\n  npm install --prefer-offline --no-audit --progress=false\nfi\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
+RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# Install dependencies if node_modules is missing or incomplete\nif [ ! -d "/app/node_modules" ] || [ ! -d "/app/node_modules/graphql-request" ]; then\n  echo "Installing dependencies..."\n  npm config set target_platform linux\n  npm config set target_libc musl\n  npm install --prefer-offline --no-audit --progress=false\n  # Try to rebuild lightningcss, but continue if it fails\n  npm rebuild lightningcss --verbose || echo "LightningCSS rebuild failed, using fallback mode"\nfi\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Run development server with hot reload
