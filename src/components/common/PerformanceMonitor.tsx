@@ -1,70 +1,122 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+
+// Performance thresholds
+const PERFORMANCE_THRESHOLDS = {
+  GOOD: 500,
+  NEEDS_IMPROVEMENT: 1000,
+  POOR: 2000,
+} as const;
+
+// Route priority for prefetching
+const ROUTE_PRIORITIES = {
+  HIGH: [
+    '/',
+    '/users',
+    '/profile',
+  ],
+  MEDIUM: [
+    '/calendar',
+    '/form-elements',
+    '/basic-tables',
+  ],
+  LOW: [
+    '/line-chart',
+    '/bar-chart',
+    '/alerts',
+    '/avatars',
+    '/badge',
+    '/buttons',
+    '/images',
+    '/videos',
+    '/modals',
+  ],
+} as const;
 
 export default function PerformanceMonitor() {
   const pathname = usePathname();
+  const navigationStartTime = useRef<number>(0);
+  const prefetchedRoutes = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Monitor navigation performance
-    const startTime = performance.now();
+    navigationStartTime.current = performance.now();
 
     const measurePerformance = () => {
       const endTime = performance.now();
-      const navigationTime = endTime - startTime;
+      const navigationTime = endTime - navigationStartTime.current;
 
       // Log performance metrics
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Navigation to ${pathname}: ${navigationTime.toFixed(2)}ms`);
+        const status = 
+          navigationTime <= PERFORMANCE_THRESHOLDS.GOOD ? '🟢 GOOD' :
+          navigationTime <= PERFORMANCE_THRESHOLDS.NEEDS_IMPROVEMENT ? '🟡 NEEDS IMPROVEMENT' :
+          '🔴 POOR';
         
-        // Log slow navigations
-        if (navigationTime > 1000) {
-          console.warn(`⚠️ Slow navigation detected: ${navigationTime.toFixed(2)}ms`);
+        console.log(`Navigation to ${pathname}: ${navigationTime.toFixed(2)}ms [${status}]`);
+        
+        // Detailed performance breakdown
+        if (navigationTime > PERFORMANCE_THRESHOLDS.GOOD) {
+          console.group('Performance Breakdown:');
+          console.log('- Target: <500ms for optimal UX');
+          console.log('- Current:', `${navigationTime.toFixed(2)}ms`);
+          console.log('- Improvement needed:', `${(navigationTime - PERFORMANCE_THRESHOLDS.GOOD).toFixed(2)}ms`);
+          console.groupEnd();
         }
       }
 
-      // Measure Core Web Vitals
-      if ('web-vital' in window) {
-        // This would integrate with a real performance monitoring service
-        // like Google Analytics, DataDog, or New Relic
+      // Send metrics to analytics in production
+      if (typeof window !== 'undefined' && 'gtag' in window) {
+        // @ts-ignore
+        window.gtag('event', 'page_navigation', {
+          custom_map: { metric1: 'navigation_time' },
+          metric1: Math.round(navigationTime),
+          page_path: pathname,
+        });
       }
     };
 
-    // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
-      requestAnimationFrame(measurePerformance);
-    });
+    // Measure when page is interactive
+    if (document.readyState === 'complete') {
+      measurePerformance();
+    } else {
+      const handleLoad = () => {
+        measurePerformance();
+        window.removeEventListener('load', handleLoad);
+      };
+      window.addEventListener('load', handleLoad);
+    }
 
-    // Prefetch likely next pages
-    const prefetchCommonRoutes = () => {
-      const commonRoutes = [
-        '/',
-        '/profile',
-        '/calendar',
-        '/form-elements',
-        '/basic-tables',
-        '/line-chart',
-        '/bar-chart',
-      ];
+    // Intelligent prefetching based on current route
+    const intelligentPrefetch = () => {
+      const currentRouteType = getCurrentRouteType(pathname);
+      const routesToPrefetch = getRoutesToPrefetch(pathname, currentRouteType);
 
-      commonRoutes.forEach(route => {
-        if (route !== pathname && typeof window !== 'undefined') {
-          // Use requestIdleCallback for non-blocking prefetch
-          if ('requestIdleCallback' in window) {
-            requestIdleCallback(() => {
-              const link = document.createElement('link');
-              link.rel = 'prefetch';
-              link.href = route;
-              document.head.appendChild(link);
-            });
-          }
+      routesToPrefetch.forEach((route, index) => {
+        if (!prefetchedRoutes.current.has(route)) {
+          // Stagger prefetching to avoid overwhelming the browser
+          const delay = index * 100;
+          
+          setTimeout(() => {
+            if ('requestIdleCallback' in window) {
+              requestIdleCallback(() => {
+                prefetchRoute(route);
+                prefetchedRoutes.current.add(route);
+              });
+            } else {
+              setTimeout(() => {
+                prefetchRoute(route);
+                prefetchedRoutes.current.add(route);
+              }, 50);
+            }
+          }, delay);
         }
       });
     };
 
-    // Delay prefetching to not interfere with current page load
-    const prefetchTimer = setTimeout(prefetchCommonRoutes, 2000);
+    // Start prefetching after initial page load
+    const prefetchTimer = setTimeout(intelligentPrefetch, 500);
 
     return () => {
       clearTimeout(prefetchTimer);
@@ -73,29 +125,110 @@ export default function PerformanceMonitor() {
 
   // Preload critical resources on mount
   useEffect(() => {
-    // Preload critical CSS for faster subsequent page loads
-    const preloadCSS = () => {
-      const criticalCSS = [
-        '/_next/static/css/app/layout.css',
-        '/_next/static/css/app/(admin)/layout.css',
+    const preloadCriticalResources = () => {
+      // Only preload resources that are actually used
+      // Preload API config only if we're authenticated
+      if (typeof window !== 'undefined' && localStorage.getItem('access_token')) {
+        preloadResource('/api/config', 'fetch');
+      }
+      
+      // Preload critical images that exist
+      const criticalImages: string[] = [
+        '/images/logo/logo.svg',
+        '/images/logo/logo-dark.svg',
       ];
-
-      criticalCSS.forEach(href => {
-        const link = document.createElement('link');
-        link.rel = 'preload';
-        link.as = 'style';
-        link.href = href;
-        document.head.appendChild(link);
+      
+      // Only preload images that actually exist
+      criticalImages.forEach(src => {
+        // Check if image exists before preloading
+        const img = new Image();
+        img.onload = () => preloadResource(src, 'image');
+        img.onerror = () => console.warn(`Image not found for preloading: ${src}`);
+        img.src = src;
       });
     };
 
-    // Use requestIdleCallback to avoid blocking main thread
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(preloadCSS);
+      requestIdleCallback(preloadCriticalResources);
     } else {
-      setTimeout(preloadCSS, 100);
+      setTimeout(preloadCriticalResources, 100);
     }
   }, []);
 
-  return null; // This component doesn't render anything
+  return null;
+}
+
+// Helper functions
+function getCurrentRouteType(pathname: string): 'dashboard' | 'users' | 'ui' | 'forms' | 'charts' | 'other' {
+  if (pathname === '/') return 'dashboard';
+  if (pathname.startsWith('/users')) return 'users';
+  if (pathname.includes('form')) return 'forms';
+  if (pathname.includes('chart')) return 'charts';
+  if (pathname.includes('alert') || pathname.includes('avatar') || pathname.includes('badge') || 
+      pathname.includes('button') || pathname.includes('image') || pathname.includes('video') || 
+      pathname.includes('modal')) return 'ui';
+  return 'other';
+}
+
+function getRoutesToPrefetch(currentPath: string, routeType: string): string[] {
+  const routes: string[] = [];
+  
+  // Always prefetch high priority routes
+  routes.push(...ROUTE_PRIORITIES.HIGH.filter(route => route !== currentPath));
+  
+  // Add context-specific routes
+  switch (routeType) {
+    case 'dashboard':
+      routes.push('/users', '/calendar', '/form-elements');
+      break;
+    case 'users':
+      routes.push('/users/roles', '/users/activity', '/profile');
+      break;
+    case 'forms':
+      routes.push('/basic-tables', '/calendar');
+      break;
+    case 'charts':
+      routes.push('/basic-tables', '/form-elements');
+      break;
+    case 'ui':
+      routes.push(...ROUTE_PRIORITIES.MEDIUM);
+      break;
+  }
+  
+  // Add medium priority routes if we have capacity
+  routes.push(...ROUTE_PRIORITIES.MEDIUM.filter(route => 
+    route !== currentPath && !routes.includes(route)
+  ).slice(0, 3));
+  
+  return routes.slice(0, 8); // Limit to 8 routes to avoid overwhelming
+}
+
+function prefetchRoute(href: string): void {
+  try {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = href;
+    link.as = 'document';
+    document.head.appendChild(link);
+  } catch (error) {
+    console.warn('Failed to prefetch route:', href, error);
+  }
+}
+
+function preloadResource(href: string, as: string): void {
+  try {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.href = href;
+    link.as = as;
+    if (as === 'font') {
+      link.crossOrigin = 'anonymous';
+    }
+    if (as === 'fetch') {
+      link.crossOrigin = 'anonymous';
+    }
+    document.head.appendChild(link);
+  } catch (error) {
+    console.warn('Failed to preload resource:', href, error);
+  }
 }

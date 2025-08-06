@@ -19,8 +19,37 @@ interface RuntimeConfig {
 let cachedConfig: RuntimeConfig | null = null;
 let configPromise: Promise<RuntimeConfig> | null = null;
 
+// Pre-initialize config from environment variables for immediate availability
+const fallbackConfig: RuntimeConfig = {
+  apiUrls: {
+    base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
+    auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
+    graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
+    websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+  },
+  features: {
+    aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
+    realtimeUpdates: process.env.NEXT_PUBLIC_ENABLE_REALTIME === 'true',
+  },
+};
+
+// Initialize with fallback config immediately
+cachedConfig = fallbackConfig;
+
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
+  // Return cached config immediately if available
   if (cachedConfig) {
+    // Asynchronously update config in background if needed
+    if (typeof window !== 'undefined' && !configPromise) {
+      configPromise = fetchConfig().then(config => {
+        cachedConfig = config;
+        configPromise = null;
+        return config;
+      }).catch(() => {
+        configPromise = null;
+        return cachedConfig!;
+      });
+    }
     return cachedConfig;
   }
 
@@ -48,7 +77,7 @@ async function fetchConfig(): Promise<RuntimeConfig> {
         base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
         auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
         graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
       },
       features: {
         aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
@@ -83,7 +112,7 @@ async function fetchConfig(): Promise<RuntimeConfig> {
         base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
         auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
         graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/socket.io',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
       },
       features: {
         aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',

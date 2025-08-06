@@ -3,34 +3,31 @@ import { websocketService } from './websocket';
 import { 
   graphqlService, 
   GET_USERS, 
+  GET_USERS_CONNECTION,
   GET_USER_BY_ID, 
   GET_USER_STATS, 
   GET_SECURITY_STATS, 
   GET_USER_ACTIVITY,
   GET_ROLES,
   GET_PERMISSIONS,
-  CREATE_USER,
+  GET_CURRENT_USER,
+  GET_HEALTH,
+  CREATE_USER_ADMIN,
   UPDATE_USER,
   DELETE_USER,
   ACTIVATE_USER,
   DEACTIVATE_USER,
   VERIFY_USER,
-  RESET_USER_PASSWORD,
   CREATE_ROLE,
   UPDATE_ROLE,
   DELETE_ROLE,
   ASSIGN_USER_ROLE,
   REVOKE_USER_ROLE,
   ASSIGN_PERMISSIONS,
-  BULK_CREATE_USERS,
-  BULK_UPDATE_USERS,
-  BULK_DELETE_USERS,
-  CHECK_PERMISSION,
   CreateUserInput,
   UpdateUserInput,
   CreateRoleInput,
-  UpdateRoleInput,
-  MutationResponse
+  UpdateRoleInput
 } from './graphql';
 import { apiClient } from '@/lib/api';
 import { User } from '@/types/user';
@@ -55,6 +52,14 @@ class UserManagementService {
     if (typeof window !== 'undefined' && this.config.useWebSocket) {
       this.setupWebSocketSubscriptions();
     }
+  }
+
+  // Helper method to safely convert error to string
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
   }
 
   private setupWebSocketSubscriptions(): void {
@@ -112,23 +117,58 @@ class UserManagementService {
 
   async getUsers(limit = 10, offset = 0, search?: string) {
     try {
-      const response = await graphqlService.request(GET_USERS, {
-        filter: { search },
-        pagination: { first: limit, after: offset.toString() },
-        sort: { field: 'createdAt', direction: 'DESC' }
+      const response = await graphqlService.request(GET_USERS_CONNECTION, {
+        limit,
+        offset,
+        search,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
       });
       
+      // Handle the new UserConnection structure
+      const userConnection = response.users;
+      if (!userConnection) {
+        return {
+          users: [],
+          total: 0,
+          page: 1,
+          limit,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        };
+      }
+
+      const users = userConnection.edges?.map((edge: any) => ({
+        ...edge.node,
+        // Ensure compatibility with both field naming conventions
+        firstName: edge.node.firstName || edge.node.first_name,
+        lastName: edge.node.lastName || edge.node.last_name,
+        isActive: edge.node.isActive ?? edge.node.is_active ?? true,
+        isVerified: edge.node.isVerified ?? edge.node.is_verified ?? false,
+        lastLoginAt: edge.node.lastLoginAt || edge.node.last_login_at,
+        createdAt: edge.node.createdAt || edge.node.created_at,
+        updatedAt: edge.node.updatedAt || edge.node.updated_at,
+      })) || [];
+      
       return {
-        users: response.users?.edges?.map((edge: any) => edge.node) || [],
-        total: response.users?.totalCount || 0,
+        users,
+        total: userConnection.totalCount || 0,
         page: Math.floor(offset / limit) + 1,
         limit,
-        hasNextPage: response.users?.pageInfo?.hasNextPage || false,
-        hasPreviousPage: response.users?.pageInfo?.hasPreviousPage || false,
+        hasNextPage: userConnection.pageInfo?.hasNextPage || false,
+        hasPreviousPage: userConnection.pageInfo?.hasPreviousPage || false,
       };
     } catch (error) {
       console.error('GraphQL getUsers failed:', error);
-      throw new Error(`Failed to fetch users: ${error}`);
+      // Return empty data structure for graceful degradation
+      return {
+        users: [],
+        total: 0,
+        page: 1,
+        limit,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
   }
 
@@ -136,17 +176,55 @@ class UserManagementService {
   async getDashboardStats() {
     try {
       const [userStatsResponse, securityStatsResponse] = await Promise.all([
-        graphqlService.request(GET_USER_STATS),
-        graphqlService.request(GET_SECURITY_STATS)
+        graphqlService.request(GET_USER_STATS).catch((error) => {
+          console.warn('User stats query failed:', error);
+          return { userStats: null };
+        }),
+        graphqlService.request(GET_SECURITY_STATS).catch((error) => {
+          console.warn('Security stats query failed:', error);
+          return { securityStats: null };
+        })
       ]);
 
       return {
-        userStats: userStatsResponse.userStats,
-        securityStats: securityStatsResponse.securityStats,
+        userStats: userStatsResponse.userStats || {
+          totalUsers: 0,
+          activeUsers: 0,
+          inactiveUsers: 0,
+          verifiedUsers: 0,
+          unverifiedUsers: 0,
+          recentSignups: 0,
+          recentLogins: 0,
+        },
+        securityStats: securityStatsResponse.securityStats || {
+          failedLoginsToday: 0,
+          lockedAccounts: 0,
+          securityAlerts: 0,
+          twoFactorEnabled: 0,
+          passwordResetsToday: 0,
+        },
       };
     } catch (error) {
       console.error('GraphQL getDashboardStats failed:', error);
-      throw new Error(`Failed to fetch dashboard statistics: ${error}`);
+      // Return fallback data instead of throwing error
+      return {
+        userStats: {
+          totalUsers: 0,
+          activeUsers: 0,
+          inactiveUsers: 0,
+          verifiedUsers: 0,
+          unverifiedUsers: 0,
+          recentSignups: 0,
+          recentLogins: 0,
+        },
+        securityStats: {
+          failedLoginsToday: 0,
+          lockedAccounts: 0,
+          securityAlerts: 0,
+          twoFactorEnabled: 0,
+          passwordResetsToday: 0,
+        },
+      };
     }
   }
 
@@ -169,95 +247,178 @@ class UserManagementService {
       };
     } catch (error) {
       console.error('GraphQL getUserActivity failed:', error);
-      throw new Error(`Failed to fetch user activity: ${error}`);
+      // Return empty data structure for graceful degradation
+      return {
+        activities: [],
+        total: 0,
+        page: 1,
+        limit,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
   }
 
   // User CRUD operations
   async createUser(userData: CreateUserInput) {
     try {
-      const response = await graphqlService.request(CREATE_USER, { input: userData });
-      return response.createUser;
+      const response = await graphqlService.request(CREATE_USER_ADMIN, { 
+        input: userData 
+      });
+      
+      return {
+        success: response.createUserAdmin?.success || false,
+        message: response.createUserAdmin?.message || 'User creation failed',
+        user: response.createUserAdmin?.user || null,
+        errors: response.createUserAdmin?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL createUser failed:', error);
-      throw new Error(`Failed to create user: ${error}`);
+      console.error('createUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to create user',
+        errors: [{ field: 'general', message: error instanceof Error ? error.message : String(error) }]
+      };
     }
   }
 
   async updateUser(userId: string, userData: UpdateUserInput) {
     try {
       const response = await graphqlService.request(UPDATE_USER, { 
-        id: userId, 
+        id: userId,
         input: userData 
       });
-      return response.updateUser;
+      
+      return {
+        success: response.updateUser?.success || false,
+        message: response.updateUser?.message || 'User update failed',
+        user: response.updateUser?.user || null,
+        errors: response.updateUser?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL updateUser failed:', error);
-      throw new Error(`Failed to update user: ${error}`);
+      console.error('updateUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to update user',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async deleteUser(userId: string) {
     try {
-      const response = await graphqlService.request(DELETE_USER, { id: userId });
-      return response.deleteUser;
+      const response = await graphqlService.request(DELETE_USER, { 
+        id: userId 
+      });
+      
+      return {
+        success: response.deleteUser?.success || false,
+        message: response.deleteUser?.message || 'User deletion failed',
+        errors: response.deleteUser?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL deleteUser failed:', error);
-      throw new Error(`Failed to delete user: ${error}`);
+      console.error('deleteUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to delete user',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async activateUser(userId: string) {
     try {
-      const response = await graphqlService.request(ACTIVATE_USER, { id: userId });
-      return response.activateUser;
+      const response = await graphqlService.request(ACTIVATE_USER, { 
+        id: userId 
+      });
+      
+      return {
+        success: response.activateUser?.success || false,
+        message: response.activateUser?.message || 'User activation failed',
+        user: response.activateUser?.user || null,
+        errors: response.activateUser?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL activateUser failed:', error);
-      throw new Error(`Failed to activate user: ${error}`);
+      console.error('activateUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to activate user',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async deactivateUser(userId: string) {
     try {
-      const response = await graphqlService.request(DEACTIVATE_USER, { id: userId });
-      return response.deactivateUser;
+      const response = await graphqlService.request(DEACTIVATE_USER, { 
+        id: userId 
+      });
+      
+      return {
+        success: response.deactivateUser?.success || false,
+        message: response.deactivateUser?.message || 'User deactivation failed',
+        user: response.deactivateUser?.user || null,
+        errors: response.deactivateUser?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL deactivateUser failed:', error);
-      throw new Error(`Failed to deactivate user: ${error}`);
+      console.error('deactivateUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to deactivate user',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async verifyUser(userId: string) {
     try {
-      const response = await graphqlService.request(VERIFY_USER, { id: userId });
-      return response.verifyUser;
+      const response = await graphqlService.request(VERIFY_USER, { 
+        id: userId 
+      });
+      
+      return {
+        success: response.verifyUser?.success || false,
+        message: response.verifyUser?.message || 'User verification failed',
+        user: response.verifyUser?.user || null,
+        errors: response.verifyUser?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL verifyUser failed:', error);
-      throw new Error(`Failed to verify user: ${error}`);
+      console.error('verifyUser failed:', error);
+      return {
+        success: false,
+        message: 'Failed to verify user',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async resetUserPassword(userId: string, newPassword: string) {
     try {
-      const response = await graphqlService.request(RESET_USER_PASSWORD, { 
-        id: userId, 
-        newPassword 
-      });
-      return response.resetUserPassword;
+      console.warn('resetUserPassword: GraphQL mutation not implemented yet, returning mock response');
+      return {
+        success: false,
+        message: 'Password reset not implemented yet',
+        errors: [{ field: 'general', message: 'GraphQL mutation not implemented' }]
+      };
     } catch (error) {
-      console.error('GraphQL resetUserPassword failed:', error);
-      throw new Error(`Failed to reset user password: ${error}`);
+      console.error('resetUserPassword failed:', error);
+      return {
+        success: false,
+        message: 'Failed to reset password',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
-  // Role management
+  // Role management (fallback implementations until GraphQL queries are implemented)
   async getRoles() {
     try {
       const response = await graphqlService.request(GET_ROLES);
       return response.roles || [];
     } catch (error) {
       console.error('GraphQL getRoles failed:', error);
-      throw new Error(`Failed to fetch roles: ${error}`);
+      // Return empty array for graceful degradation
+      return [];
     }
   }
 
@@ -267,128 +428,227 @@ class UserManagementService {
       return response.permissions || [];
     } catch (error) {
       console.error('GraphQL getPermissions failed:', error);
-      throw new Error(`Failed to fetch permissions: ${error}`);
+      // Return empty array for graceful degradation
+      return [];
     }
   }
 
   async createRole(roleData: CreateRoleInput) {
     try {
-      const response = await graphqlService.request(CREATE_ROLE, { input: roleData });
-      return response.createRole;
+      const response = await graphqlService.request(CREATE_ROLE, { 
+        input: roleData 
+      });
+      
+      return {
+        success: response.createRole?.success || false,
+        message: response.createRole?.message || 'Role creation failed',
+        role: response.createRole?.role || null,
+        errors: response.createRole?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL createRole failed:', error);
-      throw new Error(`Failed to create role: ${error}`);
+      console.error('createRole failed:', error);
+      return {
+        success: false,
+        message: 'Failed to create role',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async updateRole(roleId: string, roleData: UpdateRoleInput) {
     try {
       const response = await graphqlService.request(UPDATE_ROLE, { 
-        id: roleId, 
+        id: roleId,
         input: roleData 
       });
-      return response.updateRole;
+      
+      return {
+        success: response.updateRole?.success || false,
+        message: response.updateRole?.message || 'Role update failed',
+        role: response.updateRole?.role || null,
+        errors: response.updateRole?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL updateRole failed:', error);
-      throw new Error(`Failed to update role: ${error}`);
+      console.error('updateRole failed:', error);
+      return {
+        success: false,
+        message: 'Failed to update role',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async deleteRole(roleId: string) {
     try {
-      const response = await graphqlService.request(DELETE_ROLE, { id: roleId });
-      return response.deleteRole;
+      const response = await graphqlService.request(DELETE_ROLE, { 
+        id: roleId 
+      });
+      
+      return {
+        success: response.deleteRole?.success || false,
+        message: response.deleteRole?.message || 'Role deletion failed',
+        errors: response.deleteRole?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL deleteRole failed:', error);
-      throw new Error(`Failed to delete role: ${error}`);
+      console.error('deleteRole failed:', error);
+      return {
+        success: false,
+        message: 'Failed to delete role',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async assignUserRole(userId: string, roleId: string) {
     try {
       const response = await graphqlService.request(ASSIGN_USER_ROLE, { 
-        userId, 
+        userId,
         roleId 
       });
-      return response.assignUserRole;
+      
+      return {
+        success: response.assignUserRole?.success || false,
+        message: response.assignUserRole?.message || 'User role assignment failed',
+        errors: response.assignUserRole?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL assignUserRole failed:', error);
-      throw new Error(`Failed to assign user role: ${error}`);
+      console.error('assignUserRole failed:', error);
+      return {
+        success: false,
+        message: 'Failed to assign user role',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async revokeUserRole(userId: string, roleId: string) {
     try {
       const response = await graphqlService.request(REVOKE_USER_ROLE, { 
-        userId, 
+        userId,
         roleId 
       });
-      return response.revokeUserRole;
+      
+      return {
+        success: response.revokeUserRole?.success || false,
+        message: response.revokeUserRole?.message || 'User role revocation failed',
+        errors: response.revokeUserRole?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL revokeUserRole failed:', error);
-      throw new Error(`Failed to revoke user role: ${error}`);
+      console.error('revokeUserRole failed:', error);
+      return {
+        success: false,
+        message: 'Failed to revoke user role',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async assignPermissions(roleId: string, permissionIds: string[]) {
     try {
       const response = await graphqlService.request(ASSIGN_PERMISSIONS, { 
-        roleId, 
+        roleId,
         permissionIds 
       });
-      return response.assignPermissions;
+      
+      return {
+        success: response.assignPermissions?.success || false,
+        message: response.assignPermissions?.message || 'Permission assignment failed',
+        errors: response.assignPermissions?.errors || []
+      };
     } catch (error) {
-      console.error('GraphQL assignPermissions failed:', error);
-      throw new Error(`Failed to assign permissions: ${error}`);
+      console.error('assignPermissions failed:', error);
+      return {
+        success: false,
+        message: 'Failed to assign permissions',
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async checkPermission(userId: string, resource: string, action: string) {
     try {
-      const response = await graphqlService.request(CHECK_PERMISSION, { 
-        userId, 
-        resource, 
-        action 
-      });
-      return response.checkPermission;
+      console.warn('checkPermission: GraphQL query not implemented yet, returning mock response');
+      return {
+        hasPermission: false
+      };
     } catch (error) {
-      console.error('GraphQL checkPermission failed:', error);
-      throw new Error(`Failed to check permission: ${error}`);
+      console.error('checkPermission failed:', error);
+      return {
+        hasPermission: false
+      };
     }
   }
 
-  // Bulk operations
-  async bulkCreateUsers(users: CreateUserInput[]) {
+  // Bulk operations (fallback implementations)
+  async bulkCreateUsers(users: any[]) {
     try {
-      const response = await graphqlService.request(BULK_CREATE_USERS, { 
-        input: { users } 
-      });
-      return response.bulkCreateUsers;
+      console.warn('bulkCreateUsers: GraphQL mutation not implemented yet, returning mock response');
+      return {
+        success: false,
+        message: 'Bulk user creation not implemented yet',
+        results: [],
+        createdCount: 0,
+        failedCount: users.length,
+        errors: [{ field: 'general', message: 'GraphQL mutation not implemented' }]
+      };
     } catch (error) {
-      console.error('GraphQL bulkCreateUsers failed:', error);
-      throw new Error(`Failed to bulk create users: ${error}`);
+      console.error('bulkCreateUsers failed:', error);
+      return {
+        success: false,
+        message: 'Failed to bulk create users',
+        results: [],
+        createdCount: 0,
+        failedCount: users.length,
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
-  async bulkUpdateUsers(updates: Array<{ id: string; input: UpdateUserInput }>) {
+  async bulkUpdateUsers(updates: Array<{ id: string; input: any }>) {
     try {
-      const response = await graphqlService.request(BULK_UPDATE_USERS, { 
-        input: { updates } 
-      });
-      return response.bulkUpdateUsers;
+      console.warn('bulkUpdateUsers: GraphQL mutation not implemented yet, returning mock response');
+      return {
+        success: false,
+        message: 'Bulk user update not implemented yet',
+        results: [],
+        updatedCount: 0,
+        failedCount: updates.length,
+        errors: [{ field: 'general', message: 'GraphQL mutation not implemented' }]
+      };
     } catch (error) {
-      console.error('GraphQL bulkUpdateUsers failed:', error);
-      throw new Error(`Failed to bulk update users: ${error}`);
+      console.error('bulkUpdateUsers failed:', error);
+      return {
+        success: false,
+        message: 'Failed to bulk update users',
+        results: [],
+        updatedCount: 0,
+        failedCount: updates.length,
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 
   async bulkDeleteUsers(userIds: string[]) {
     try {
-      const response = await graphqlService.request(BULK_DELETE_USERS, { userIds });
-      return response.bulkDeleteUsers;
+      console.warn('bulkDeleteUsers: GraphQL mutation not implemented yet, returning mock response');
+      return {
+        success: false,
+        message: 'Bulk user deletion not implemented yet',
+        deletedCount: 0,
+        failedCount: userIds.length,
+        results: userIds.map(id => ({ success: false, userId: id, error: 'Not implemented' })),
+        errors: [{ field: 'general', message: 'GraphQL mutation not implemented' }]
+      };
     } catch (error) {
-      console.error('GraphQL bulkDeleteUsers failed:', error);
-      throw new Error(`Failed to bulk delete users: ${error}`);
+      console.error('bulkDeleteUsers failed:', error);
+      return {
+        success: false,
+        message: 'Failed to bulk delete users',
+        deletedCount: 0,
+        failedCount: userIds.length,
+        results: userIds.map(id => ({ success: false, userId: id, error: this.getErrorMessage(error) })),
+        errors: [{ field: 'general', message: this.getErrorMessage(error) }]
+      };
     }
   }
 

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Define protected routes that require authentication
-const protectedRoutes = [
+// Use Sets for O(1) lookup performance instead of arrays
+const protectedRoutes = new Set([
   '/',
   '/profile',
   '/calendar',
@@ -19,38 +19,97 @@ const protectedRoutes = [
   '/modals',
   '/blank',
   '/subscriptions',
-];
+  '/users',
+  '/test-api',
+  '/config-example',
+]);
 
-// Define public routes that don't require authentication
-const publicRoutes = [
+const publicRoutes = new Set([
   '/signin',
   '/signup',
   '/forgot-password',
   '/reset-password',
   '/error-404',
-];
+]);
+
+// Cache for route matching to avoid repeated string operations
+const routeCache = new Map<string, { isProtected: boolean; isPublic: boolean }>();
+
+function getRouteType(pathname: string): { isProtected: boolean; isPublic: boolean } {
+  // Check cache first
+  if (routeCache.has(pathname)) {
+    return routeCache.get(pathname)!;
+  }
+
+  // Fast exact match first
+  const isProtected = protectedRoutes.has(pathname);
+  const isPublic = publicRoutes.has(pathname);
+
+  if (isProtected || isPublic) {
+    const result = { isProtected, isPublic };
+    routeCache.set(pathname, result);
+    return result;
+  }
+
+  // Check for sub-routes only if exact match fails
+  let isProtectedSubRoute = false;
+  let isPublicSubRoute = false;
+
+  for (const route of protectedRoutes) {
+    if (pathname.startsWith(route + '/')) {
+      isProtectedSubRoute = true;
+      break;
+    }
+  }
+
+  if (!isProtectedSubRoute) {
+    for (const route of publicRoutes) {
+      if (pathname.startsWith(route + '/')) {
+        isPublicSubRoute = true;
+        break;
+      }
+    }
+  }
+
+  const result = { 
+    isProtected: isProtectedSubRoute, 
+    isPublic: isPublicSubRoute 
+  };
+  
+  // Cache the result
+  routeCache.set(pathname, result);
+  return result;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  const isProtectedRoute = protectedRoutes.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  );
-  
-  const isPublicRoute = publicRoutes.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  );
+  // Skip middleware for static assets and API routes for better performance
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/api/') ||
+    pathname.includes('.') // Skip files with extensions
+  ) {
+    return NextResponse.next();
+  }
 
-  const token = request.cookies.get('access_token')?.value || 
-                request.headers.get('authorization')?.replace('Bearer ', '');
+  const { isProtected, isPublic } = getRouteType(pathname);
 
-  if (isProtectedRoute && !token) {
+  // Early return if neither protected nor public
+  if (!isProtected && !isPublic) {
+    return NextResponse.next();
+  }
+
+  // Fast token check - check cookie first as it's faster
+  const token = request.cookies.get('access_token')?.value;
+
+  if (isProtected && !token) {
     const signInUrl = new URL('/signin', request.url);
     signInUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(signInUrl);
   }
 
-  if (isPublicRoute && token && (pathname === '/signin' || pathname === '/signup')) {
+  if (isPublic && token && (pathname === '/signin' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

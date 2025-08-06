@@ -34,37 +34,28 @@ class ApiClient {
   private configLoaded: boolean = false;
 
   constructor() {
-    // No hardcoded URLs - everything comes from runtime config
+    // Initialize immediately with fallback config for instant availability
+    this.initializeConfig();
   }
 
-  private configPromise: Promise<void> | null = null;
-
-  private async ensureConfigLoaded(): Promise<void> {
-    if (this.configLoaded) return;
-
-    // Prevent multiple simultaneous config loads
-    if (this.configPromise) {
-      return this.configPromise;
-    }
-
-    this.configPromise = this.loadConfig();
-
-    try {
-      await this.configPromise;
-    } finally {
-      this.configPromise = null;
-    }
-  }
-
-  private async loadConfig(): Promise<void> {
+  private async initializeConfig(): Promise<void> {
     try {
       const config = await getRuntimeConfig();
       this.baseURL = config.apiUrls.base;
       this.configLoaded = true;
     } catch (error) {
       console.error('Failed to load runtime config:', error);
-      throw new Error('Configuration not available. Please ensure environment variables are set.');
+      // Use fallback URL if config fails
+      this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost';
+      this.configLoaded = true;
     }
+  }
+
+  private async ensureConfigLoaded(): Promise<void> {
+    if (this.configLoaded) return;
+    
+    // If not loaded yet, wait for initialization
+    await this.initializeConfig();
   }
 
   private async request<T>(

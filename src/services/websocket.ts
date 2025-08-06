@@ -1,12 +1,14 @@
-// WebSocket service for real-time communication
-import { io, Socket } from 'socket.io-client';
+// WebSocket service for real-time communication (Native WebSocket)
+import React from 'react';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 
 export interface WebSocketMessage {
   type: string;
-  channel: string;
+  channel?: string;
   data: any;
   timestamp: string;
+  messageId?: string;
+  userId?: string;
 }
 
 export interface UserActivityMessage {
@@ -69,31 +71,44 @@ export type WebSocketEventData =
   | SystemNotificationMessage;
 
 class WebSocketService {
-  private socket: Socket | null = null;
+  private socket: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private eventListeners: Map<string, Set<Function>> = new Map();
   private websocketUrl: string | null = null;
+  private connectionInitialized = false;
+  private shouldConnect = false;
+  private queuedSubscriptions: Set<string> = new Set();
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' = 'disconnected';
 
   constructor() {
-    // Only initialize on client-side
-    if (typeof window !== 'undefined') {
-      this.initializeConnection();
-    }
+    // Initialize URL immediately with fallback
+    this.websocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws';
+    
+    // Don't auto-initialize - only connect when explicitly requested
+    // This prevents unnecessary connection attempts and console warnings
   }
 
   private async initializeConnection(): Promise<void> {
+    if (this.connectionInitialized) return;
+    this.connectionInitialized = true;
+
     try {
+      // Get config in background, but don't block connection
       const config = await getRuntimeConfig();
       this.websocketUrl = config.apiUrls.websocket;
     } catch (error) {
-      console.error('Failed to get WebSocket URL from config:', error);
-      // Fallback to environment variable
-      this.websocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:3001';
+      console.warn('Failed to get WebSocket URL from config, using fallback:', error);
+      // Keep the fallback URL already set
     }
     
-    this.connect();
+    // Only connect if explicitly requested
+    if (this.shouldConnect) {
+      this.connect();
+    }
   }
 
   private connect(): void {
@@ -107,6 +122,11 @@ class WebSocketService {
       return;
     }
 
+    if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket connection already in progress');
+      return;
+    }
+
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -114,121 +134,169 @@ class WebSocketService {
       return;
     }
 
-    this.socket = io(this.websocketUrl, {
-      auth: {
-        token: `Bearer ${token}`,
-      },
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true,
-      timeout: 20000,
-      forceNew: true,
-    });
-
-    this.setupEventHandlers();
+    try {
+      this.connectionState = 'connecting';
+      
+      // Add token as query parameter for WebSocket authentication
+      const wsUrl = `${this.websocketUrl}?token=${encodeURIComponent(token)}`;
+      
+      this.socket = new WebSocket(wsUrl);
+      this.setupEventHandlers();
+      
+      console.log('Attempting WebSocket connection to:', this.websocketUrl);
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      this.connectionState = 'disconnected';
+      this.handleReconnect();
+    }
   }
 
   private setupEventHandlers(): void {
     if (!this.socket) return;
 
-    this.socket.on('connect', () => {
+    this.socket.onopen = () => {
       console.log('WebSocket connected');
+      this.connectionState = 'connected';
       this.reconnectAttempts = 0;
-      this.emit('connected', { timestamp: new Date().toISOString() });
-    });
-
-    this.socket.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason);
-      this.emit('disconnected', { reason, timestamp: new Date().toISOString() });
       
-      if (reason === 'io server disconnect') {
-        // Server initiated disconnect, try to reconnect
+      // Clear any pending reconnect timeout
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
+      
+      // Start heartbeat
+      this.startHeartbeat();
+      
+      // Process queued subscriptions
+      this.queuedSubscriptions.forEach(channel => {
+        this.sendMessage({
+          type: 'subscribe',
+          data: { channel },
+          timestamp: new Date().toISOString()
+        });
+        console.log('Subscribed to queued channel:', channel);
+      });
+      this.queuedSubscriptions.clear();
+      
+      this.emit('connected', { timestamp: new Date().toISOString() });
+    };
+
+    this.socket.onclose = (event) => {
+      console.log('WebSocket disconnected:', event.code, event.reason);
+      this.connectionState = 'disconnected';
+      
+      // Stop heartbeat
+      this.stopHeartbeat();
+      
+      this.emit('disconnected', { 
+        code: event.code,
+        reason: event.reason, 
+        timestamp: new Date().toISOString() 
+      });
+      
+      // Attempt to reconnect unless it was a clean close
+      if (event.code !== 1000) {
         this.handleReconnect();
       }
-    });
+    };
 
-    this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
-      this.emit('error', { error: error.message, timestamp: new Date().toISOString() });
-      this.handleReconnect();
-    });
+    this.socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      this.emit('error', { error: 'WebSocket error', timestamp: new Date().toISOString() });
+    };
 
-    this.socket.on('auth_error', (error) => {
-      console.error('WebSocket authentication error:', error);
-      this.emit('auth_error', { error, timestamp: new Date().toISOString() });
-      
-      // Try to refresh token and reconnect
-      this.refreshTokenAndReconnect();
-    });
-
-    // Handle incoming messages
-    this.socket.on('message', (message: WebSocketMessage) => {
-      this.handleMessage(message);
-    });
-
-    // Handle specific event types
-    this.socket.on('user_activity', (data: UserActivityMessage['data']) => {
-      this.emit('user_activity', data);
-    });
-
-    this.socket.on('user_status', (data: UserStatusMessage['data']) => {
-      this.emit('user_status', data);
-    });
-
-    this.socket.on('security_alert', (data: SecurityAlertMessage['data']) => {
-      this.emit('security_alert', data);
-    });
-
-    this.socket.on('system_notification', (data: SystemNotificationMessage['data']) => {
-      this.emit('system_notification', data);
-    });
-
-    this.socket.on('user_created', (data: any) => {
-      this.emit('user_created', data);
-    });
-
-    this.socket.on('user_updated', (data: any) => {
-      this.emit('user_updated', data);
-    });
-
-    this.socket.on('user_deleted', (data: any) => {
-      this.emit('user_deleted', data);
-    });
-
-    this.socket.on('role_assigned', (data: any) => {
-      this.emit('role_assigned', data);
-    });
-
-    this.socket.on('role_revoked', (data: any) => {
-      this.emit('role_revoked', data);
-    });
+    this.socket.onmessage = (event) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
+        this.handleMessage(message);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error, event.data);
+      }
+    };
   }
 
   private handleMessage(message: WebSocketMessage): void {
     console.log('Received WebSocket message:', message);
-    this.emit('message', message);
     
-    // Emit specific event type
-    if (message.type) {
-      this.emit(message.type, message.data);
+    // Handle special message types
+    switch (message.type) {
+      case 'ack':
+        console.log('Received acknowledgment:', message.data);
+        break;
+      case 'error':
+        console.error('WebSocket server error:', message.data);
+        this.emit('error', message.data);
+        break;
+      case 'heartbeat':
+        // Respond to heartbeat
+        this.sendMessage({
+          type: 'heartbeat',
+          data: { status: 'alive' },
+          timestamp: new Date().toISOString()
+        });
+        break;
+      default:
+        // Emit the message to listeners
+        this.emit('message', message);
+        
+        // Emit specific event type
+        if (message.type) {
+          this.emit(message.type, message.data);
+        }
+        break;
     }
   }
 
   private handleReconnect(): void {
+    if (this.connectionState === 'reconnecting') {
+      return; // Already attempting to reconnect
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
       this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempts });
       return;
     }
 
+    this.connectionState = 'reconnecting';
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
     
     console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
     
-    setTimeout(() => {
+    this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat(); // Clear any existing heartbeat
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.sendMessage({
+          type: 'heartbeat',
+          data: { status: 'ping' },
+          timestamp: new Date().toISOString()
+        });
+      }
+    }, 30000); // Send heartbeat every 30 seconds
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  private sendMessage(message: WebSocketMessage): void {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify(message));
+    } else {
+      console.warn('WebSocket not connected, cannot send message:', message);
+    }
   }
 
   private async refreshTokenAndReconnect(): Promise<void> {
@@ -243,7 +311,7 @@ class WebSocketService {
       }
 
       const config = await getRuntimeConfig();
-      const response = await fetch(`${config.apiUrls.base}/auth/refresh/`, {
+      const response = await fetch(`${config.apiUrls.auth}/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -283,20 +351,45 @@ class WebSocketService {
 
   // Public methods
   public isConnected(): boolean {
-    return this.socket?.connected || false;
+    return this.socket?.readyState === WebSocket.OPEN;
+  }
+
+  public getConnectionState(): string {
+    return this.connectionState;
   }
 
   public disconnect(): void {
+    this.shouldConnect = false;
+    this.stopHeartbeat();
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
     if (this.socket) {
-      this.socket.disconnect();
+      this.socket.close(1000, 'Client disconnect');
       this.socket = null;
     }
+    
+    this.connectionState = 'disconnected';
   }
 
   public reconnect(): void {
     this.disconnect();
     this.reconnectAttempts = 0;
+    this.shouldConnect = true;
     this.connect();
+  }
+
+  // Lazy connection - only connect when actually needed
+  public ensureConnection(): void {
+    this.shouldConnect = true;
+    if (!this.connectionInitialized) {
+      this.initializeConnection();
+    } else if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
+      this.connect();
+    }
   }
 
   // Event subscription methods
@@ -331,28 +424,38 @@ class WebSocketService {
 
   // Channel subscription methods
   public subscribe(channel: string): void {
-    if (!this.socket?.connected) {
-      console.warn('WebSocket not connected, cannot subscribe to channel:', channel);
+    if (!this.isConnected()) {
+      // Queue subscription for when connection is established
+      this.queuedSubscriptions.add(channel);
+      console.log('Queued subscription for channel:', channel);
       return;
     }
 
-    this.socket.emit('subscribe', { channel });
+    this.sendMessage({
+      type: 'subscribe',
+      data: { channel },
+      timestamp: new Date().toISOString()
+    });
     console.log('Subscribed to channel:', channel);
   }
 
   public unsubscribe(channel: string): void {
-    if (!this.socket?.connected) {
+    if (!this.isConnected()) {
       console.warn('WebSocket not connected, cannot unsubscribe from channel:', channel);
       return;
     }
 
-    this.socket.emit('unsubscribe', { channel });
+    this.sendMessage({
+      type: 'unsubscribe',
+      data: { channel },
+      timestamp: new Date().toISOString()
+    });
     console.log('Unsubscribed from channel:', channel);
   }
 
   // Send message
   public send(type: string, data: any, channel?: string): void {
-    if (!this.socket?.connected) {
+    if (!this.isConnected()) {
       console.warn('WebSocket not connected, cannot send message');
       return;
     }
@@ -364,40 +467,47 @@ class WebSocketService {
       timestamp: new Date().toISOString(),
     };
 
-    this.socket.emit('message', message);
+    this.sendMessage(message);
   }
 
   // Convenience methods for common subscriptions
   public subscribeToUserActivity(userId?: string): void {
     const channel = userId ? `user_activity:${userId}` : 'user_activity:all';
+    this.ensureConnection();
     this.subscribe(channel);
   }
 
   public subscribeToSecurityAlerts(): void {
+    this.ensureConnection();
     this.subscribe('security_alerts');
   }
 
   public subscribeToSystemNotifications(): void {
+    this.ensureConnection();
     this.subscribe('system_notifications');
   }
 
   public subscribeToUserManagement(): void {
+    this.ensureConnection();
     this.subscribe('user_management');
   }
 
   public subscribeToUserStatus(userId?: string): void {
     const channel = userId ? `user_status:${userId}` : 'user_status:all';
+    this.ensureConnection();
     this.subscribe(channel);
   }
 
   // Get connection status
   public getStatus(): {
     connected: boolean;
+    connectionState: string;
     reconnectAttempts: number;
     maxReconnectAttempts: number;
   } {
     return {
       connected: this.isConnected(),
+      connectionState: this.connectionState,
       reconnectAttempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts,
     };
@@ -448,8 +558,6 @@ export function useWebSocket() {
     off: websocketService.off.bind(websocketService),
     send: websocketService.send.bind(websocketService),
     reconnect: websocketService.reconnect.bind(websocketService),
+    ensureConnection: websocketService.ensureConnection.bind(websocketService),
   };
 }
-
-// Import React for the hook
-import React from 'react';
