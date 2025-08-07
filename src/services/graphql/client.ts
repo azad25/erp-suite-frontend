@@ -20,7 +20,7 @@ export class GraphQLClient {
       this.configLoaded = true;
     } catch (error) {
       console.error('Failed to load GraphQL config:', error);
-      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8080/api/graphql';
+      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql';
       this.configLoaded = true;
     }
   }
@@ -55,6 +55,10 @@ export class GraphQLClient {
       });
 
       if (!response.ok) {
+        // Handle 401 specifically for better error messages
+        if (response.status === 401) {
+          throw new Error(`GraphQL request failed: 401 Unauthorized - Please check your authentication token`);
+        }
         throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
       }
 
@@ -62,12 +66,55 @@ export class GraphQLClient {
 
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
-        throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`);
+        // Provide more detailed error information
+        const errorMessages = result.errors.map((e: any) => {
+          if (e.extensions?.code === 'UNAUTHENTICATED') {
+            return 'Authentication required - please log in';
+          }
+          if (e.extensions?.code === 'FORBIDDEN') {
+            return 'Insufficient permissions for this operation';
+          }
+          return e.message;
+        });
+        throw new Error(`GraphQL errors: ${errorMessages.join(', ')}`);
       }
 
       return result.data;
     } catch (error: any) {
       console.error('GraphQL request failed:', error);
+
+      // If it's a 401 error, try to refresh the token
+      if (error.message.includes('401') && typeof window !== 'undefined') {
+        try {
+          // Try to refresh the token
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (refreshToken) {
+            const response = await fetch('/api/auth/refresh', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.data?.access_token) {
+                localStorage.setItem('access_token', data.data.access_token);
+                // Retry the original request with the new token
+                return this.request(query, variables);
+              }
+            }
+          }
+
+          // If refresh fails, redirect to login
+          window.location.href = '/signin';
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          window.location.href = '/signin';
+        }
+      }
+
       throw error;
     }
   }

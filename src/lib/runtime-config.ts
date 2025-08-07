@@ -6,7 +6,6 @@
 interface RuntimeConfig {
   apiUrls: {
     base: string;
-    auth: string;
     graphql: string;
     websocket: string;
   };
@@ -23,7 +22,6 @@ let configPromise: Promise<RuntimeConfig> | null = null;
 const fallbackConfig: RuntimeConfig = {
   apiUrls: {
     base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-    auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
     graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
     websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
   },
@@ -75,7 +73,6 @@ async function fetchConfig(): Promise<RuntimeConfig> {
     return {
       apiUrls: {
         base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-        auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
         graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
         websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
       },
@@ -110,7 +107,6 @@ async function fetchConfig(): Promise<RuntimeConfig> {
     return {
       apiUrls: {
         base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-        auth: process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost',
         graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
         websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
       },

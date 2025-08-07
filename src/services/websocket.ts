@@ -217,7 +217,7 @@ class WebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage): void {
-    console.log('Received WebSocket message:', message);
+    // console.log('Received WebSocket message:', message);
     
     // Handle special message types
     switch (message.type) {
@@ -311,7 +311,7 @@ class WebSocketService {
       }
 
       const config = await getRuntimeConfig();
-      const response = await fetch(`${config.apiUrls.auth}/refresh`, {
+      const response = await fetch(`${config.apiUrls.base}/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

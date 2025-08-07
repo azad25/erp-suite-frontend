@@ -237,13 +237,28 @@ class UserManagementService {
         offset,
       });
 
+      // Handle the UserActivityConnection structure
+      const activityConnection = response.userActivity;
+      if (!activityConnection) {
+        return {
+          activities: [],
+          total: 0,
+          page: Math.floor(offset / limit) + 1,
+          limit,
+          hasNextPage: false,
+          hasPreviousPage: offset > 0,
+        };
+      }
+
+      const activities = activityConnection.edges?.map((edge: any) => edge.node) || [];
+
       return {
-        activities: response.userActivity || [],
-        total: response.userActivity?.length || 0,
+        activities,
+        total: activityConnection.totalCount || 0,
         page: Math.floor(offset / limit) + 1,
         limit,
-        hasNextPage: false,
-        hasPreviousPage: offset > 0,
+        hasNextPage: activityConnection.pageInfo?.hasNextPage || false,
+        hasPreviousPage: activityConnection.pageInfo?.hasPreviousPage || false,
       };
     } catch (error) {
       console.error('GraphQL getUserActivity failed:', error);
@@ -251,10 +266,10 @@ class UserManagementService {
       return {
         activities: [],
         total: 0,
-        page: 1,
+        page: Math.floor(offset / limit) + 1,
         limit,
         hasNextPage: false,
-        hasPreviousPage: false,
+        hasPreviousPage: offset > 0,
       };
     }
   }
