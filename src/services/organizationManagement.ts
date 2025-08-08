@@ -46,8 +46,8 @@ export interface UpdateOrganizationInput {
 
 // GraphQL queries and mutations
 const GET_ORGANIZATIONS = `
-  query GetOrganizations($limit: Int, $offset: Int, $search: String, $sortBy: String, $sortOrder: String) {
-    organizations(limit: $limit, offset: $offset, search: $search, sortBy: $sortBy, sortOrder: $sortOrder) {
+  query GetOrganizations($limit: Int, $offset: Int, $search: String) {
+    organizations(limit: $limit, offset: $offset, search: $search) {
       edges {
         node {
           id
@@ -171,8 +171,6 @@ class OrganizationManagementService {
         limit,
         offset,
         search,
-        sortBy: 'created_at',
-        sortOrder: 'desc',
       });
 
       const edges = response.organizations?.edges || [];

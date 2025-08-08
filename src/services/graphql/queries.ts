@@ -51,12 +51,21 @@ export const GET_USER_BY_ID = `
   query GetUserById($id: ID!) {
     user(id: $id) {
       id
+      organizationId
       firstName
       lastName
       email
       emailVerifiedAt
+      isActive
+      isVerified
+      lastLoginAt
       createdAt
       updatedAt
+      organization {
+        id
+        name
+        domain
+      }
       roles {
         id
         name
@@ -100,8 +109,8 @@ export const GET_USERS = `
 `;
 
 export const GET_USERS_CONNECTION = `
-  query GetUsersConnection($limit: Int, $offset: Int, $search: String, $sortBy: String, $sortOrder: String) {
-    users(limit: $limit, offset: $offset, search: $search, sortBy: $sortBy, sortOrder: $sortOrder) {
+  query GetUsersConnection($limit: Int, $offset: Int, $search: String) {
+    users(limit: $limit, offset: $offset, search: $search) {
       edges {
         node {
           id
@@ -160,6 +169,23 @@ export const GET_SECURITY_STATS = `
       securityAlerts
       twoFactorEnabled
       passwordResetsToday
+    }
+  }
+`;
+
+export const GET_SECURITY_EVENTS = `
+  query GetSecurityEvents($limit: Int, $organizationId: ID) {
+    securityEvents(limit: $limit, organizationId: $organizationId) {
+      id
+      type
+      severity
+      message
+      ipAddress
+      userAgent
+      userEmail
+      timestamp
+      details
+      count
     }
   }
 `;

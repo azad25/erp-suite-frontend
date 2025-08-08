@@ -86,17 +86,35 @@ export class GraphQLClient {
 
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
+        // Special-case: common not-found scenario without extensions
+        const lowerMessages = result.errors.map((e: any) => String(e.message || '').toLowerCase());
+        const hasNotFound = lowerMessages.some((m: string) => m.includes('not found'));
+        const hasUserPath = result.errors.some((e: any) => Array.isArray(e.path) && e.path.includes('user'));
+        if (hasNotFound && hasUserPath) {
+          const notFoundError: any = new Error('User not found');
+          notFoundError.code = 'NOT_FOUND';
+          throw notFoundError;
+        }
+
         // Provide more detailed error information
         const errorMessages = result.errors.map((e: any) => {
-          if (e.extensions?.code === 'UNAUTHENTICATED') {
+          const code = e.extensions?.code;
+          if (code === 'UNAUTHENTICATED') {
             return 'Authentication required - please log in';
           }
-          if (e.extensions?.code === 'FORBIDDEN') {
+          if (code === 'FORBIDDEN') {
             return 'Insufficient permissions for this operation';
+          }
+          if (code === 'NOT_FOUND') {
+            return e.message || 'Requested resource not found';
           }
           return e.message;
         });
-        throw new Error(`GraphQL errors: ${errorMessages.join(', ')}`);
+        const genericError: any = new Error(`GraphQL errors: ${errorMessages.join(', ')}`);
+        // If any error had an extension code, preserve the first
+        const firstWithCode = (result.errors as any[]).find(e => e.extensions?.code);
+        if (firstWithCode) genericError.code = firstWithCode.extensions.code;
+        throw genericError;
       }
 
       return result.data;

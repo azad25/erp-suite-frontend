@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
+
 import Button from "../ui/button/Button";
 import Badge from "../ui/badge/Badge";
 import { organizationManagementService, Organization } from "../../services/organizationManagement";
@@ -25,11 +24,9 @@ export default function OrganizationListTable() {
     hasNextPage: false,
     hasPreviousPage: false,
   });
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { isOpen, openModal, closeModal } = useModal();
 
   useEffect(() => {
     loadOrganizations();
@@ -60,10 +57,7 @@ export default function OrganizationListTable() {
     }
   };
 
-  const handleViewOrganization = (organization: Organization) => {
-    setSelectedOrganization(organization);
-    openModal();
-  };
+
 
   const handleDeleteOrganization = async (organizationId: string) => {
     if (!confirm('Are you sure you want to delete this organization? This action cannot be undone.')) {
@@ -265,23 +259,14 @@ export default function OrganizationListTable() {
                     </td>
                     <td className="px-5 py-4 lg:px-6">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleViewOrganization(organization)}
+                        <Link
+                          href={`/users/organizations/${organization.id}`}
                           className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
                           title="View Organization"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                        <Link
-                          href={`/users/organizations/${organization.id}`}
-                          className="flex items-center justify-center w-8 h-8 rounded-full border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                          title="View Users"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
                         </Link>
                         <button
@@ -357,114 +342,7 @@ export default function OrganizationListTable() {
         )}
       </div>
 
-      {/* Organization Details Modal */}
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[900px] m-4">
-        {selectedOrganization && (
-          <div className="no-scrollbar relative w-full max-w-[900px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-8">
-            <div className="px-2 pr-14">
-              <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-                Organization Details
-              </h4>
-              <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-                View and manage organization information
-              </p>
-            </div>
-            
-            <div className="px-2 space-y-6">
-              {/* Organization Header */}
-              <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                <div className="w-16 h-16 overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h5 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                    {selectedOrganization.name}
-                  </h5>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {selectedOrganization.domain}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge 
-                      color={selectedOrganization.isActive ? "success" : "light"}
-                      size="sm"
-                    >
-                      {selectedOrganization.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
 
-              {/* Organization Details Grid */}
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                  <h6 className="mb-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                    Basic Information
-                  </h6>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Name</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Domain</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.domain}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.isActive ? 'Active' : 'Inactive'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                  <h6 className="mb-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                    Statistics
-                  </h6>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Total Users</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.userCount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Active Users</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.activeUserCount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Created</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {formatDate(selectedOrganization.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
-              <Button size="sm" variant="outline" onClick={closeModal}>
-                Close
-              </Button>
-              <Link href={`/users/organizations/${selectedOrganization.id}`}>
-                <Button size="sm">
-                  View Users
-                </Button>
-              </Link>
-            </div>
-          </div>
-        )}
-      </Modal>
     </>
   );
 }

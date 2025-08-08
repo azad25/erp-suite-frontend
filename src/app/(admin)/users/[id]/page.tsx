@@ -48,9 +48,19 @@ export default function UserDetailsPage({ params }: UserDetailsPageProps) {
       setError(null);
       const userData = await userManagementService.getUserById(userId);
       setUser(userData);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading user:', err);
-      setError('Failed to load user details. Please try again.');
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = (err as any)?.code;
+      if (code === 'NOT_FOUND' || msg.toLowerCase().includes('not found')) {
+        setError('User not found');
+      } else if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('authentication')) {
+        setError('Authentication required - please sign in');
+      } else if (msg.toLowerCase().includes('forbidden')) {
+        setError('You do not have permission to view this user');
+      } else {
+        setError('Failed to load user details. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

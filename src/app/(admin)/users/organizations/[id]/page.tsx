@@ -51,14 +51,14 @@ export default function OrganizationDetailPage() {
       setOrganization(orgData);
       
       // Set users from organization data
-      if (orgData.users) {
+      if (orgData && orgData.users && orgData.users.length > 0) {
         const organizationUsers: OrganizationUser[] = orgData.users.map((user: any) => ({
           ...user,
           id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          isActive: user.isActive,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          email: user.email || '',
+          isActive: user.isActive !== undefined ? user.isActive : true,
           role: 'User', // Default role since it's not available in the API
           joinedAt: new Date().toISOString(), // Placeholder
           lastActivity: user.lastLoginAt || new Date().toISOString(),
@@ -67,7 +67,7 @@ export default function OrganizationDetailPage() {
         }));
         setUsers(organizationUsers);
         
-        // Calculate user stats
+        // Calculate user stats from actual data
         const stats: UserStats = {
           totalUsers: organizationUsers.length,
           activeUsers: organizationUsers.filter(u => u.isActive).length,
@@ -82,6 +82,21 @@ export default function OrganizationDetailPage() {
           pendingInvites: 0, // Placeholder
         };
         setUserStats(stats);
+      } else {
+        // Use organization's userCount and activeUserCount if users array is not available
+        const totalUsers = orgData?.userCount || 0;
+        const activeUsers = orgData?.activeUserCount || 0;
+        
+        const stats: UserStats = {
+          totalUsers: totalUsers,
+          activeUsers: activeUsers,
+          inactiveUsers: totalUsers - activeUsers,
+          adminUsers: 0,
+          recentLogins: 0,
+          pendingInvites: 0,
+        };
+        setUserStats(stats);
+        setUsers([]); // Set empty array if no users data
       }
     } catch (err) {
       console.error('Error loading organization data:', err);

@@ -479,7 +479,7 @@ class WebSocketService {
 
   public subscribeToSecurityAlerts(): void {
     this.ensureConnection();
-    this.subscribe('security_alerts');
+    this.subscribe('events:security:failed_login');
   }
 
   public subscribeToSystemNotifications(): void {
@@ -496,6 +496,23 @@ class WebSocketService {
     const channel = userId ? `user_status:${userId}` : 'user_status:all';
     this.ensureConnection();
     this.subscribe(channel);
+  }
+
+  // Security utilities
+  public subscribeToSecurityEvents(eventType: string = 'failed_login'): void {
+    const channel = `events:security:${eventType}`;
+    this.ensureConnection();
+    this.subscribe(channel);
+  }
+
+  public onSecurityEvent(callback: (message: WebSocketMessage) => void): void {
+    // Listen for all messages and filter by channel prefix
+    const handler = (message: WebSocketMessage) => {
+      if (message.type === 'event' && message.channel && message.channel.startsWith('security:')) {
+        callback(message);
+      }
+    };
+    this.on('message', handler);
   }
 
   // Get connection status
