@@ -6,9 +6,7 @@ import ChartTab from "../common/ChartTab";
 import dynamic from "next/dynamic";
 
 // Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
-  ssr: false,
-});
+const ReactApexChart = dynamic(() => import("react-apexcharts"));
 
 export default function StatisticsChart() {
   const options: ApexOptions = {

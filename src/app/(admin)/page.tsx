@@ -8,12 +8,11 @@ import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 // Lazy load heavy components for faster initial page load
 // EcommerceMetrics is a named export, so we need to destructure it
 const EcommerceMetrics = dynamic(
-  () => import("@/components/ecommerce/EcommerceMetrics").then(mod => ({ 
-    default: mod.EcommerceMetrics 
+  () => import("@/components/ecommerce/EcommerceMetrics").then(mod => ({
+    default: mod.EcommerceMetrics
   })),
   {
-    loading: () => <CardSkeleton className="h-32" />,
-    ssr: false
+    loading: () => <CardSkeleton className="h-32" />
   }
 );
 
@@ -21,48 +20,42 @@ const EcommerceMetrics = dynamic(
 const MonthlyTarget = dynamic(
   () => import("@/components/ecommerce/MonthlyTarget"),
   {
-    loading: () => <ChartSkeleton className="h-64" />,
-    ssr: false
+    loading: () => <ChartSkeleton className="h-64" />
   }
 );
 
 const MonthlySalesChart = dynamic(
   () => import("@/components/ecommerce/MonthlySalesChart"),
   {
-    loading: () => <ChartSkeleton className="h-80" />,
-    ssr: false
+    loading: () => <ChartSkeleton className="h-80" />
   }
 );
 
 const StatisticsChart = dynamic(
   () => import("@/components/ecommerce/StatisticsChart"),
   {
-    loading: () => <ChartSkeleton className="h-96" />,
-    ssr: false
+    loading: () => <ChartSkeleton className="h-96" />
   }
 );
 
 const RecentOrders = dynamic(
   () => import("@/components/ecommerce/RecentOrders"),
   {
-    loading: () => <CardSkeleton className="h-64" />,
-    ssr: false
+    loading: () => <CardSkeleton className="h-64" />
   }
 );
 
 const DemographicCard = dynamic(
   () => import("@/components/ecommerce/DemographicCard"),
   {
-    loading: () => <ChartSkeleton className="h-64" />,
-    ssr: false
+    loading: () => <ChartSkeleton className="h-64" />
   }
 );
 
 const UserManagementDashboard = dynamic(
   () => import("@/components/user-management/UserManagementDashboard"),
   {
-    loading: () => <CardSkeleton className="h-64" />,
-    ssr: false
+    loading: () => <CardSkeleton className="h-64" />
   }
 );
 

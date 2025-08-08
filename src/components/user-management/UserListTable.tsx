@@ -1,11 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useModal } from "../../hooks/useModal";
 import Button from "../ui/button/Button";
 import Badge from "../ui/badge/Badge";
-import CreateUserForm from "./CreateUserForm";
 import { userManagementService } from "../../services/userManagement";
 import { User } from "@/types/user";
 
@@ -31,11 +30,12 @@ export default function UserListTable() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
-  const { isOpen: isCreateModalOpen, openModal: openCreateModal, closeModal: closeCreateModal } = useModal();
+  
 
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   useEffect(() => {
     loadUsers();
-  }, [searchTerm]);
+  }, [debouncedSearch]);
 
   const loadUsers = async (page = 1, limit = 10) => {
     try {
@@ -74,7 +74,6 @@ export default function UserListTable() {
       if (result.success) {
         // Reload users to show the new user
         await loadUsers();
-        closeCreateModal();
       } else {
         console.error('Failed to create user:', result.errors);
       }
@@ -98,6 +97,10 @@ export default function UserListTable() {
     } catch (error) {
       console.error('Error deleting user:', error);
     }
+  };
+
+  const handleEditUser = (user: User) => {
+    router.push(`/users/${user.id}/edit`);
   };
 
   const handleToggleUserStatus = async (userId: string, isActive: boolean) => {
@@ -211,7 +214,7 @@ export default function UserListTable() {
                 onChange={handleSearch}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
-              <Button size="sm" onClick={openCreateModal}>
+              <Button size="sm" onClick={() => router.push('/users/create')}>
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -318,6 +321,15 @@ export default function UserListTable() {
                           </svg>
                         </button>
                         <button
+                          onClick={() => handleEditUser(user)}
+                          className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+                          title="Edit User"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="flex items-center justify-center w-8 h-8 rounded-full border border-red-300 bg-white text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20"
                           title="Delete User"
@@ -381,14 +393,7 @@ export default function UserListTable() {
         )}
       </div>
 
-
-
-      {/* Create User Modal */}
-      <CreateUserForm 
-        isOpen={isCreateModalOpen}
-        onClose={closeCreateModal}
-        onSubmit={handleCreateUser}
-      />
+      
     </>
   );
 }

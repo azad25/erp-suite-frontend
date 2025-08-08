@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -26,6 +27,7 @@ interface UserStats {
 export default function OrganizationDetailPage() {
   const params = useParams();
   const organizationId = params.id as string;
+  const router = useRouter();
   
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [users, setUsers] = useState<OrganizationUser[]>([]);
@@ -153,11 +155,13 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
+  const normalizedQuery = debouncedSearch.trim().toLowerCase();
   const filteredUsers = users.filter(user =>
-    (user.firstName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.lastName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.role || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (user.firstName || '').toLowerCase().includes(normalizedQuery) ||
+    (user.lastName || '').toLowerCase().includes(normalizedQuery) ||
+    (user.email || '').toLowerCase().includes(normalizedQuery) ||
+    (user.role || '').toLowerCase().includes(normalizedQuery)
   );
 
   const formatDate = (dateString: string) => {
@@ -265,13 +269,13 @@ export default function OrganizationDetailPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" onClick={() => router.push(`/users/organizations/${organization.id}/edit`)}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
             Edit Organization
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => router.push(`/users/create?org=${organization.id}`)}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
@@ -441,7 +445,7 @@ export default function OrganizationDetailPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
-              <Button size="sm">
+              <Button size="sm" onClick={() => router.push(`/users/create?org=${organization.id}`)}>
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -517,7 +521,7 @@ export default function OrganizationDetailPage() {
                     <td className="px-5 py-4 lg:px-6">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setSelectedUser(user)}
+                          onClick={() => router.push(`/users/${user.id}`)}
                           className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
                           title="View User"
                         >

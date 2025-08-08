@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import Button from "../ui/button/Button";
 import Badge from "../ui/badge/Badge";
@@ -16,6 +18,7 @@ interface OrganizationListData {
 }
 
 export default function OrganizationListTable() {
+  const router = useRouter();
   const [organizationListData, setOrganizationListData] = useState<OrganizationListData>({
     organizations: [],
     total: 0,
@@ -28,9 +31,10 @@ export default function OrganizationListTable() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   useEffect(() => {
     loadOrganizations();
-  }, [searchTerm]);
+  }, [debouncedSearch]);
 
   const loadOrganizations = async (page = 1, limit = 10) => {
     try {
@@ -177,7 +181,7 @@ export default function OrganizationListTable() {
                 onChange={handleSearch}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
-              <Button size="sm">
+              <Button size="sm" onClick={() => router.push('/users/organizations/create')}>
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -269,6 +273,15 @@ export default function OrganizationListTable() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         </Link>
+                        <button
+                          onClick={() => router.push(`/users/organizations/${organization.id}/edit`)}
+                          className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+                          title="Edit Organization"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleToggleOrganizationStatus(organization.id, organization.isActive)}
                           className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"

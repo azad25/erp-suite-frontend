@@ -1,12 +1,9 @@
-import { Outfit } from 'next/font/google';
-import './globals.css';
+import { Outfit } from "next/font/google";
+import "./globals.css";
 
-import { SidebarProvider } from '@/context/SidebarContext';
-import { ThemeProvider } from '@/context/ThemeContext';
-import { AuthProvider } from '@/hooks/useAuth';
-import dynamic from 'next/dynamic';
-// Lazy-load PerformanceMonitor using existing dynamic() pattern
-const PerformanceMonitor = dynamic(() => import('@/components/common/PerformanceMonitor'));
+import { SidebarProvider } from "@/context/SidebarContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthProvider } from "@/hooks/useAuth";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -23,7 +20,6 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <SidebarProvider>
-              <PerformanceMonitor />
               {children}
             </SidebarProvider>
           </AuthProvider>

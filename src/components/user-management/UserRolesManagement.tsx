@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import Link from "next/link";
 import Button from "../ui/button/Button";
 import Badge from "../ui/badge/Badge";
+import { Modal } from "../ui/modal";
 import { userManagementService } from "../../services/userManagement";
 
 interface Role {
@@ -29,15 +30,19 @@ interface Permission {
 export default function UserRolesManagement() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { isOpen, openModal, closeModal } = useModal();
-  const { isOpen: isCreateModalOpen, openModal: openCreateModal, closeModal: closeCreateModal } = useModal();
+  
+  // Modal state
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   useEffect(() => {
     loadRolesAndPermissions();
-  }, []);
+  }, [debouncedSearch]);
 
   const loadRolesAndPermissions = async () => {
     try {
@@ -58,6 +63,15 @@ export default function UserRolesManagement() {
       setLoading(false);
     }
   };
+
+  const openModal = () => setIsOpen(true);
+  const closeModal = () => {
+    setIsOpen(false);
+    setSelectedRole(null);
+  };
+  
+  const openCreateModal = () => setIsCreateModalOpen(true);
+  const closeCreateModal = () => setIsCreateModalOpen(false);
 
   const handleViewRole = (role: Role) => {
     setSelectedRole(role);
@@ -118,7 +132,14 @@ export default function UserRolesManagement() {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20">
         <div className="p-5 lg:p-6">
-          <div className="flex items-center gap-3">
+             <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search roles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
             <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -158,12 +179,21 @@ export default function UserRolesManagement() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button size="sm" onClick={openCreateModal}>
+              <input
+                type="text"
+                placeholder="Search roles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+              <Link href="/users/roles/create" className="inline-block">
+              <Button size="sm">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Add Role
               </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -191,7 +221,16 @@ export default function UserRolesManagement() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {roles.length > 0 ? (
-                roles.map((role) => (
+                roles
+                  .filter((role) => {
+                    const q = debouncedSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      role.name.toLowerCase().includes(q) ||
+                      (role.description || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .map((role) => (
                   <tr key={role.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                     <td className="px-5 py-4 lg:px-6">
                       <div>

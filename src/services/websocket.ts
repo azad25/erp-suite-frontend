@@ -479,7 +479,9 @@ class WebSocketService {
 
   public subscribeToSecurityAlerts(): void {
     this.ensureConnection();
-    this.subscribe('events:security:failed_login');
+    // Backend publishes on Redis/WebSocket channel: events:failed_login
+    // Align subscription to match publisher
+    this.subscribe('events:failed_login');
   }
 
   public subscribeToSystemNotifications(): void {
@@ -500,19 +502,32 @@ class WebSocketService {
 
   // Security utilities
   public subscribeToSecurityEvents(eventType: string = 'failed_login'): void {
-    const channel = `events:security:${eventType}`;
+    // Backend channel format is events:<eventType>
+    const channel = `events:${eventType}`;
     this.ensureConnection();
     this.subscribe(channel);
   }
 
-  public onSecurityEvent(callback: (message: WebSocketMessage) => void): void {
-    // Listen for all messages and filter by channel prefix
+  public onSecurityEvent(
+    callback: (message: WebSocketMessage) => void,
+    eventType: string = 'failed_login',
+  ): () => void {
+    // Listen for all messages and filter by specific event type
     const handler = (message: WebSocketMessage) => {
-      if (message.type === 'event' && message.channel && message.channel.startsWith('security:')) {
+      // Handle different message formats from backend
+      const isSecurityEvent = 
+        (message.type === 'event' && message.channel === eventType) ||
+        (message.type === 'event' && message.channel === `events:${eventType}`) ||
+        (message.type === 'security_alert' && message.data?.type === eventType) ||
+        (message.type === eventType);
+      
+      if (isSecurityEvent) {
+        console.log('Security event received:', message);
         callback(message);
       }
     };
     this.on('message', handler);
+    return () => this.off('message', handler);
   }
 
   // Get connection status
