@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
@@ -208,9 +207,6 @@ export default function OrganizationListTable() {
                   Status
                 </th>
                 <th className="px-5 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider lg:px-6">
-                  Subscription
-                </th>
-                <th className="px-5 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider lg:px-6">
                   Created
                 </th>
                 <th className="px-5 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider lg:px-6">
@@ -225,19 +221,9 @@ export default function OrganizationListTable() {
                     <td className="px-5 py-4 lg:px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                          {organization.logo ? (
-                            <Image
-                              width={40}
-                              height={40}
-                              src={organization.logo}
-                              alt={organization.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                          )}
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-800 dark:text-white/90">
@@ -257,11 +243,9 @@ export default function OrganizationListTable() {
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           users
                         </span>
-                        {organization.adminCount > 0 && (
-                          <Badge color="info" size="sm">
-                            {organization.adminCount} admin{organization.adminCount > 1 ? 's' : ''}
-                          </Badge>
-                        )}
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          ({organization.activeUserCount} active)
+                        </span>
                       </div>
                     </td>
                     <td className="px-5 py-4 lg:px-6">
@@ -272,21 +256,6 @@ export default function OrganizationListTable() {
                         >
                           {organization.isActive ? "Active" : "Inactive"}
                         </Badge>
-                        {organization.isVerified && (
-                          <Badge color="info" size="sm">
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 lg:px-6">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                          {organization.subscriptionPlan || 'Free'}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {organization.subscriptionStatus || 'Active'}
-                        </p>
                       </div>
                     </td>
                     <td className="px-5 py-4 lg:px-6">
@@ -405,19 +374,9 @@ export default function OrganizationListTable() {
               {/* Organization Header */}
               <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
                 <div className="w-16 h-16 overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  {selectedOrganization.logo ? (
-                    <Image
-                      width={64}
-                      height={64}
-                      src={selectedOrganization.logo}
-                      alt={selectedOrganization.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  )}
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
                 </div>
                 <div className="flex-1">
                   <h5 className="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -433,11 +392,6 @@ export default function OrganizationListTable() {
                     >
                       {selectedOrganization.isActive ? "Active" : "Inactive"}
                     </Badge>
-                    {selectedOrganization.isVerified && (
-                      <Badge color="info" size="sm">
-                        Verified
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
@@ -461,27 +415,12 @@ export default function OrganizationListTable() {
                         {selectedOrganization.domain}
                       </p>
                     </div>
-                    {selectedOrganization.description && (
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Description</p>
-                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                          {selectedOrganization.description}
-                        </p>
-                      </div>
-                    )}
-                    {selectedOrganization.website && (
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Website</p>
-                        <a 
-                          href={selectedOrganization.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          {selectedOrganization.website}
-                        </a>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                        {selectedOrganization.isActive ? 'Active' : 'Inactive'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -497,15 +436,9 @@ export default function OrganizationListTable() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Administrators</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Active Users</p>
                       <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.adminCount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Subscription</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedOrganization.subscriptionPlan || 'Free'}
+                        {selectedOrganization.activeUserCount}
                       </p>
                     </div>
                     <div>

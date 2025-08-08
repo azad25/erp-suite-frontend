@@ -1,9 +1,10 @@
 "use client";
-import React, { useEffect, useRef, useState,useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { useUserRole } from "../hooks/useUserRole";
 import {
   BoxCubeIcon,
   CalenderIcon,
@@ -18,7 +19,9 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
-import SidebarWidget from "./SidebarWidget";
+import dynamic from "next/dynamic";
+// Lazy-load SidebarWidget using existing dynamic() pattern
+const SidebarWidget = dynamic(() => import("./SidebarWidget"));
 
 type NavItem = {
   name: string;
@@ -27,7 +30,8 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const navItems: NavItem[] = [
+  // Create a function to generate navItems based on user role
+  const getNavItems = (isAppAdmin: boolean): NavItem[] => [
   {
     icon: <GridIcon />,
     name: "Dashboard",
@@ -48,7 +52,8 @@ const navItems: NavItem[] = [
     name: "User Management",
     subItems: [
       { name: "All Users", path: "/users", pro: false },
-      { name: "Organizations", path: "/users/organizations", pro: false },
+      // Only show Organizations menu for app admins
+      ...(isAppAdmin ? [{ name: "Organizations", path: "/users/organizations", pro: false }] : []),
       { name: "Roles & Permissions", path: "/users/roles", pro: false },
       { name: "Activity Logs", path: "/users/activity", pro: false },
     ],
@@ -116,13 +121,19 @@ const othersItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const { isAppAdmin, isOrganizationAdmin, loading: roleLoading, roleType, error } = useUserRole();
+
+
+
+  // Get dynamic navItems based on user role (memoized to avoid effect loops)
+  const navItems = useMemo(() => getNavItems(isAppAdmin), [isAppAdmin]);
 
   const renderMenuItems = (
-    navItems: NavItem[],
+    items: NavItem[],
     menuType: "main" | "others"
   ) => (
     <ul className="flex flex-col gap-4">
-      {navItems.map((nav, index) => (
+      {items.map((nav, index) => (
         <li key={nav.name}>
           {nav.subItems ? (
             <button
@@ -256,30 +267,36 @@ const AppSidebar: React.FC = () => {
    const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
   useEffect(() => {
-    // Check if the current path matches any submenu item
-    let submenuMatched = false;
-    ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? navItems : othersItems;
-      items.forEach((nav, index) => {
-        if (nav.subItems) {
-          nav.subItems.forEach((subItem) => {
-            if (isActive(subItem.path)) {
-              setOpenSubmenu({
-                type: menuType as "main" | "others",
-                index,
-              });
-              submenuMatched = true;
-            }
-          });
-        }
-      });
-    });
+    // Determine which submenu (if any) should be open for current path
+    let next: { type: "main" | "others"; index: number } | null = null;
 
-    // If no submenu item matches, close the open submenu
-    if (!submenuMatched) {
-      setOpenSubmenu(null);
+    for (const menuType of ["main", "others"] as const) {
+      const items = menuType === "main" ? navItems : othersItems;
+      for (let index = 0; index < items.length; index++) {
+        const nav = items[index];
+        if (!nav.subItems) continue;
+        for (const subItem of nav.subItems) {
+          if (subItem.path === pathname) {
+            next = { type: menuType, index };
+            break;
+          }
+        }
+        if (next) break;
+      }
+      if (next) break;
     }
-  }, [pathname,isActive]);
+
+    // Update state only if it actually changed
+    setOpenSubmenu((prev) => {
+      if (!next) {
+        return prev === null ? prev : null;
+      }
+      if (prev && prev.type === next.type && prev.index === next.index) {
+        return prev;
+      }
+      return next;
+    });
+  }, [pathname]);
 
   useEffect(() => {
     // Set the height of the submenu items when the submenu is opened

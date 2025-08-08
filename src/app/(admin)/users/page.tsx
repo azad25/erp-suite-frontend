@@ -1,5 +1,7 @@
-import UserManagementDashboard from "@/components/user-management/UserManagementDashboard";
-import UserListTable from "@/components/user-management/UserListTable";
+import dynamic from "next/dynamic";
+// Lazy-load heavy dashboard and table using existing dynamic() pattern
+const UserManagementDashboard = dynamic(() => import("@/components/user-management/UserManagementDashboard"));
+const UserListTable = dynamic(() => import("@/components/user-management/UserListTable"));
 import { Metadata } from "next";
 import React from "react";
 

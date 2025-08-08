@@ -23,8 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const initAuth = () => {
+  const initAuth = () => {
       try {
         // Synchronous check for immediate response
         if (apiClient.isAuthenticated()) {
@@ -57,10 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    useEffect(() => {
     if (!initialized) {
       initAuth();
     }
-  }, [initialized]);
+  }, []); // Removed `initialized` from dependency array
 
   const login = async (credentials: LoginRequest) => {
     try {
@@ -70,25 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.data) {
         setUser(response.data.user);
 
-        // Verify tokens are set and wait for them to be available
-        let attempts = 0;
-        const maxAttempts = 10;
+        // Verify tokens are set with a single check
+        const hasToken = apiClient.isAuthenticated();
+        const storedUser = apiClient.getCurrentUserFromStorage();
+        const cookieExists = document.cookie.includes('access_token=');
 
-        while (attempts < maxAttempts) {
-          const hasToken = apiClient.isAuthenticated();
-          const storedUser = apiClient.getCurrentUserFromStorage();
-          const cookieExists = document.cookie.includes('access_token=');
-
-          if (hasToken && storedUser && cookieExists) {
-            break;
-          }
-
-          // Wait 50ms before next check
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-
-        if (attempts >= maxAttempts) {
+        if (!hasToken || !storedUser || !cookieExists) {
           return {
             success: false,
             message: 'Authentication setup failed. Please try again.',
@@ -125,25 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.data) {
         setUser(response.data.user);
 
-        // Verify tokens are set and wait for them to be available
-        let attempts = 0;
-        const maxAttempts = 10;
+        // Verify tokens are set with a single check
+        const hasToken = apiClient.isAuthenticated();
+        const storedUser = apiClient.getCurrentUserFromStorage();
+        const cookieExists = document.cookie.includes('access_token=');
 
-        while (attempts < maxAttempts) {
-          const hasToken = apiClient.isAuthenticated();
-          const storedUser = apiClient.getCurrentUserFromStorage();
-          const cookieExists = document.cookie.includes('access_token=');
-
-          if (hasToken && storedUser && cookieExists) {
-            break;
-          }
-
-          // Wait 50ms before next check
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-
-        if (attempts >= maxAttempts) {
+        if (!hasToken || !storedUser || !cookieExists) {
           return {
             success: false,
             message: 'Authentication setup failed. Please try logging in manually.',

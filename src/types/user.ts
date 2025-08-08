@@ -22,6 +22,9 @@ export interface User {
     email_verified_at?: string; // API compatibility
     organization?: Organization;
     userRoles?: UserRole[];
+    // GraphQL schema fields
+    roles?: Role[];
+    permissions?: Permission[];
 }
 
 export interface Organization {

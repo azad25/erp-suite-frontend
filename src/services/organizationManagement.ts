@@ -5,21 +5,9 @@ export interface Organization {
   id: string;
   name: string;
   domain: string;
-  description?: string;
-  logo?: string;
-  website?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postalCode?: string;
   isActive: boolean;
-  isVerified: boolean;
-  subscriptionPlan?: string;
-  subscriptionStatus?: string;
   userCount: number;
-  adminCount: number;
+  activeUserCount: number;
   createdAt: string;
   updatedAt: string;
   users?: Array<{
@@ -28,7 +16,6 @@ export interface Organization {
     lastName: string;
     email: string;
     isActive: boolean;
-    role: string;
     lastLoginAt?: string;
   }>;
 }
@@ -46,14 +33,6 @@ export interface OrganizationStats {
 export interface CreateOrganizationInput {
   name: string;
   domain: string;
-  description?: string;
-  website?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postalCode?: string;
   adminEmail: string;
   adminFirstName: string;
   adminLastName: string;
@@ -62,46 +41,32 @@ export interface CreateOrganizationInput {
 
 export interface UpdateOrganizationInput {
   name?: string;
-  description?: string;
-  website?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postalCode?: string;
   isActive?: boolean;
 }
 
 // GraphQL queries and mutations
 const GET_ORGANIZATIONS = `
-  query GetOrganizations($limit: Int, $offset: Int, $search: String) {
-    organizations(limit: $limit, offset: $offset, search: $search) {
-      nodes {
-        id
-        name
-        domain
-        description
-        website
-        phone
-        address
-        city
-        state
-        country
-        postalCode
-        isActive
-        isVerified
-        subscriptionPlan
-        subscriptionStatus
-        userCount
-        adminCount
-        createdAt
-        updatedAt
+  query GetOrganizations($limit: Int, $offset: Int, $search: String, $sortBy: String, $sortOrder: String) {
+    organizations(limit: $limit, offset: $offset, search: $search, sortBy: $sortBy, sortOrder: $sortOrder) {
+      edges {
+        node {
+          id
+          name
+          domain
+          isActive
+          userCount
+          activeUserCount
+          createdAt
+          updatedAt
+        }
+        cursor
       }
       totalCount
       pageInfo {
         hasNextPage
         hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }
@@ -113,20 +78,9 @@ const GET_ORGANIZATION_BY_ID = `
       id
       name
       domain
-      description
-      website
-      phone
-      address
-      city
-      state
-      country
-      postalCode
       isActive
-      isVerified
-      subscriptionPlan
-      subscriptionStatus
       userCount
-      adminCount
+      activeUserCount
       createdAt
       updatedAt
       users {
@@ -135,7 +89,6 @@ const GET_ORGANIZATION_BY_ID = `
         lastName
         email
         isActive
-        role
         lastLoginAt
       }
     }
@@ -218,10 +171,15 @@ class OrganizationManagementService {
         limit,
         offset,
         search,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
       });
-      
+
+      const edges = response.organizations?.edges || [];
+      const organizations = edges.map((e: any) => e.node);
+
       return {
-        organizations: response.organizations?.nodes || [],
+        organizations,
         total: response.organizations?.totalCount || 0,
         page: Math.floor(offset / limit) + 1,
         limit,

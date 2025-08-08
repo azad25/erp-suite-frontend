@@ -4,6 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 
+
 // Lazy load heavy components for faster initial page load
 // EcommerceMetrics is a named export, so we need to destructure it
 const EcommerceMetrics = dynamic(
@@ -104,6 +105,8 @@ export default function Ecommerce() {
         <div className="col-span-12">
           <UserManagementDashboard />
         </div>
+
+
       </div>
     </>
   );

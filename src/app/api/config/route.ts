@@ -5,9 +5,10 @@ import crypto from 'crypto';
 export async function GET(request: NextRequest) {
   const config = {
     apiUrls: {
-      base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql', // API Gateway GraphQL endpoint
-      websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+      // Prefer API Gateway directly in dev to avoid nginx proxy 422s
+      base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql',
+      websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
     },
     features: {
       aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',

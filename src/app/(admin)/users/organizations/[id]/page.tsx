@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import { organizationManagementService, Organization } from "@/services/organizationManagement";
@@ -13,16 +12,6 @@ interface OrganizationUser extends User {
   role: string;
   joinedAt: string;
   lastActivity: string;
-}
-
-interface OrganizationUserData {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  isActive: boolean;
-  role: string;
-  lastLoginAt?: string;
 }
 
 interface UserStats {
@@ -63,14 +52,14 @@ export default function OrganizationDetailPage() {
       
       // Set users from organization data
       if (orgData.users) {
-        const organizationUsers: OrganizationUser[] = orgData.users.map((user: OrganizationUserData) => ({
+        const organizationUsers: OrganizationUser[] = orgData.users.map((user: any) => ({
           ...user,
           id: user.id,
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
           isActive: user.isActive,
-          role: user.role,
+          role: 'User', // Default role since it's not available in the API
           joinedAt: new Date().toISOString(), // Placeholder
           lastActivity: user.lastLoginAt || new Date().toISOString(),
           createdAt: new Date().toISOString(), // Placeholder
@@ -83,7 +72,7 @@ export default function OrganizationDetailPage() {
           totalUsers: organizationUsers.length,
           activeUsers: organizationUsers.filter(u => u.isActive).length,
           inactiveUsers: organizationUsers.filter(u => !u.isActive).length,
-          adminUsers: organizationUsers.filter(u => u.role.toLowerCase().includes('admin')).length,
+          adminUsers: 0, // Since we don't have role information, default to 0
           recentLogins: organizationUsers.filter(u => {
             if (!u.lastLoginAt) return false;
             const lastLogin = new Date(u.lastLoginAt);
@@ -102,11 +91,9 @@ export default function OrganizationDetailPage() {
         id: organizationId,
         name: 'Sample Organization',
         domain: 'sample.com',
-        description: 'A sample organization for development',
         isActive: true,
-        isVerified: true,
         userCount: 0,
-        adminCount: 0,
+        activeUserCount: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         users: []
@@ -282,19 +269,9 @@ export default function OrganizationDetailPage() {
       <div className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-            {organization.logo ? (
-              <Image
-                width={64}
-                height={64}
-                src={organization.logo}
-                alt={organization.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            )}
+            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
@@ -304,20 +281,10 @@ export default function OrganizationDetailPage() {
               <Badge color={organization.isActive ? "success" : "light"} size="sm">
                 {organization.isActive ? "Active" : "Inactive"}
               </Badge>
-              {organization.isVerified && (
-                <Badge color="info" size="sm">
-                  Verified
-                </Badge>
-              )}
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
               {organization.domain}
             </p>
-            {organization.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                {organization.description}
-              </p>
-            )}
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-500 dark:text-gray-400">Created</p>
@@ -496,14 +463,10 @@ export default function OrganizationDetailPage() {
                   <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                     <td className="px-5 py-4 lg:px-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
-                          <Image
-                            width={40}
-                            height={40}
-                            src="/images/user/owner.jpg"
-                            alt={`${user.firstName} ${user.lastName}`}
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="w-10 h-10 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-800 dark:text-white/90">

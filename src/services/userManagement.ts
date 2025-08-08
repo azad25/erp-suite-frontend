@@ -432,8 +432,40 @@ class UserManagementService {
       return response.roles || [];
     } catch (error) {
       console.error('GraphQL getRoles failed:', error);
-      // Return empty array for graceful degradation
-      return [];
+      // Fallback: try organization-specific roles using the current user's org
+      try {
+        const ME_WITH_ORG = `
+          query MeWithOrg {
+            me {
+              id
+              organization { id }
+            }
+          }
+        `;
+        const meResp = await graphqlService.request(ME_WITH_ORG);
+        const orgId = meResp?.me?.organization?.id;
+        if (!orgId) return [];
+
+        const GET_ORG_ROLES = `
+          query OrgRoles($organizationId: ID!) {
+            organizationRoles(organizationId: $organizationId) {
+              id
+              name
+              description
+              isSystem
+              isActive
+              permissions { id name description resource action }
+              createdAt
+              updatedAt
+            }
+          }
+        `;
+        const orgRolesResp = await graphqlService.request(GET_ORG_ROLES, { organizationId: orgId });
+        return orgRolesResp?.organizationRoles || [];
+      } catch (fallbackError) {
+        console.error('Fallback get organization roles failed:', fallbackError);
+        return [];
+      }
     }
   }
 

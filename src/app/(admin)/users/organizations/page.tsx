@@ -5,15 +5,27 @@ import Badge from "@/components/ui/badge/Badge";
 import OrganizationListTable from "@/components/organization-management/OrganizationListTable";
 import OrganizationDashboard from "@/components/organization-management/OrganizationDashboard";
 import { organizationManagementService, OrganizationStats } from "@/services/organizationManagement";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useRouter } from "next/navigation";
 
 export default function OrganizationsPage() {
   const [stats, setStats] = useState<OrganizationStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isAppAdmin, loading: roleLoading } = useUserRole();
+  const router = useRouter();
 
   useEffect(() => {
+    if (roleLoading) return;
+    // Redirect non-app-admin users once
+    if (!isAppAdmin) {
+      router.replace('/users');
+      return;
+    }
+    // Only load once after role resolves to app admin
     loadStats();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleLoading, isAppAdmin]);
 
   const loadStats = async () => {
     try {
@@ -40,7 +52,8 @@ export default function OrganizationsPage() {
     }
   };
 
-  if (loading) {
+  // Show loading while checking role or loading data
+  if (roleLoading || loading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
@@ -60,6 +73,11 @@ export default function OrganizationsPage() {
         </div>
       </div>
     );
+  }
+
+  // Don't render anything if user is not app admin (will be redirected)
+  if (!isAppAdmin) {
+    return null;
   }
 
   return (

@@ -30,6 +30,23 @@ export const GET_CURRENT_USER = `
   }
 `;
 
+export const GET_USER_ROLE_TYPE = `
+  query GetUserRoleType {
+    userRoleType
+  }
+`;
+
+export const GET_USER_ROLE = `
+  query GetUserRole {
+    userRole {
+      roleType
+      isAppAdmin
+      isOrganizationAdmin
+      isRegularUser
+    }
+  }
+`;
+
 export const GET_USER_BY_ID = `
   query GetUserById($id: ID!) {
     user(id: $id) {

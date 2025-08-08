@@ -20,7 +20,8 @@ export class GraphQLClient {
       this.configLoaded = true;
     } catch (error) {
       console.error('Failed to load GraphQL config:', error);
-      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql';
+      // Default to API Gateway directly in development to avoid nginx proxy health issues
+      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql';
       this.configLoaded = true;
     }
   }
@@ -45,7 +46,7 @@ export class GraphQLClient {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(this.baseURL, {
+      const doFetch = async (url: string) => fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -54,12 +55,31 @@ export class GraphQLClient {
         }),
       });
 
+      let response = await doFetch(this.baseURL);
+
       if (!response.ok) {
         // Handle 401 specifically for better error messages
         if (response.status === 401) {
           throw new Error(`GraphQL request failed: 401 Unauthorized - Please check your authentication token`);
         }
-        throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+        // Auto-retry against API Gateway directly in dev if we hit proxy issues
+        const isLocalhost = this.baseURL.includes('localhost') || this.baseURL.includes('127.0.0.1');
+        const isNotGateway = !this.baseURL.includes(':8000');
+        const shouldRetryToGateway = isLocalhost && isNotGateway && [422, 502, 503, 504].includes(response.status);
+        if (shouldRetryToGateway) {
+          const gatewayURL = this.baseURL
+            .replace('http://localhost', 'http://localhost:8000')
+            .replace('http://127.0.0.1', 'http://127.0.0.1:8000');
+          try {
+            response = await doFetch(gatewayURL);
+          } catch {
+            // ignore and fall through
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+        }
       }
 
       const result = await response.json();
@@ -107,11 +127,11 @@ export class GraphQLClient {
             }
           }
 
-          // If refresh fails, redirect to login
-          window.location.href = '/signin';
+          // If refresh fails, signal auth error; middleware will handle redirects
+          throw new Error('Authentication required - please sign in');
         } catch (refreshError) {
           console.error('Token refresh failed:', refreshError);
-          window.location.href = '/signin';
+          throw new Error('Authentication required - please sign in');
         }
       }
 

@@ -21,9 +21,10 @@ let configPromise: Promise<RuntimeConfig> | null = null;
 // Pre-initialize config from environment variables for immediate availability
 const fallbackConfig: RuntimeConfig = {
   apiUrls: {
-    base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-    graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-    websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+    // Prefer hitting API Gateway directly during development to avoid nginx proxy health issues
+    base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql',
+    websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
   },
   features: {
     aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
@@ -72,9 +73,9 @@ async function fetchConfig(): Promise<RuntimeConfig> {
     // Server-side: use environment variables directly
     return {
       apiUrls: {
-        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
       },
       features: {
         aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
@@ -106,9 +107,9 @@ async function fetchConfig(): Promise<RuntimeConfig> {
     // Fallback to environment variables
     return {
       apiUrls: {
-        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+        base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+        graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql',
+        websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
       },
       features: {
         aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',

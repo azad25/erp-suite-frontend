@@ -52,10 +52,9 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, redirect to login
+        // Refresh failed, clear tokens and bubble up
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/signin';
         return Promise.reject(refreshError);
       }
     }

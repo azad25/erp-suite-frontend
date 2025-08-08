@@ -4,7 +4,9 @@ import './globals.css';
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/hooks/useAuth';
-import PerformanceMonitor from '@/components/common/PerformanceMonitor';
+import dynamic from 'next/dynamic';
+// Lazy-load PerformanceMonitor using existing dynamic() pattern
+const PerformanceMonitor = dynamic(() => import('@/components/common/PerformanceMonitor'));
 
 const outfit = Outfit({
   subsets: ["latin"],

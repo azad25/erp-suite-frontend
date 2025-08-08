@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Badge from "../ui/badge/Badge";
 import CreateUserForm from "./CreateUserForm";
@@ -27,11 +27,10 @@ export default function UserListTable() {
     hasNextPage: false,
     hasPreviousPage: false,
   });
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { isOpen, openModal, closeModal } = useModal();
+  const router = useRouter();
   const { isOpen: isCreateModalOpen, openModal: openCreateModal, closeModal: closeCreateModal } = useModal();
 
   useEffect(() => {
@@ -55,8 +54,7 @@ export default function UserListTable() {
   };
 
   const handleViewProfile = (user: User) => {
-    setSelectedUser(user);
-    openModal();
+    router.push(`/users/${user.id}`);
   };
 
   const handleCreateUser = async (userData: any) => {
@@ -260,12 +258,17 @@ export default function UserListTable() {
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                            {user.firstName || user.first_name} {user.lastName || user.last_name}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {user.email}
-                          </p>
+                          <button
+                            onClick={() => handleViewProfile(user)}
+                            className="text-left hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                          >
+                            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                              {user.firstName || user.first_name} {user.lastName || user.last_name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {user.email}
+                            </p>
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -299,11 +302,10 @@ export default function UserListTable() {
                         <button
                           onClick={() => handleViewProfile(user)}
                           className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-                          title="View Profile"
+                          title="View User Profile"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                         </button>
                         <button
@@ -379,121 +381,7 @@ export default function UserListTable() {
         )}
       </div>
 
-      {/* User Profile Modal */}
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[800px] m-4">
-        {selectedUser && (
-          <div className="no-scrollbar relative w-full max-w-[800px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-8">
-            <div className="px-2 pr-14">
-              <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-                User Profile
-              </h4>
-              <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-                View and manage user information
-              </p>
-            </div>
-            
-            <div className="px-2 space-y-6">
-              {/* User Header */}
-              <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                <div className="w-16 h-16 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
-                  <Image
-                    width={64}
-                    height={64}
-                    src="/images/user/owner.jpg"
-                    alt={`${selectedUser.first_name} ${selectedUser.last_name}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1">
-                  <h5 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                    {selectedUser.firstName || selectedUser.first_name} {selectedUser.lastName || selectedUser.last_name}
-                  </h5>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {selectedUser.email}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge 
-                      color={(selectedUser.isActive ?? selectedUser.is_active) ? "success" : "light"}
-                      size="sm"
-                    >
-                      {(selectedUser.isActive ?? selectedUser.is_active) ? "Active" : "Inactive"}
-                    </Badge>
-                    {(selectedUser.isVerified ?? selectedUser.is_verified) && (
-                      <Badge color="info" size="sm">
-                        Verified
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
 
-              {/* User Details */}
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                  <h6 className="mb-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                    Account Information
-                  </h6>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedUser.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {(selectedUser.isActive ?? selectedUser.is_active) ? "Active" : "Inactive"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Verified</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {(selectedUser.isVerified ?? selectedUser.is_verified) ? "Yes" : "No"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 border border-gray-200 rounded-2xl dark:border-gray-800">
-                  <h6 className="mb-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                    Activity
-                  </h6>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Last Login</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {formatLastLogin(selectedUser.lastLoginAt || selectedUser.last_login_at)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Created</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {formatDate(selectedUser.createdAt || selectedUser.created_at || new Date().toISOString())}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Organization</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {selectedUser.organization?.name || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
-              <Button size="sm" variant="outline" onClick={closeModal}>
-                Close
-              </Button>
-              <Button size="sm">
-                Edit User
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {/* Create User Modal */}
       <CreateUserForm 
