@@ -86,35 +86,45 @@ export class GraphQLClient {
 
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
-        // Special-case: common not-found scenario without extensions
-        const lowerMessages = result.errors.map((e: any) => String(e.message || '').toLowerCase());
-        const hasNotFound = lowerMessages.some((m: string) => m.includes('not found'));
-        const hasUserPath = result.errors.some((e: any) => Array.isArray(e.path) && e.path.includes('user'));
-        if (hasNotFound && hasUserPath) {
-          const notFoundError: any = new Error('User not found');
-          notFoundError.code = 'NOT_FOUND';
-          throw notFoundError;
-        }
-
-        // Provide more detailed error information
+        
+        // Handle different types of errors
         const errorMessages = result.errors.map((e: any) => {
           const code = e.extensions?.code;
+          const message = e.message || '';
+          
           if (code === 'UNAUTHENTICATED') {
             return 'Authentication required - please log in';
           }
           if (code === 'FORBIDDEN') {
             return 'Insufficient permissions for this operation';
           }
-          if (code === 'NOT_FOUND') {
-            return e.message || 'Requested resource not found';
+          if (code === 'NOT_FOUND' || message.toLowerCase().includes('not found')) {
+            return message || 'Requested resource not found';
           }
-          return e.message;
+          return message;
         });
+
+        // Create error with appropriate code
+        const firstError = result.errors[0];
+        const errorCode = firstError?.extensions?.code;
+        const isNotFound = errorCode === 'NOT_FOUND' || 
+          result.errors.some((e: any) => String(e.message || '').toLowerCase().includes('not found'));
+
+        if (isNotFound) {
+          const notFoundError: any = new Error(errorMessages[0] || 'Resource not found');
+          notFoundError.code = 'NOT_FOUND';
+          throw notFoundError;
+        }
+
         const genericError: any = new Error(`GraphQL errors: ${errorMessages.join(', ')}`);
-        // If any error had an extension code, preserve the first
-        const firstWithCode = (result.errors as any[]).find(e => e.extensions?.code);
-        if (firstWithCode) genericError.code = firstWithCode.extensions.code;
+        if (errorCode) genericError.code = errorCode;
         throw genericError;
+      }
+
+      // Handle cases where data is null or undefined but no errors
+      if (result.data === null || result.data === undefined) {
+        console.warn('GraphQL returned null data without errors');
+        return {} as T;
       }
 
       return result.data;

@@ -297,14 +297,12 @@ export default function UserSecuritySettings({ userId, onSettingsChange }: UserS
 
             <div className="flex items-center gap-3 pt-4">
               <button 
-                type="button" 
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
                 onClick={() => setShowPasswordModal(false)}
               >
                 Cancel
               </button>
               <button 
-                type="submit" 
                 className="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700"
               >
                 Change Password

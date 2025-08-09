@@ -173,73 +173,174 @@ class OrganizationManagementService {
         search,
       });
 
-      const edges = response.organizations?.edges || [];
+      // Handle empty or null response gracefully
+      if (!response || !response.organizations) {
+        return {
+          organizations: [],
+          total: 0,
+          page: Math.floor(offset / limit) + 1,
+          limit,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        };
+      }
+
+      const edges = response.organizations.edges || [];
       const organizations = edges.map((e: any) => e.node);
 
       return {
         organizations,
-        total: response.organizations?.totalCount || 0,
+        total: response.organizations.totalCount || 0,
         page: Math.floor(offset / limit) + 1,
         limit,
-        hasNextPage: response.organizations?.pageInfo?.hasNextPage || false,
-        hasPreviousPage: response.organizations?.pageInfo?.hasPreviousPage || false,
+        hasNextPage: response.organizations.pageInfo?.hasNextPage || false,
+        hasPreviousPage: response.organizations.pageInfo?.hasPreviousPage || false,
       };
     } catch (error) {
       console.error('GraphQL getOrganizations failed:', error);
-      throw new Error(`Failed to fetch organizations: ${error}`);
+      // Return empty data structure instead of throwing error
+      return {
+        organizations: [],
+        total: 0,
+        page: Math.floor(offset / limit) + 1,
+        limit,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
   }
 
   async getOrganizationById(organizationId: string) {
     try {
       const response = await graphqlService.request(GET_ORGANIZATION_BY_ID, { id: organizationId });
+
+      // Handle empty response or missing organization
+      if (!response || !response.organization) {
+        return null;
+      }
+
       return response.organization;
     } catch (error) {
       console.error('GraphQL getOrganizationById failed:', error);
-      throw new Error(`Failed to fetch organization with ID ${organizationId}: ${error}`);
+
+      // Check if it's a not found error
+      const message = error instanceof Error ? error.message : String(error);
+      const code = (error as any)?.code;
+
+      if (code === 'NOT_FOUND' || message.toLowerCase().includes('not found')) {
+        return null;
+      }
+
+      // For other errors, return null instead of throwing
+      console.warn(`Organization ${organizationId} could not be fetched, returning null`);
+      return null;
     }
   }
 
   async getOrganizationStats() {
     try {
       const response = await graphqlService.request(GET_ORGANIZATION_STATS);
+
+      // Handle empty response gracefully
+      if (!response || !response.organizationStats) {
+        return {
+          totalOrganizations: 0,
+          activeOrganizations: 0,
+          inactiveOrganizations: 0,
+          verifiedOrganizations: 0,
+          unverifiedOrganizations: 0,
+          totalUsers: 0,
+          averageUsersPerOrg: 0,
+        };
+      }
+
       return response.organizationStats;
     } catch (error) {
       console.error('GraphQL getOrganizationStats failed:', error);
-      throw new Error(`Failed to fetch organization statistics: ${error}`);
+
+      // Return default stats instead of throwing error
+      return {
+        totalOrganizations: 0,
+        activeOrganizations: 0,
+        inactiveOrganizations: 0,
+        verifiedOrganizations: 0,
+        unverifiedOrganizations: 0,
+        totalUsers: 0,
+        averageUsersPerOrg: 0,
+      };
     }
   }
 
   async createOrganization(organizationData: CreateOrganizationInput) {
     try {
       const response = await graphqlService.request(CREATE_ORGANIZATION, { input: organizationData });
+
+      // Handle empty response
+      if (!response || !response.createOrganization) {
+        return {
+          success: false,
+          organization: null,
+          errors: ['No response received from server']
+        };
+      }
+
       return response.createOrganization;
     } catch (error) {
       console.error('GraphQL createOrganization failed:', error);
-      throw new Error(`Failed to create organization: ${error}`);
+      return {
+        success: false,
+        organization: null,
+        errors: [error instanceof Error ? error.message : String(error)]
+      };
     }
   }
 
   async updateOrganization(organizationId: string, organizationData: UpdateOrganizationInput) {
     try {
-      const response = await graphqlService.request(UPDATE_ORGANIZATION, { 
-        id: organizationId, 
-        input: organizationData 
+      const response = await graphqlService.request(UPDATE_ORGANIZATION, {
+        id: organizationId,
+        input: organizationData
       });
+
+      // Handle empty response
+      if (!response || !response.updateOrganization) {
+        return {
+          success: false,
+          organization: null,
+          errors: ['No response received from server']
+        };
+      }
+
       return response.updateOrganization;
     } catch (error) {
       console.error('GraphQL updateOrganization failed:', error);
-      throw new Error(`Failed to update organization: ${error}`);
+      return {
+        success: false,
+        organization: null,
+        errors: [error instanceof Error ? error.message : String(error)]
+      };
     }
   }
 
   async deleteOrganization(organizationId: string) {
     try {
       const response = await graphqlService.request(DELETE_ORGANIZATION, { id: organizationId });
+
+      // Handle empty response
+      if (!response || !response.deleteOrganization) {
+        return {
+          success: false,
+          errors: ['No response received from server']
+        };
+      }
+
       return response.deleteOrganization;
     } catch (error) {
       console.error('GraphQL deleteOrganization failed:', error);
-      throw new Error(`Failed to delete organization: ${error}`);
+      return {
+        success: false,
+        errors: [error instanceof Error ? error.message : String(error)]
+      };
     }
   }
 

@@ -254,7 +254,7 @@ class ApiClient {
   // Auth methods - all go through API Gateway
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     // Use type assertion since we know this endpoint returns nested data
-    const response = await this.request<{ data: AuthResponse; message?: string }>('/auth/login/', {
+    const response = await this.request<{ data: AuthResponse; message?: string }>('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -278,7 +278,7 @@ class ApiClient {
 
   async register(userData: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
     // Try both nested and flat response formats
-    const response = await this.request<any>('/auth/register/', {
+    const response = await this.request<any>('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -318,7 +318,7 @@ class ApiClient {
 
   async logout(): Promise<ApiResponse> {
     try {
-      const response = await this.request('/auth/logout/', {
+      const response = await this.request('/api/v1/auth/logout', {
         method: 'POST',
       });
 
@@ -337,14 +337,14 @@ class ApiClient {
   }
 
   async forgotPassword(data: ForgotPasswordRequest): Promise<ApiResponse> {
-    return this.request('/auth/forgot-password/', {
+    return this.request('/api/v1/auth/forgot-password', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async resetPassword(data: ResetPasswordRequest): Promise<ApiResponse> {
-    return this.request('/auth/reset-password/', {
+    return this.request('/api/v1/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -356,7 +356,7 @@ class ApiClient {
       return { success: false, message: 'No refresh token available' };
     }
 
-    const response = await this.request<AuthResponse>('/auth/refresh/', {
+    const response = await this.request<AuthResponse>('/api/v1/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -370,7 +370,7 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request<User>('/auth/me/');
+    return this.request<User>('/api/v1/auth/me');
   }
 
   // Check if user is authenticated

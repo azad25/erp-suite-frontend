@@ -18,10 +18,18 @@ export default function EditUserPage() {
         setLoading(true);
         setError(null);
         const id = String(params?.id ?? "");
-        if (!id) return;
+        if (!id) {
+          setError("Invalid user ID");
+          return;
+        }
         const u = await userManagementService.getUserById(id);
-        setUser(u);
+        if (u === null) {
+          setError("User not found");
+        } else {
+          setUser(u);
+        }
       } catch (e) {
+        console.error("Error loading user:", e);
         setError("Failed to load user");
       } finally {
         setLoading(false);
@@ -50,6 +58,7 @@ export default function EditUserPage() {
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-600 dark:text-red-400">{error}</div>;
+  if (!user) return <div className="text-gray-600 dark:text-gray-400">User not found</div>;
 
   return (
     <div className="space-y-6">

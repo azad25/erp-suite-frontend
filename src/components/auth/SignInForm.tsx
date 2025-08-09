@@ -90,6 +90,8 @@ export default function SignInForm() {
     }
   };
 
+
+
   const handleSocialLogin = (provider: string) => {
     // TODO: Implement social login
     console.log(`Social login with ${provider}`);

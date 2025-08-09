@@ -19,10 +19,16 @@ export default function EditOrganizationPage() {
       setLoading(true);
       try {
         const id = String(params?.id ?? "");
-        if (!id) return;
+        if (!id) {
+          console.error("Invalid organization ID");
+          return;
+        }
         const data = await organizationManagementService.getOrganizationById(id);
         setOrg(data);
         setName(data?.name ?? "");
+      } catch (error) {
+        console.error("Error loading organization:", error);
+        setOrg(null);
       } finally {
         setLoading(false);
       }
@@ -57,8 +63,8 @@ export default function EditOrganizationPage() {
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="flex gap-3">
-          <Button type="button" variant="outline" onClick={() => router.push("/users/organizations")}>Cancel</Button>
-          <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+          <Button variant="outline" onClick={() => router.push("/users/organizations")}>Cancel</Button>
+          <Button disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
         </div>
       </form>
     </div>

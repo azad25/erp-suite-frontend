@@ -35,7 +35,7 @@ export default function SignUpForm() {
       ...prev,
       [name]: value,
     }));
-    
+
     // Clear errors when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -124,6 +124,8 @@ export default function SignUpForm() {
     }
   };
 
+
+
   const handleSocialLogin = (provider: string) => {
     // TODO: Implement social login
     console.log(`Social login with ${provider}`);
@@ -159,7 +161,7 @@ export default function SignUpForm() {
 
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button 
+              <button
                 onClick={() => handleSocialLogin('google')}
                 type="button"
                 className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
@@ -190,7 +192,7 @@ export default function SignUpForm() {
                 </svg>
                 Sign up with Google
               </button>
-              <button 
+              <button
                 onClick={() => handleSocialLogin('twitter')}
                 type="button"
                 className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
@@ -360,9 +362,9 @@ export default function SignUpForm() {
                   </div>
                 </div>
                 <div>
-                  <Button 
+                  <Button
                     type="submit"
-                    className="w-full" 
+                    className="w-full"
                     size="sm"
                     disabled={isSubmitting || loading}
                   >

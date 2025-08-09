@@ -65,8 +65,8 @@ export default function CreateOrganizationPage() {
           <Input type="password" value={form.adminPassword} onChange={(e) => handleChange("adminPassword", e.target.value)} />
         </div>
         <div className="flex gap-3">
-          <Button type="button" variant="outline" onClick={() => router.push("/users/organizations")}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Organization"}</Button>
+          <Button variant="outline" onClick={() => router.push("/users/organizations")}>Cancel</Button>
+          <Button disabled={submitting}>{submitting ? "Creating..." : "Create Organization"}</Button>
         </div>
       </form>
     </div>

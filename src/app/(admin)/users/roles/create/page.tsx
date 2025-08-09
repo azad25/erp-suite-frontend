@@ -38,8 +38,8 @@ export default function CreateRolePage() {
           <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
         <div className="flex gap-3">
-          <Button type="button" variant="outline" onClick={() => router.push("/users/roles")}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Role"}</Button>
+          <Button variant="outline" onClick={() => router.push("/users/roles")}>Cancel</Button>
+          <Button disabled={submitting}>{submitting ? "Creating..." : "Create Role"}</Button>
         </div>
       </form>
     </div>

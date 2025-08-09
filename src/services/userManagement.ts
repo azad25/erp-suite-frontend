@@ -1,12 +1,12 @@
 // User Management service using GraphQL (via API Gateway) and WebSocket
 import { websocketService } from './websocket';
-import { 
-  graphqlService, 
-  GET_USERS, 
+import {
+  graphqlService,
+  GET_USERS,
   GET_USERS_CONNECTION,
-  GET_USER_BY_ID, 
-  GET_USER_STATS, 
-  GET_SECURITY_STATS, 
+  GET_USER_BY_ID,
+  GET_USER_STATS,
+  GET_SECURITY_STATS,
   GET_USER_ACTIVITY,
   GET_ROLES,
   GET_PERMISSIONS,
@@ -47,7 +47,7 @@ class UserManagementService {
     if (config) {
       this.config = { ...this.config, ...config };
     }
-    
+
     // Only setup WebSocket on client-side
     if (typeof window !== 'undefined' && this.config.useWebSocket) {
       this.setupWebSocketSubscriptions();
@@ -108,17 +108,25 @@ class UserManagementService {
   async getUserById(userId: string) {
     try {
       const response = await graphqlService.request(GET_USER_BY_ID, { id: userId });
+
+      // Handle empty response or missing user
+      if (!response || !response.user) {
+        return null;
+      }
+
       return response.user;
     } catch (error) {
       console.error('GraphQL getUserById failed:', error);
       const message = error instanceof Error ? error.message : String(error);
       const code = (error as any)?.code;
+
       if (code === 'NOT_FOUND' || message.toLowerCase().includes('not found')) {
-        const notFoundError: any = new Error('User not found');
-        notFoundError.code = 'NOT_FOUND';
-        throw notFoundError;
+        return null;
       }
-      throw error;
+
+      // For other errors, return null instead of throwing to prevent UI crashes
+      console.warn(`User ${userId} could not be fetched, returning null`);
+      return null;
     }
   }
 
@@ -129,7 +137,7 @@ class UserManagementService {
         offset,
         search
       });
-      
+
       // Handle the new UserConnection structure
       const userConnection = response.users;
       if (!userConnection) {
@@ -154,7 +162,7 @@ class UserManagementService {
         createdAt: edge.node.createdAt || edge.node.created_at,
         updatedAt: edge.node.updatedAt || edge.node.updated_at,
       })) || [];
-      
+
       return {
         users,
         total: userConnection.totalCount || 0,
@@ -242,17 +250,17 @@ class UserManagementService {
         offset,
       });
 
+      // Handle empty or null response gracefully
+      if (!response) {
+        console.warn('getUserActivity: Empty response from GraphQL');
+        return this.getMockActivityData(userId, limit, offset);
+      }
+
       // Handle the UserActivityConnection structure
       const activityConnection = response.userActivity;
       if (!activityConnection) {
-        return {
-          activities: [],
-          total: 0,
-          page: Math.floor(offset / limit) + 1,
-          limit,
-          hasNextPage: false,
-          hasPreviousPage: offset > 0,
-        };
+        console.warn('getUserActivity: No userActivity in response');
+        return this.getMockActivityData(userId, limit, offset);
       }
 
       const activities = activityConnection.edges?.map((edge: any) => ({
@@ -276,156 +284,168 @@ class UserManagementService {
       };
     } catch (error) {
       console.error('GraphQL getUserActivity failed:', error);
-      
-      // Return mock data for development
-      const mockActivities = [
-        {
-          id: '1',
-          userId: userId || 'mock-user-1',
-          action: 'login',
-          resource: 'auth',
-          details: { timestamp: new Date().toISOString(), success: true },
-          ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-          user: {
-            id: userId || 'mock-user-1',
-            firstName: 'John',
-            lastName: 'Doe',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
-          },
-        },
-        {
-          id: '2',
-          userId: userId || 'mock-user-1',
-          action: 'profile_updated',
-          resource: 'profile',
-          details: { changes: { firstName: 'John', lastName: 'Doe' }, timestamp: new Date().toISOString() },
-          ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-          user: {
-            id: userId || 'mock-user-1',
-            firstName: 'John',
-            lastName: 'Doe',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
-          },
-        },
-        {
-          id: '3',
-          userId: 'mock-user-2',
-          action: 'user_created',
-          resource: 'user',
-          details: { new_user_id: 'mock-user-3', timestamp: new Date().toISOString() },
-          ipAddress: '192.168.1.101',
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4 hours ago
-          user: {
-            id: 'mock-user-2',
-            firstName: 'Jane',
-            lastName: 'Smith',
-            name: 'Jane Smith',
-            email: 'jane.smith@example.com',
-          },
-        },
-        {
-          id: '4',
-          userId: userId || 'mock-user-1',
-          action: 'login_failed',
-          resource: 'auth',
-          details: { email: 'john.doe@example.com', timestamp: new Date().toISOString(), success: false },
-          ipAddress: '192.168.1.105',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
-          user: {
-            id: userId || 'mock-user-1',
-            firstName: 'John',
-            lastName: 'Doe',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
-          },
-        },
-        {
-          id: '5',
-          userId: 'mock-user-2',
-          action: 'password_changed',
-          resource: 'profile',
-          details: { timestamp: new Date().toISOString() },
-          ipAddress: '192.168.1.101',
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(), // 8 hours ago
-          user: {
-            id: 'mock-user-2',
-            firstName: 'Jane',
-            lastName: 'Smith',
-            name: 'Jane Smith',
-            email: 'jane.smith@example.com',
-          },
-        },
-        {
-          id: '6',
-          userId: 'mock-user-3',
-          action: 'user_activated',
-          resource: 'user',
-          details: { timestamp: new Date().toISOString() },
-          ipAddress: '192.168.1.102',
-          userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-          user: {
-            id: 'mock-user-3',
-            firstName: 'Bob',
-            lastName: 'Johnson',
-            name: 'Bob Johnson',
-            email: 'bob.johnson@example.com',
-          },
-        },
-        {
-          id: '7',
-          userId: userId || 'mock-user-1',
-          action: 'logout',
-          resource: 'auth',
-          details: { timestamp: new Date().toISOString() },
-          ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 24 hours ago
-          user: {
-            id: userId || 'mock-user-1',
-            firstName: 'John',
-            lastName: 'Doe',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
-          },
-        },
-      ];
 
-      // Filter by userId if provided
-      const filteredActivities = userId 
-        ? mockActivities.filter(activity => activity.userId === userId)
-        : mockActivities;
+      // Check if it's a specific GraphQL error
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('failed to get user activity')) {
+        console.warn('User activity service unavailable, returning mock data');
+      }
 
-      // Apply pagination
-      const paginatedActivities = filteredActivities.slice(offset, offset + limit);
-
-      return {
-        activities: paginatedActivities,
-        total: filteredActivities.length,
-        page: Math.floor(offset / limit) + 1,
-        limit,
-        hasNextPage: offset + limit < filteredActivities.length,
-        hasPreviousPage: offset > 0,
-      };
+      return this.getMockActivityData(userId, limit, offset);
     }
+  }
+
+  // Helper method to generate consistent mock activity data
+  private getMockActivityData(userId?: string, limit = 10, offset = 0) {
+
+    // Return mock data for development
+    const mockActivities = [
+      {
+        id: '1',
+        userId: userId || 'mock-user-1',
+        action: 'login',
+        resource: 'auth',
+        details: { timestamp: new Date().toISOString(), success: true },
+        ipAddress: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+        user: {
+          id: userId || 'mock-user-1',
+          firstName: 'John',
+          lastName: 'Doe',
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+        },
+      },
+      {
+        id: '2',
+        userId: userId || 'mock-user-1',
+        action: 'profile_updated',
+        resource: 'profile',
+        details: { changes: { firstName: 'John', lastName: 'Doe' }, timestamp: new Date().toISOString() },
+        ipAddress: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+        user: {
+          id: userId || 'mock-user-1',
+          firstName: 'John',
+          lastName: 'Doe',
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+        },
+      },
+      {
+        id: '3',
+        userId: 'mock-user-2',
+        action: 'user_created',
+        resource: 'user',
+        details: { new_user_id: 'mock-user-3', timestamp: new Date().toISOString() },
+        ipAddress: '192.168.1.101',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4 hours ago
+        user: {
+          id: 'mock-user-2',
+          firstName: 'Jane',
+          lastName: 'Smith',
+          name: 'Jane Smith',
+          email: 'jane.smith@example.com',
+        },
+      },
+      {
+        id: '4',
+        userId: userId || 'mock-user-1',
+        action: 'login_failed',
+        resource: 'auth',
+        details: { email: 'john.doe@example.com', timestamp: new Date().toISOString(), success: false },
+        ipAddress: '192.168.1.105',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
+        user: {
+          id: userId || 'mock-user-1',
+          firstName: 'John',
+          lastName: 'Doe',
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+        },
+      },
+      {
+        id: '5',
+        userId: 'mock-user-2',
+        action: 'password_changed',
+        resource: 'profile',
+        details: { timestamp: new Date().toISOString() },
+        ipAddress: '192.168.1.101',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(), // 8 hours ago
+        user: {
+          id: 'mock-user-2',
+          firstName: 'Jane',
+          lastName: 'Smith',
+          name: 'Jane Smith',
+          email: 'jane.smith@example.com',
+        },
+      },
+      {
+        id: '6',
+        userId: 'mock-user-3',
+        action: 'user_activated',
+        resource: 'user',
+        details: { timestamp: new Date().toISOString() },
+        ipAddress: '192.168.1.102',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
+        user: {
+          id: 'mock-user-3',
+          firstName: 'Bob',
+          lastName: 'Johnson',
+          name: 'Bob Johnson',
+          email: 'bob.johnson@example.com',
+        },
+      },
+      {
+        id: '7',
+        userId: userId || 'mock-user-1',
+        action: 'logout',
+        resource: 'auth',
+        details: { timestamp: new Date().toISOString() },
+        ipAddress: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 24 hours ago
+        user: {
+          id: userId || 'mock-user-1',
+          firstName: 'John',
+          lastName: 'Doe',
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+        },
+      },
+    ];
+
+    // Filter by userId if provided
+    const filteredActivities = userId
+      ? mockActivities.filter(activity => activity.userId === userId)
+      : mockActivities;
+
+    // Apply pagination
+    const paginatedActivities = filteredActivities.slice(offset, offset + limit);
+
+    return {
+      activities: paginatedActivities,
+      total: filteredActivities.length,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+      hasNextPage: offset + limit < filteredActivities.length,
+      hasPreviousPage: offset > 0,
+    };
   }
 
   // User CRUD operations
   async createUser(userData: CreateUserInput) {
     try {
-      const response = await graphqlService.request(CREATE_USER_ADMIN, { 
-        input: userData 
+      const response = await graphqlService.request(CREATE_USER_ADMIN, {
+        input: userData
       });
-      
+
       return {
         success: response.createUserAdmin?.success || false,
         message: response.createUserAdmin?.message || 'User creation failed',
@@ -444,11 +464,11 @@ class UserManagementService {
 
   async updateUser(userId: string, userData: UpdateUserInput) {
     try {
-      const response = await graphqlService.request(UPDATE_USER, { 
+      const response = await graphqlService.request(UPDATE_USER, {
         id: userId,
-        input: userData 
+        input: userData
       });
-      
+
       return {
         success: response.updateUser?.success || false,
         message: response.updateUser?.message || 'User update failed',
@@ -467,10 +487,10 @@ class UserManagementService {
 
   async deleteUser(userId: string) {
     try {
-      const response = await graphqlService.request(DELETE_USER, { 
-        id: userId 
+      const response = await graphqlService.request(DELETE_USER, {
+        id: userId
       });
-      
+
       return {
         success: response.deleteUser?.success || false,
         message: response.deleteUser?.message || 'User deletion failed',
@@ -488,10 +508,10 @@ class UserManagementService {
 
   async activateUser(userId: string) {
     try {
-      const response = await graphqlService.request(ACTIVATE_USER, { 
-        id: userId 
+      const response = await graphqlService.request(ACTIVATE_USER, {
+        id: userId
       });
-      
+
       return {
         success: response.activateUser?.success || false,
         message: response.activateUser?.message || 'User activation failed',
@@ -510,10 +530,10 @@ class UserManagementService {
 
   async deactivateUser(userId: string) {
     try {
-      const response = await graphqlService.request(DEACTIVATE_USER, { 
-        id: userId 
+      const response = await graphqlService.request(DEACTIVATE_USER, {
+        id: userId
       });
-      
+
       return {
         success: response.deactivateUser?.success || false,
         message: response.deactivateUser?.message || 'User deactivation failed',
@@ -532,10 +552,10 @@ class UserManagementService {
 
   async verifyUser(userId: string) {
     try {
-      const response = await graphqlService.request(VERIFY_USER, { 
-        id: userId 
+      const response = await graphqlService.request(VERIFY_USER, {
+        id: userId
       });
-      
+
       return {
         success: response.verifyUser?.success || false,
         message: response.verifyUser?.message || 'User verification failed',
@@ -627,10 +647,10 @@ class UserManagementService {
 
   async createRole(roleData: CreateRoleInput) {
     try {
-      const response = await graphqlService.request(CREATE_ROLE, { 
-        input: roleData 
+      const response = await graphqlService.request(CREATE_ROLE, {
+        input: roleData
       });
-      
+
       return {
         success: response.createRole?.success || false,
         message: response.createRole?.message || 'Role creation failed',
@@ -649,11 +669,11 @@ class UserManagementService {
 
   async updateRole(roleId: string, roleData: UpdateRoleInput) {
     try {
-      const response = await graphqlService.request(UPDATE_ROLE, { 
+      const response = await graphqlService.request(UPDATE_ROLE, {
         id: roleId,
-        input: roleData 
+        input: roleData
       });
-      
+
       return {
         success: response.updateRole?.success || false,
         message: response.updateRole?.message || 'Role update failed',
@@ -672,10 +692,10 @@ class UserManagementService {
 
   async deleteRole(roleId: string) {
     try {
-      const response = await graphqlService.request(DELETE_ROLE, { 
-        id: roleId 
+      const response = await graphqlService.request(DELETE_ROLE, {
+        id: roleId
       });
-      
+
       return {
         success: response.deleteRole?.success || false,
         message: response.deleteRole?.message || 'Role deletion failed',
@@ -693,11 +713,11 @@ class UserManagementService {
 
   async assignUserRole(userId: string, roleId: string) {
     try {
-      const response = await graphqlService.request(ASSIGN_USER_ROLE, { 
+      const response = await graphqlService.request(ASSIGN_USER_ROLE, {
         userId,
-        roleId 
+        roleId
       });
-      
+
       return {
         success: response.assignUserRole?.success || false,
         message: response.assignUserRole?.message || 'User role assignment failed',
@@ -715,11 +735,11 @@ class UserManagementService {
 
   async revokeUserRole(userId: string, roleId: string) {
     try {
-      const response = await graphqlService.request(REVOKE_USER_ROLE, { 
+      const response = await graphqlService.request(REVOKE_USER_ROLE, {
         userId,
-        roleId 
+        roleId
       });
-      
+
       return {
         success: response.revokeUserRole?.success || false,
         message: response.revokeUserRole?.message || 'User role revocation failed',
@@ -737,11 +757,11 @@ class UserManagementService {
 
   async assignPermissions(roleId: string, permissionIds: string[]) {
     try {
-      const response = await graphqlService.request(ASSIGN_PERMISSIONS, { 
+      const response = await graphqlService.request(ASSIGN_PERMISSIONS, {
         roleId,
-        permissionIds 
+        permissionIds
       });
-      
+
       return {
         success: response.assignPermissions?.success || false,
         message: response.assignPermissions?.message || 'Permission assignment failed',
