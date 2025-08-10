@@ -1,29 +1,50 @@
-import dynamic from "next/dynamic";
-// Lazy-load heavy dashboard and table using existing dynamic() pattern
-const UserManagementDashboard = dynamic(() => import("@/components/user-management/UserManagementDashboard"));
-const UserListTable = dynamic(() => import("@/components/user-management/UserListTable"));
-import { Metadata } from "next";
-import React from "react";
+"use client";
 
-export const metadata: Metadata = {
-  title: "User Management | Unibase ERP Dashboard",
-  description: "Manage users, permissions, and access controls for your organization",
+import React from "react";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import StatsCard from "@/components/common/StatsCard";
+import UserManagementDashboard from "@/components/user-management/UserManagementDashboard";
+import { UserIcon, LockIcon, TimeIcon, CheckCircleIcon } from "@/icons";
+
+const UsersPage = () => {
+  return (
+    <DashboardLayout
+      title="User Management"
+      description="Manage system users, roles, and permissions"
+      icon={<UserIcon />}
+    >
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatsCard
+          title="Total Users"
+          value="156"
+          icon={<UserIcon />}
+          color="blue"
+        />
+        <StatsCard
+          title="Active Users"
+          value="142"
+          icon={<CheckCircleIcon />}
+          color="green"
+        />
+        <StatsCard
+          title="User Roles"
+          value="8"
+          icon={<LockIcon />}
+          color="purple"
+        />
+        <StatsCard
+          title="Last Login"
+          value="2 min ago"
+          icon={<TimeIcon />}
+          color="yellow"
+        />
+      </div>
+
+      {/* User Management Dashboard */}
+      <UserManagementDashboard />
+    </DashboardLayout>
+  );
 };
 
-export default function UsersPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          User Management
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Manage users, roles, and permissions across your organization
-        </p>
-      </div>
-      
-      <UserManagementDashboard />
-      <UserListTable />
-    </div>
-  );
-}
+export default UsersPage;

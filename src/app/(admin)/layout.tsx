@@ -61,8 +61,8 @@ function AdminLayout({
             <AppHeader />
           </Suspense>
           
-          {/* Page Content - optimized container */}
-          <main className="p-4 mx-auto max-w-7xl md:p-6">
+          {/* Page Content - full width container */}
+          <main className="w-full max-w-none p-4 md:p-6">
             <div style={{ contain: 'layout style paint' }}>
               {children}
             </div>

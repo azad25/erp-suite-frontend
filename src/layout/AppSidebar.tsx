@@ -1,420 +1,286 @@
 "use client";
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+
+import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useSidebar } from "../context/SidebarContext";
-import { useUserRole } from "../hooks/useUserRole";
+import Button from "@/components/ui/button/Button";
+import { useSidebar } from "@/context/SidebarContext";
 import {
-  BoxCubeIcon,
-  CalenderIcon,
-  ChevronDownIcon,
-  DollarLineIcon,
   GridIcon,
-  HorizontaLDots,
+  UserIcon,
+  DollarLineIcon,
+  BoxIcon,
   ListIcon,
-  PageIcon,
   PieChartIcon,
-  PlugInIcon,
-  TableIcon,
   UserCircleIcon,
-} from "../icons/index";
-import dynamic from "next/dynamic";
-// Lazy-load SidebarWidget using existing dynamic() pattern
-const SidebarWidget = dynamic(() => import("./SidebarWidget"));
+  BellIcon,
+  HorizontaLDots,
+  ChevronUpIcon,
+  TimeIcon,
+  ChatIcon,
+  MailIcon,
+} from "@/icons";
 
-type NavItem = {
-  name: string;
+interface SidebarItem {
+  title: string;
+  href: string;
   icon: React.ReactNode;
-  path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
-};
+  children?: SidebarItem[];
+}
 
-  // Create a function to generate navItems based on user role
-  const getNavItems = (isAppAdmin: boolean): NavItem[] => [
+const sidebarItems: SidebarItem[] = [
   {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    subItems: [{ name: "Ecommerce", path: "/", pro: false }],
+    title: "Dashboard",
+    href: "/dashboard",
+    icon: <GridIcon className="w-5 h-5" />,
   },
   {
-    icon: <CalenderIcon />,
-    name: "Calendar",
-    path: "/calendar",
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: "User Management",
-    subItems: [
-      { name: "All Users", path: "/users", pro: false },
-      // Only show Organizations menu for app admins
-      ...(isAppAdmin ? [{ name: "Organizations", path: "/users/organizations", pro: false }] : []),
-      { name: "Roles & Permissions", path: "/users/roles", pro: false },
-      { name: "Activity Logs", path: "/users/activity", pro: false },
+    title: "Sales",
+    href: "/sales",
+    icon: <DollarLineIcon className="w-5 h-5" />,
+    children: [
+      { title: "Leads", href: "/sales/leads", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Opportunities", href: "/sales/opportunities", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Quotations", href: "/sales/quotations", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Invoices", href: "/sales/invoices", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Payments", href: "/sales/payments", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/sales/reports", icon: <PieChartIcon className="w-4 h-4" /> },
     ],
   },
   {
-    name: "Subscriptions",
-    icon: <DollarLineIcon />,
-    subItems: [
-      { name: "Plans", path: "/subscriptions/plans", pro: false },
-      { name: "Billing", path: "/subscriptions/billing", pro: false },
-      { name: "Usage", path: "/subscriptions/usage", pro: false },
+    title: "Purchases",
+    href: "/purchases",
+    icon: <BoxIcon className="w-5 h-5" />,
+    children: [
+      { title: "Suppliers", href: "/purchases/suppliers", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Purchase Orders", href: "/purchases/orders", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Bills", href: "/purchases/bills", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/purchases/reports", icon: <PieChartIcon className="w-4 h-4" /> },
     ],
   },
   {
-    name: "Forms",
-    icon: <ListIcon />,
-    subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
+    title: "Inventory",
+    href: "/inventory",
+    icon: <BoxIcon className="w-5 h-5" />,
+    children: [
+      { title: "Products", href: "/inventory/products", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Warehouses", href: "/inventory/warehouses", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Stock Levels", href: "/inventory/stock-levels", icon: <PieChartIcon className="w-4 h-4" /> },
+      { title: "Movements", href: "/inventory/movements", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/inventory/reports", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
   },
   {
-    name: "Tables",
-    icon: <TableIcon />,
-    subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
+    title: "Projects",
+    href: "/projects",
+    icon: <ListIcon className="w-5 h-5" />,
+    children: [
+      { title: "Tasks", href: "/projects/tasks", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Time Tracking", href: "/projects/time-tracking", icon: <TimeIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/projects/reports", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
   },
   {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
+    title: "HR Management",
+    href: "/hrm",
+    icon: <UserIcon className="w-5 h-5" />,
+    children: [
+      { title: "Employees", href: "/hrm/employees", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Attendance", href: "/hrm/attendance", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Payroll", href: "/hrm/payroll", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Recruitment", href: "/hrm/recruitment", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/hrm/reports", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "Finance",
+    href: "/finance",
+    icon: <DollarLineIcon className="w-5 h-5" />,
+    children: [
+      { title: "Accounts", href: "/finance/accounts", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Transactions", href: "/finance/transactions", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Budgeting", href: "/finance/budgeting", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/finance/reports", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "CRM",
+    href: "/crm",
+    icon: <UserCircleIcon className="w-5 h-5" />,
+    children: [
+      { title: "Leads", href: "/crm/leads", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Customers", href: "/crm/customers", icon: <UserIcon className="w-4 h-4" /> },
+      { title: "Opportunities", href: "/crm/opportunities", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "Communication", href: "/crm/communication", icon: <ChatIcon className="w-4 h-4" /> },
+      { title: "Feedback & Surveys", href: "/crm/feedback", icon: <PieChartIcon className="w-4 h-4" /> },
+      { title: "Reports", href: "/crm/reports", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "AI Copilot",
+    href: "/ai",
+    icon: <PieChartIcon className="w-5 h-5" />,
+    children: [
+      { title: "Chat Assistant", href: "/ai/chat", icon: <ChatIcon className="w-4 h-4" /> },
+      { title: "Insights", href: "/ai/insights", icon: <PieChartIcon className="w-4 h-4" /> },
+      { title: "Alerts", href: "/ai/alerts", icon: <BellIcon className="w-4 h-4" /> },
+      { title: "Automation", href: "/ai/automation", icon: <ListIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "Reports",
+    href: "/reports",
+    icon: <PieChartIcon className="w-5 h-5" />,
+    children: [
+      { title: "Standard", href: "/reports/standard", icon: <PieChartIcon className="w-4 h-4" /> },
+      { title: "Custom", href: "/reports/custom", icon: <PieChartIcon className="w-4 h-4" /> },
+      { title: "Scheduled", href: "/reports/scheduled", icon: <PieChartIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "Inbox",
+    href: "/inbox",
+    icon: <MailIcon className="w-5 h-5" />,
+    children: [
+      { title: "Conversations", href: "/inbox/conversations", icon: <ChatIcon className="w-4 h-4" /> },
+      { title: "Attachments", href: "/inbox/attachments", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Discussions", href: "/inbox/discussions", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Filters & Labels", href: "/inbox/filters", icon: <ListIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "Documents",
+    href: "/documents",
+    icon: <BoxIcon className="w-5 h-5" />,
+  },
+  {
+    title: "Personal Use",
+    href: "/personal",
+    icon: <UserIcon className="w-5 h-5" />,
+    children: [
+      { title: "Personal Finance", href: "/personal/finance", icon: <DollarLineIcon className="w-4 h-4" /> },
+      { title: "To-do & Reminders", href: "/personal/todos", icon: <ListIcon className="w-4 h-4" /> },
+      { title: "Document Storage", href: "/personal/documents", icon: <BoxIcon className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "User Management",
+    href: "/users",
+    icon: <UserIcon className="w-5 h-5" />,
+  },
+  {
+    title: "Settings",
+    href: "/settings",
+    icon: <BoxIcon className="w-5 h-5" />,
+    children: [
+      { title: "System Settings", href: "/settings/system", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Integrations", href: "/settings/integrations", icon: <BoxIcon className="w-4 h-4" /> },
+      { title: "Data Import/Export", href: "/settings/data", icon: <BoxIcon className="w-4 h-4" /> },
     ],
   },
 ];
 
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Charts",
-    subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
-    ],
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Authentication",
-    subItems: [
-      { name: "Sign In", path: "/signin", pro: false },
-      { name: "Sign Up", path: "/signup", pro: false },
-    ],
-  },
-];
-
-const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+export default function AppSidebar() {
+  const { isExpanded, isHovered, isMobileOpen, setIsHovered, toggleMobileSidebar, openSubmenu, toggleSubmenu } = useSidebar();
   const pathname = usePathname();
-  const { isAppAdmin, isOrganizationAdmin, loading: roleLoading, roleType, error } = useUserRole();
 
+  const isActive = (href: string) => {
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
+  const renderSidebarItem = (item: SidebarItem, level: number = 0) => {
+    const hasChildren = item.children && item.children.length > 0;
+    const isItemActive = isActive(item.href);
+    const isMenuOpen = openSubmenu === item.href;
+    const showLabels = isMobileOpen || isExpanded || isHovered;
 
-  // Get dynamic navItems based on user role (memoized to avoid effect loops)
-  const navItems = useMemo(() => getNavItems(isAppAdmin), [isAppAdmin]);
-
-  const renderMenuItems = (
-    items: NavItem[],
-    menuType: "main" | "others"
-  ) => (
-    <ul className="flex flex-col gap-4">
-      {items.map((nav, index) => (
-        <li key={nav.name}>
-          {nav.subItems ? (
-            <button
-              onClick={() => handleSubmenuToggle(index, menuType)}
-              className={`menu-item group  ${
-                openSubmenu?.type === menuType && openSubmenu?.index === index
-                  ? "menu-item-active"
-                  : "menu-item-inactive"
-              } cursor-pointer ${
-                !isExpanded && !isHovered
-                  ? "lg:justify-center"
-                  : "lg:justify-start"
+    return (
+      <div key={item.href}>
+        <Link
+          href={item.href}
+          className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
+            isItemActive
+              ? "bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400"
+              : "text-gray-700 dark:text-gray-300"
+          } ${level > 0 ? "ml-6" : ""} ${showLabels ? "" : "justify-center"}`}
+          onClick={(e) => {
+            if (hasChildren) {
+              e.preventDefault();
+              toggleSubmenu(item.href);
+            }
+          }}
+        >
+          <div className="flex-shrink-0 min-w-[20px] flex items-center justify-center">{item.icon}</div>
+          {showLabels && <span className="flex-1">{item.title}</span>}
+          {hasChildren && showLabels && (
+            <div
+              className={`w-4 h-4 transition-transform ${
+                isMenuOpen ? "rotate-90" : ""
               }`}
             >
-              <span
-                className={` ${
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? "menu-item-icon-active"
-                    : "menu-item-icon-inactive"
-                }`}
-              >
-                {nav.icon}
-              </span>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className={`menu-item-text`}>{nav.name}</span>
-              )}
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <ChevronDownIcon
-                  className={`ml-auto w-5 h-5 transition-transform duration-200  ${
-                    openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
-                      ? "rotate-180 text-brand-500"
-                      : ""
-                  }`}
-                />
-              )}
-            </button>
-          ) : (
-            nav.path && (
-              <Link
-                href={nav.path}
-                className={`menu-item group ${
-                  isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
-                }`}
-              >
-                <span
-                  className={`${
-                    isActive(nav.path)
-                      ? "menu-item-icon-active"
-                      : "menu-item-icon-inactive"
-                  }`}
-                >
-                  {nav.icon}
-                </span>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className={`menu-item-text`}>{nav.name}</span>
-                )}
-              </Link>
-            )
-          )}
-          {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
-            <div
-              ref={(el) => {
-                subMenuRefs.current[`${menuType}-${index}`] = el;
-              }}
-              className="overflow-hidden transition-all duration-300"
-              style={{
-                height:
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
-                    : "0px",
-              }}
-            >
-              <ul className="mt-2 space-y-1 ml-9">
-                {nav.subItems.map((subItem) => (
-                  <li key={subItem.name}>
-                    <Link
-                      href={subItem.path}
-                      className={`menu-dropdown-item ${
-                        isActive(subItem.path)
-                          ? "menu-dropdown-item-active"
-                          : "menu-dropdown-item-inactive"
-                      }`}
-                    >
-                      {subItem.name}
-                      <span className="flex items-center gap-1 ml-auto">
-                        {subItem.new && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge `}
-                          >
-                            new
-                          </span>
-                        )}
-                        {subItem.pro && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge `}
-                          >
-                            pro
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <ChevronUpIcon className="w-4 h-4" />
             </div>
           )}
-        </li>
-      ))}
-    </ul>
-  );
+        </Link>
 
-  const [openSubmenu, setOpenSubmenu] = useState<{
-    type: "main" | "others";
-    index: number;
-  } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // const isActive = (path: string) => path === pathname;
-   const isActive = useCallback((path: string) => path === pathname, [pathname]);
-
-  useEffect(() => {
-    // Determine which submenu (if any) should be open for current path
-    let next: { type: "main" | "others"; index: number } | null = null;
-
-    for (const menuType of ["main", "others"] as const) {
-      const items = menuType === "main" ? navItems : othersItems;
-      for (let index = 0; index < items.length; index++) {
-        const nav = items[index];
-        if (!nav.subItems) continue;
-        for (const subItem of nav.subItems) {
-          if (subItem.path === pathname) {
-            next = { type: menuType, index };
-            break;
-          }
-        }
-        if (next) break;
-      }
-      if (next) break;
-    }
-
-    // Update state only if it actually changed
-    setOpenSubmenu((prev) => {
-      if (!next) {
-        return prev === null ? prev : null;
-      }
-      if (prev && prev.type === next.type && prev.index === next.index) {
-        return prev;
-      }
-      return next;
-    });
-  }, [pathname]);
-
-  useEffect(() => {
-    // Set the height of the submenu items when the submenu is opened
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
-    setOpenSubmenu((prevOpenSubmenu) => {
-      if (
-        prevOpenSubmenu &&
-        prevOpenSubmenu.type === menuType &&
-        prevOpenSubmenu.index === index
-      ) {
-        return null;
-      }
-      return { type: menuType, index };
-    });
+        {hasChildren && isMenuOpen && (
+          <div className="mt-1 space-y-1">
+            {item.children!.map((child) => renderSidebarItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${
-          isExpanded || isMobileOpen
-            ? "w-[290px]"
-            : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
-        }
-        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ pointerEvents: 'auto' }}
-    >
+    <>
+      {/* Sidebar */}
       <div
-        className={`py-8 flex  ${
-          !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
-        }`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-all duration-200 ease-in-out lg:static lg:inset-0 ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0 w-[290px] ${isExpanded || isHovered ? "lg:w-[290px]" : "lg:w-[90px]"}`}
       >
-        <Link href="/">
-          {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Image
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-              <Image
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
-          ) : (
-            <Image
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
-          )}
-        </Link>
-      </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(navItems, "main")}
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">U</span>
             </div>
+            {(isMobileOpen || isExpanded || isHovered) && (
+              <span className="text-xl font-bold text-gray-900 dark:text-white">Unibase ERP</span>
+            )}
+          </div>
 
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
+          {/* Navigation */}
+          <nav className={`flex-1 px-2 py-4 space-y-2 overflow-y-auto overflow-x-visible` }>
+            {sidebarItems.map((item) => renderSidebarItem(item))}
+          </nav>
+
+          {/* User section */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                <UserIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              </div>
+              {(isMobileOpen || isExpanded || isHovered) && (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">Admin User</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">admin@unibase.com</p>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <BellIcon className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-        </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+        </div>
       </div>
-    </aside>
-  );
-};
 
-export default AppSidebar;
+      {/* Overlay for mobile is handled by Backdrop component */}
+    </>
+  );
+}
