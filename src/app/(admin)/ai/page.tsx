@@ -120,17 +120,16 @@ const AIDashboardPage = () => {
               <Card key={index}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      activity.status === 'success' ? 'bg-green-500' : 
+                    <div className={`w-2 h-2 rounded-full mt-2 ${activity.status === 'success' ? 'bg-green-500' :
                       activity.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                    }`} />
+                      }`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {activity.action}
                         </p>
-                        <Badge 
-                          variant="light" 
+                        <Badge
+                          variant="light"
                           color={activity.status === 'success' ? 'success' : activity.status === 'warning' ? 'warning' : 'error'}
                           size="sm"
                         >
@@ -165,8 +164,8 @@ const AIDashboardPage = () => {
                         {metric.value}
                       </p>
                     </div>
-                    <Badge 
-                      variant="light" 
+                    <Badge
+                      variant="light"
                       color={metric.change.startsWith('+') || metric.change.startsWith('-') && metric.metric.includes('Time') ? "success" : "info"}
                       size="sm"
                     >

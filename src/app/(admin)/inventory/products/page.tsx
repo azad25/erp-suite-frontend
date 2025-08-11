@@ -135,7 +135,7 @@ const ProductsPage = () => {
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                   <div className="flex items-center gap-2">
                     {product.stock}
-                    {product.stock !== "∞" && product.stock < 10 && product.stock > 0 && (
+                    {product.stock !== "∞" && typeof product.stock === 'number' && product.stock < 10 && product.stock > 0 && (
                       <AlertIcon className="w-4 h-4 text-yellow-500" />
                     )}
                   </div>

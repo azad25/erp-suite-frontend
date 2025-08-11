@@ -91,7 +91,7 @@ const TasksPage = () => {
             title="Pending Review"
             value="5"
             icon={<AlertIcon />}
-            color="orange"
+            color="yellow"
           />
           <StatsCard
             title="Completed"
