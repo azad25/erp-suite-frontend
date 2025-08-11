@@ -1,8 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
+import Badge from "@/components/ui/badge/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { UserIcon, CheckCircleIcon, ShootingStarIcon, PieChartIcon } from "@/icons";
+
 
 const SuppliersPage = () => {
   const [suppliers] = useState([
@@ -13,10 +18,10 @@ const SuppliersPage = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Inactive": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Suspended": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "Active": return "success";
+      case "Inactive": return "light";
+      case "Suspended": return "error";
+      default: return "light";
     }
   };
 
@@ -28,16 +33,43 @@ const SuppliersPage = () => {
     ));
   };
 
+
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Suppliers" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Supplier Management
-          </h3>
+    <DashboardLayout title="Suppliers" description="Manage your supplier relationships">
+      <ComponentCard
+        title="Supplier Management"
+        desc="View and manage all your business suppliers"
+      >
+        <div className="flex justify-end mb-6">
           <Button>Add Supplier</Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatsCard
+            title="Total Suppliers"
+            value="48"
+            icon={<UserIcon />}
+            color="blue"
+          />
+          <StatsCard
+            title="Active Suppliers"
+            value="42"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+          <StatsCard
+            title="Average Rating"
+            value="4.2"
+            icon={<ShootingStarIcon />}
+            color="yellow"
+          />
+          <StatsCard
+            title="Performance"
+            value="92%"
+            icon={<PieChartIcon />}
+            color="purple"
+          />
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -88,9 +120,9 @@ const SuppliersPage = () => {
                   </div>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(supplier.status)}`}>
+                  <Badge color={getStatusColor(supplier.status)}>
                     {supplier.status}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Button variant="link" className="mr-4">Edit</Button>
@@ -100,8 +132,8 @@ const SuppliersPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

@@ -1,8 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
+import Badge from "@/components/ui/badge/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { UserIcon, CheckCircleIcon, TimeIcon, PlusIcon } from "@/icons";
+
 
 const EmployeesPage = () => {
   const [employees] = useState([
@@ -13,43 +18,76 @@ const EmployeesPage = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "On Leave": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Inactive": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Terminated": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "Active": return "success";
+      case "On Leave": return "warning";
+      case "Inactive": return "light";
+      case "Terminated": return "error";
+      default: return "light";
     }
   };
 
+  const statsCards = [
+    {
+      title: "Total Employees",
+      value: "125",
+      color: "bg-blue-50 dark:bg-blue-900/20",
+      textColor: "text-blue-600"
+    },
+    {
+      title: "Active",
+      value: "118",
+      color: "bg-green-50 dark:bg-green-900/20",
+      textColor: "text-green-600"
+    },
+    {
+      title: "On Leave",
+      value: "5",
+      color: "bg-yellow-50 dark:bg-yellow-900/20",
+      textColor: "text-yellow-600"
+    },
+    {
+      title: "New Hires",
+      value: "8",
+      color: "bg-purple-50 dark:bg-purple-900/20",
+      textColor: "text-purple-600"
+    }
+  ];
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Employees" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Employee Management
-          </h3>
+    <DashboardLayout title="Employees" description="Manage your organization's employees">
+      <ComponentCard
+        title="Employee Management"
+        desc="View and manage all employees in your organization"
+      >
+        <div className="flex justify-end mb-6">
           <Button>Add Employee</Button>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">125</div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">Total Employees</div>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">118</div>
-            <div className="text-sm text-green-700 dark:text-green-300">Active</div>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">5</div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">On Leave</div>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">8</div>
-            <div className="text-sm text-purple-700 dark:text-purple-300">New Hires</div>
-          </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatsCard
+            title="Total Employees"
+            value="125"
+            icon={<UserIcon />}
+            color="blue"
+          />
+          <StatsCard
+            title="Active"
+            value="118"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+          <StatsCard
+            title="On Leave"
+            value="5"
+            icon={<TimeIcon />}
+            color="yellow"
+          />
+          <StatsCard
+            title="New Hires"
+            value="8"
+            icon={<PlusIcon />}
+            color="purple"
+          />
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -100,9 +138,9 @@ const EmployeesPage = () => {
                   </div>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
+                  <Badge color={getStatusColor(employee.status)}>
                     {employee.status}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                   {employee.joinDate}
@@ -115,8 +153,8 @@ const EmployeesPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

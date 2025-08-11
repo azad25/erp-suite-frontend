@@ -1,37 +1,79 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card/Card";
+import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { DollarLineIcon, PlusIcon, CheckCircleIcon, AlertIcon } from "@/icons";
 
 const InvoicesPage = () => {
   const [invoices] = useState([
     { id: "INV-001", customer: "Tech Corp", amount: "$25,000", status: "Paid", dueDate: "2024-03-15", issueDate: "2024-02-15" },
     { id: "INV-002", customer: "Design Studio", amount: "$12,000", status: "Pending", dueDate: "2024-03-20", issueDate: "2024-02-18" },
     { id: "INV-003", customer: "Marketing Inc", amount: "$8,500", status: "Overdue", dueDate: "2024-02-25", issueDate: "2024-01-25" },
+    { id: "INV-004", customer: "Startup Inc", amount: "$15,750", status: "Draft", dueDate: "2024-03-25", issueDate: "2024-02-20" },
+    { id: "INV-005", customer: "Enterprise Ltd", amount: "$32,000", status: "Sent", dueDate: "2024-03-30", issueDate: "2024-02-22" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Draft": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Sent": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Paid": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Overdue": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
-  };
-
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Invoices" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+    <DashboardLayout
+      title="Sales Invoices"
+      description="Manage and track sales invoices and payments"
+      icon={<DollarLineIcon />}
+    >
+      {/* Invoice Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Invoiced"
+          value="$93,250"
+          icon={<DollarLineIcon />}
+          color="blue"
+        />
+        <StatsCard
+          title="Paid"
+          value="$25,000"
+          icon={<CheckCircleIcon />}
+          color="green"
+        />
+        <StatsCard
+          title="Outstanding"
+          value="$59,750"
+          icon={<DollarLineIcon />}
+          color="yellow"
+        />
+        <StatsCard
+          title="Overdue"
+          value="$8,500"
+          icon={<AlertIcon />}
+          color="red"
+        />
+      </div>
+
+      {/* Invoice List */}
+      <ComponentCard 
+        title="Invoice Management" 
+        desc="Complete list of sales invoices with payment tracking"
+      >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Sales Invoices
-          </h3>
-          <Button>Create Invoice</Button>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              placeholder="Search invoices..."
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+            <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <option>All Status</option>
+              <option>Draft</option>
+              <option>Sent</option>
+              <option>Pending</option>
+              <option>Paid</option>
+              <option>Overdue</option>
+            </select>
+          </div>
+          <Button startIcon={<PlusIcon />}>Create Invoice</Button>
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -48,6 +90,9 @@ const InvoicesPage = () => {
               </TableCell>
               <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Status
+              </TableCell>
+              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Issue Date
               </TableCell>
               <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Due Date
@@ -70,9 +115,21 @@ const InvoicesPage = () => {
                   {invoice.amount}
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}>
+                  <Badge 
+                    variant="light" 
+                    color={
+                      invoice.status === "Paid" ? "success" :
+                      invoice.status === "Overdue" ? "error" :
+                      invoice.status === "Pending" ? "warning" :
+                      invoice.status === "Sent" ? "info" : "light"
+                    }
+                    size="sm"
+                  >
                     {invoice.status}
-                  </span>
+                  </Badge>
+                </TableCell>
+                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                  {invoice.issueDate}
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                   {invoice.dueDate}
@@ -86,8 +143,8 @@ const InvoicesPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

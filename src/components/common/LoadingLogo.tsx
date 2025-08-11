@@ -59,30 +59,40 @@ export default function LoadingLogo({ withText = true, className = "", textClass
       )}
 
       <style jsx>{`
-        :root { --shift: 8px; }
+        :root { --shift: 6px; }
         @media (prefers-reduced-motion: reduce) {
           :root { --shift: 2px; }
         }
         @keyframes upDownA {
-          0% { transform: translateY(0); }
+          0%, 100% { transform: translateY(0); }
           50% { transform: translateY(calc(var(--shift) * -1)); }
-          100% { transform: translateY(0); }
         }
         @keyframes upDownB {
-          0% { transform: translateY(0); }
+          0%, 100% { transform: translateY(0); }
           50% { transform: translateY(var(--shift)); }
-          100% { transform: translateY(0); }
+        }
+        @keyframes upDownC {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(calc(var(--shift) * -0.5)); }
         }
         .bar {
           transform-origin: center;
-          animation-duration: 1.2s;
+          animation-duration: 1.5s;
           animation-timing-function: ease-in-out;
           animation-iteration-count: infinite;
-          animation-delay: 1s; /* initial 1s delay */
         }
-        .bar-a { animation-name: upDownA; }
-        .bar-b { animation-name: upDownB; animation-delay: 1.4s; }
-        .bar-c { animation-name: upDownA; animation-delay: 1.8s; }
+        .bar-a { 
+          animation-name: upDownA; 
+          animation-delay: 0s;
+        }
+        .bar-b { 
+          animation-name: upDownB; 
+          animation-delay: 0.2s;
+        }
+        .bar-c { 
+          animation-name: upDownC; 
+          animation-delay: 0.4s;
+        }
       `}</style>
     </div>
   );

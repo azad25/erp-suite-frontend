@@ -1,8 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
+import Badge from "@/components/ui/badge/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { DocsIcon, CheckCircleIcon, DollarLineIcon } from "@/icons";
+
 
 const QuotationsPage = () => {
   const [quotations] = useState([
@@ -13,24 +18,51 @@ const QuotationsPage = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Draft": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Sent": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Accepted": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Rejected": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "Draft": return "light";
+      case "Sent": return "info";
+      case "Accepted": return "success";
+      case "Rejected": return "error";
+      default: return "light";
     }
   };
 
+
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Quotations" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Sales Quotations
-          </h3>
+    <DashboardLayout title="Quotations" description="Manage sales quotations and proposals">
+      <ComponentCard
+        title="Sales Quotations"
+        desc="Create, track, and manage customer quotations"
+      >
+        <div className="flex justify-end mb-6">
           <Button>Create Quotation</Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatsCard
+            title="Total Quotations"
+            value="24"
+            icon={<DocsIcon />}
+            color="blue"
+          />
+          <StatsCard
+            title="Sent"
+            value="8"
+            icon={<CheckCircleIcon />}
+            color="purple"
+          />
+          <StatsCard
+            title="Accepted"
+            value="12"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+          <StatsCard
+            title="Total Value"
+            value="$145K"
+            icon={<DollarLineIcon />}
+            color="yellow"
+          />
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -69,9 +101,9 @@ const QuotationsPage = () => {
                   {quotation.amount}
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quotation.status)}`}>
+                  <Badge color={getStatusColor(quotation.status)}>
                     {quotation.status}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                   {quotation.validUntil}
@@ -85,8 +117,8 @@ const QuotationsPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

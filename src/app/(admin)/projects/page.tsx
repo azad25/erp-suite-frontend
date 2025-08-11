@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/common/DashboardLayout";
 import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { ListIcon, UserIcon, TimeIcon, DollarLineIcon } from "@/icons";
+import { ListIcon, CheckCircleIcon, TimeIcon, DollarLineIcon } from "@/icons";
 
 const ProjectsPage = () => {
   const [projects] = useState([
@@ -58,7 +58,7 @@ const ProjectsPage = () => {
       icon={<ListIcon />}
     >
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatsCard
           title="Active Projects"
           value="12"
@@ -74,7 +74,7 @@ const ProjectsPage = () => {
         <StatsCard
           title="Completed"
           value="25"
-          icon={<UserIcon />}
+          icon={<CheckCircleIcon />}
           color="green"
         />
         <StatsCard

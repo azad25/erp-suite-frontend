@@ -1,9 +1,12 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { DocsIcon, CheckCircleIcon, TimeIcon, UserIcon } from "@/icons";
 
 interface Document {
   id: string;
@@ -72,14 +75,44 @@ const DocumentsPage = () => {
   };
 
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Documents" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+    <DashboardLayout
+      title="Document Management"
+      description="Manage and organize your business documents and files"
+      icon={<DocsIcon />}
+    >
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Documents"
+          value={documents.length.toString()}
+          icon={<DocsIcon />}
+          color="blue"
+        />
+        <StatsCard
+          title="Published"
+          value={documents.filter(d => d.status === 'Published').length.toString()}
+          icon={<CheckCircleIcon />}
+          color="green"
+        />
+        <StatsCard
+          title="Drafts"
+          value={documents.filter(d => d.status === 'Draft').length.toString()}
+          icon={<TimeIcon />}
+          color="yellow"
+        />
+        <StatsCard
+          title="Shared"
+          value={documents.filter(d => d.shared).length.toString()}
+          icon={<UserIcon />}
+          color="purple"
+        />
+      </div>
+
+      <ComponentCard
+        title="Document Library"
+        desc="View and manage all your business documents"
+      >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Document Management
-          </h3>
           <div className="flex gap-2">
             <div className="relative">
               <Button>
@@ -114,25 +147,6 @@ const DocumentsPage = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{documents.length}</div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">Total Documents</div>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">{documents.filter(d => d.status === 'Published').length}</div>
-            <div className="text-sm text-green-700 dark:text-green-300">Published</div>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">{documents.filter(d => d.status === 'Draft').length}</div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">Drafts</div>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">{documents.filter(d => d.shared).length}</div>
-            <div className="text-sm text-purple-700 dark:text-purple-300">Shared</div>
           </div>
         </div>
 
@@ -372,8 +386,8 @@ const DocumentsPage = () => {
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

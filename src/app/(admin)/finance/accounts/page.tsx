@@ -1,8 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
+import Badge from "@/components/ui/badge/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { DollarLineIcon, CheckCircleIcon, BoxIcon } from "@/icons";
+
 
 const AccountsPage = () => {
   const [accounts] = useState([
@@ -14,51 +19,59 @@ const AccountsPage = () => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "Bank Account": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Cash Account": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Credit Account": return "bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "Bank Account": return "primary";
+      case "Cash Account": return "success";
+      case "Credit Account": return "warning";
+      default: return "light";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Inactive": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Frozen": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "Active": return "success";
+      case "Inactive": return "light";
+      case "Frozen": return "error";
+      default: return "light";
     }
   };
 
+
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Accounts" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Financial Accounts
-          </h3>
+    <DashboardLayout title="Accounts" description="Manage your financial accounts">
+      <ComponentCard
+        title="Financial Accounts"
+        desc="View and manage all your business accounts"
+      >
+        <div className="flex justify-end mb-6">
           <Button>Add Account</Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">$253K</div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">Total Balance</div>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">4</div>
-            <div className="text-sm text-green-700 dark:text-green-300">Active Accounts</div>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">$125K</div>
-            <div className="text-sm text-purple-700 dark:text-purple-300">Main Account</div>
-          </div>
-          <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-orange-600">$2.5K</div>
-            <div className="text-sm text-orange-700 dark:text-orange-300">Cash on Hand</div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatsCard
+            title="Total Balance"
+            value="$253K"
+            icon={<DollarLineIcon />}
+            color="blue"
+          />
+          <StatsCard
+            title="Active Accounts"
+            value="4"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+          <StatsCard
+            title="Main Account"
+            value="$125K"
+            icon={<BoxIcon />}
+            color="purple"
+          />
+          <StatsCard
+            title="Cash on Hand"
+            value="$2.5K"
+            icon={<DollarLineIcon />}
+            color="yellow"
+          />
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -97,9 +110,9 @@ const AccountsPage = () => {
                   </div>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(account.type)}`}>
+                  <Badge color={getTypeColor(account.type)}>
                     {account.type}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                   {account.bank}
@@ -111,9 +124,9 @@ const AccountsPage = () => {
                   {account.balance}
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(account.status)}`}>
+                  <Badge color={getStatusColor(account.status)}>
                     {account.status}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Button variant="link" className="mr-4">Edit</Button>
@@ -123,8 +136,8 @@ const AccountsPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 

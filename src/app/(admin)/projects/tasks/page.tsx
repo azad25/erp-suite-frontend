@@ -1,8 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DashboardLayout from "@/components/common/DashboardLayout";
+import ComponentCard from "@/components/common/ComponentCard";
+import StatsCard from "@/components/common/StatsCard";
 import Button from "@/components/ui/button/Button";
+import Badge from "@/components/ui/badge/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { ListIcon, TimeIcon, CheckCircleIcon, AlertIcon } from "@/icons";
+
 
 const TasksPage = () => {
   const [tasks] = useState([
@@ -40,52 +45,60 @@ const TasksPage = () => {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "High": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      case "Medium": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Low": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "High": return "error";
+      case "Medium": return "warning";
+      case "Low": return "success";
+      default: return "light";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "To Do": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "In Progress": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Review": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Completed": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      case "To Do": return "light";
+      case "In Progress": return "info";
+      case "Review": return "warning";
+      case "Completed": return "success";
+      default: return "light";
     }
   };
 
+
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="Tasks" />
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Task Management
-          </h3>
+    <DashboardLayout title="Tasks" description="Manage project tasks and assignments">
+      <ComponentCard
+        title="Task Management"
+        desc="Track and manage all project tasks"
+      >
+        <div className="flex justify-end mb-6">
           <Button>Create Task</Button>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-gray-600">24</div>
-            <div className="text-sm text-gray-500">Total Tasks</div>
-          </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">8</div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">In Progress</div>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">5</div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">Pending Review</div>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">11</div>
-            <div className="text-sm text-green-700 dark:text-green-300">Completed</div>
-          </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatsCard
+            title="Total Tasks"
+            value="24"
+            icon={<ListIcon />}
+            color="blue"
+          />
+          <StatsCard
+            title="In Progress"
+            value="8"
+            icon={<TimeIcon />}
+            color="yellow"
+          />
+          <StatsCard
+            title="Pending Review"
+            value="5"
+            icon={<AlertIcon />}
+            color="orange"
+          />
+          <StatsCard
+            title="Completed"
+            value="11"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
         </div>
 
         <Table className="border border-gray-200 dark:border-gray-700">
@@ -133,14 +146,14 @@ const TasksPage = () => {
                   {task.assignee}
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(task.priority)}`}>
+                  <Badge color={getPriorityColor(task.priority)}>
                     {task.priority}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
+                  <Badge color={getStatusColor(task.status)}>
                     {task.status}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -164,8 +177,8 @@ const TasksPage = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </ComponentCard>
+    </DashboardLayout>
   );
 };
 
