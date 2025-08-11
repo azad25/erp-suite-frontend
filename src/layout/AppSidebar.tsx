@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import Button from "@/components/ui/button/Button";
 import { useSidebar } from "@/context/SidebarContext";
@@ -199,10 +200,11 @@ export default function AppSidebar() {
           <Link
             href={item.href}
             className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 ${isItemActive
-                ? "bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400"
-                : "text-gray-700 dark:text-gray-300"
+              ? "bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400"
+              : "text-gray-700 dark:text-gray-300"
               } ${level > 0 ? "ml-6" : ""} ${showLabels ? "flex-1" : "w-12 h-12 justify-center"
               }`}
+            title={!showLabels ? item.title : undefined}
           >
             <div className={`flex-shrink-0 flex items-center justify-center ${showLabels ? "w-5 h-5" : "w-6 h-6"
               }`}>
@@ -219,7 +221,7 @@ export default function AppSidebar() {
                 }`}
             >
               <div
-                className={`w-4 h-4 transition-transform duration-200 text-gray-500 dark:text-gray-400 ${isMenuOpen ? "rotate-90" : ""
+                className={`w-4 h-4 transition-transform duration-200 text-gray-500 dark:text-gray-400 ${isMenuOpen ? "rotate-180" : ""
                   }`}
               >
                 <ChevronUpIcon />
@@ -243,29 +245,47 @@ export default function AppSidebar() {
       <div
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-all duration-200 ease-in-out lg:static lg:inset-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"
-          } lg:translate-x-0 w-[290px] ${isExpanded || isHovered ? "lg:w-[290px]" : "lg:w-[90px]"}`}
+        className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-all duration-200 ease-in-out ${isMobileOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0 ${isExpanded || isHovered ? "w-[290px]" : "w-[290px] lg:w-[90px]"}`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">U</span>
-            </div>
-            {(isMobileOpen || isExpanded || isHovered) && (
-              <span className="text-xl font-bold text-gray-900 dark:text-white">Unibase ERP</span>
-            )}
+          <div className={`flex items-center gap-3 py-4 border-b border-gray-200 dark:border-gray-800 ${(isMobileOpen || isExpanded || isHovered) ? "px-6" : "px-3 justify-center"}`}>
+            <Link href="/dashboard" className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                <Image
+                  width={32}
+                  height={32}
+                  className="dark:hidden"
+                  src="/images/logo/logo.svg"
+                  alt="UniBase Logo"
+                />
+                <Image
+                  width={32}
+                  height={32}
+                  className="hidden dark:block"
+                  src="/images/logo/logo-dark.svg"
+                  alt="UniBase Logo"
+                />
+              </div>
+              {(isMobileOpen || isExpanded || isHovered) && (
+                <div className="flex flex-col">
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">UniBase</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">ERP Suite</span>
+                </div>
+              )}
+            </Link>
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 px-2 py-4 space-y-1 overflow-y-auto overflow-x-visible`}>
+          <nav className={`flex-1 py-4 space-y-1 overflow-y-auto overflow-x-visible ${(isMobileOpen || isExpanded || isHovered) ? "px-2" : "px-1"}`}>
             {sidebarItems.map((item) => renderSidebarItem(item))}
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-              <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+          <div className={`border-t border-gray-200 dark:border-gray-800 ${(isMobileOpen || isExpanded || isHovered) ? "p-4" : "p-2"}`}>
+            <div className={`flex items-center rounded-lg bg-gray-50 dark:bg-gray-800 ${(isMobileOpen || isExpanded || isHovered) ? "gap-3 p-3" : "p-2 justify-center"}`}>
+              <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
                 <div className="w-4 h-4 text-gray-600 dark:text-gray-400">
                   <UserIcon />
                 </div>

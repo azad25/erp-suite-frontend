@@ -15,7 +15,7 @@ const HeaderSkeleton = () => (
 );
 
 const SidebarSkeleton = () => (
-  <div className="fixed inset-y-0 left-0 z-50 w-[290px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 animate-pulse lg:translate-x-0" />
+  <div className="fixed inset-y-0 left-0 z-50 w-[290px] lg:w-[90px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 animate-pulse" />
 );
 
 function AdminLayout({
@@ -27,14 +27,17 @@ function AdminLayout({
 
   // Memoize the margin calculation to prevent unnecessary re-renders
   const mainContentMargin = useMemo(() => {
+    // Mobile sidebar is overlay, so no margin needed
     if (isMobileOpen) return "ml-0";
+    
+    // On desktop, adjust margin based on sidebar state
     if (isExpanded || isHovered) return "lg:ml-[290px]";
     return "lg:ml-[90px]";
   }, [isMobileOpen, isExpanded, isHovered]);
 
   // Memoize the main content styles
   const mainContentStyles = useMemo(() => ({
-    className: `flex-1 transition-all duration-150 ease-in-out ${mainContentMargin}`,
+    className: `flex flex-col flex-1 h-screen transition-all duration-200 ease-in-out ${mainContentMargin}`,
     style: {
       willChange: 'margin-left',
       transform: 'translateZ(0)', // Force hardware acceleration
@@ -43,8 +46,8 @@ function AdminLayout({
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 xl:flex">
-        {/* Sidebar with Suspense for lazy loading */}
+      <div className="h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
+        {/* Fixed Sidebar with Suspense for lazy loading */}
         <Suspense fallback={<SidebarSkeleton />}>
           <AppSidebar />
         </Suspense>
@@ -54,16 +57,16 @@ function AdminLayout({
           <Backdrop />
         </Suspense>
         
-        {/* Main Content Area */}
+        {/* Main Content Area - Fixed positioning with scroll */}
         <div {...mainContentStyles}>
-          {/* Header with Suspense for lazy loading */}
+          {/* Fixed Header with Suspense for lazy loading */}
           <Suspense fallback={<HeaderSkeleton />}>
             <AppHeader />
           </Suspense>
           
-          {/* Page Content - full width container */}
-          <main className="w-full max-w-none p-4 md:p-6">
-            <div style={{ contain: 'layout style paint' }}>
+          {/* Scrollable Page Content */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="w-full p-4 md:p-6 lg:p-8" style={{ contain: 'layout style paint' }}>
               {children}
             </div>
           </main>
