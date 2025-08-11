@@ -1,88 +1,78 @@
 "use client";
 
-import React, { Suspense, lazy, ComponentType } from 'react';
+import { lazy, Suspense, ComponentType, ReactNode } from 'react';
+import { useInView } from '@/hooks/useInView';
 
 interface LazyComponentLoaderProps {
-  loader: () => Promise<{ default: ComponentType<any> }>;
-  fallback?: React.ReactNode;
-  children?: React.ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
+  threshold?: number;
+  rootMargin?: string;
 }
 
-// Optimized skeleton components
-const DefaultSkeleton = () => (
-  <div className="animate-pulse">
-    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+// Default loading fallback
+const DefaultFallback = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
   </div>
 );
 
-const CardSkeleton = () => (
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 animate-pulse">
-    <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
-    <div className="space-y-2">
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-    </div>
-  </div>
-);
-
-const TableSkeleton = () => (
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden animate-pulse">
-    <div className="h-12 bg-gray-200 dark:bg-gray-700"></div>
-    {[...Array(5)].map((_, i) => (
-      <div key={i} className="h-16 border-t border-gray-200 dark:border-gray-700 flex items-center px-6">
-        <div className="flex space-x-4 w-full">
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
-// Pre-defined skeleton types
-export const SkeletonTypes = {
-  default: DefaultSkeleton,
-  card: CardSkeleton,
-  table: TableSkeleton,
-} as const;
-
-export type SkeletonType = keyof typeof SkeletonTypes;
-
-// High-performance lazy component loader
-export const LazyComponentLoader: React.FC<LazyComponentLoaderProps> = ({
-  loader,
-  fallback = <DefaultSkeleton />,
-  children,
-}) => {
-  const LazyComponent = lazy(loader);
+// Lazy load component only when it comes into view
+export function LazyComponentLoader({ 
+  children, 
+  fallback = <DefaultFallback />,
+  threshold = 0.1,
+  rootMargin = '50px'
+}: LazyComponentLoaderProps) {
+  const { ref, inView } = useInView({
+    threshold,
+    rootMargin,
+    triggerOnce: true
+  });
 
   return (
-    <Suspense fallback={fallback}>
-      <LazyComponent>{children}</LazyComponent>
-    </Suspense>
+    <div ref={ref}>
+      {inView ? (
+        <Suspense fallback={fallback}>
+          {children}
+        </Suspense>
+      ) : (
+        <div className="h-32 flex items-center justify-center">
+          <div className="text-gray-400 text-sm">Loading...</div>
+        </div>
+      )}
+    </div>
   );
-};
+}
 
-// Hook for creating optimized lazy components
-export const useLazyComponent = (
-  loader: () => Promise<{ default: ComponentType<any> }>,
-  skeletonType: SkeletonType = 'default'
-) => {
-  const LazyComponent = lazy(loader);
-  const SkeletonComponent = SkeletonTypes[skeletonType];
-
-  return {
-    Component: LazyComponent,
-    Skeleton: SkeletonComponent,
-    render: (props?: any) => (
-      <Suspense fallback={<SkeletonComponent />}>
+// HOC for lazy loading components
+export function withLazyLoading<P extends object>(
+  Component: ComponentType<P>,
+  fallback?: ReactNode
+) {
+  const LazyComponent = lazy(() => Promise.resolve({ default: Component }));
+  
+  return function LazyLoadedComponent(props: P) {
+    return (
+      <Suspense fallback={fallback || <DefaultFallback />}>
         <LazyComponent {...props} />
       </Suspense>
-    ),
+    );
   };
-};
+}
 
-export default LazyComponentLoader;
+// Utility for creating lazy-loaded components with intersection observer
+export function createLazyComponent<P extends object>(
+  importFn: () => Promise<{ default: ComponentType<P> }>,
+  fallback?: ReactNode
+) {
+  const LazyComponent = lazy(importFn);
+  
+  return function LazyLoadedComponent(props: P) {
+    return (
+      <LazyComponentLoader fallback={fallback}>
+        <LazyComponent {...props} />
+      </LazyComponentLoader>
+    );
+  };
+}

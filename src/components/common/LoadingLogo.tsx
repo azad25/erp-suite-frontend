@@ -1,4 +1,5 @@
 // erp-frontend/src/components/common/LoadingLogo.tsx
+// erp-frontend/src/components/common/LoadingLogo.tsx
 "use client";
 import React from "react";
 
@@ -6,9 +7,17 @@ type Props = {
   withText?: boolean;
   className?: string;
   textClassName?: string;
+  progress?: number;
+  loadingText?: string;
 };
 
-export default function LoadingLogo({ withText = true, className = "", textClassName = "" }: Props) {
+export default function LoadingLogo({ 
+  withText = true, 
+  className = "", 
+  textClassName = "",
+  progress = 0,
+  loadingText = "Loading..."
+}: Props) {
   return (
     <div className={`flex flex-col items-center justify-center gap-8 ${className}`}>
       <div className="relative">
@@ -48,6 +57,35 @@ export default function LoadingLogo({ withText = true, className = "", textClass
             />
           </g>
         </svg>
+        
+        {/* Progress ring */}
+        {progress > 0 && (
+          <svg
+            className="absolute inset-0 w-full h-full -rotate-90"
+            viewBox="0 0 140 140"
+          >
+            <circle
+              cx="70"
+              cy="70"
+              r="65"
+              fill="none"
+              stroke="rgba(70, 95, 255, 0.2)"
+              strokeWidth="3"
+            />
+            <circle
+              cx="70"
+              cy="70"
+              r="65"
+              fill="none"
+              stroke="#465FFF"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={`${2 * Math.PI * 65}`}
+              strokeDashoffset={`${2 * Math.PI * 65 * (1 - progress / 100)}`}
+              className="transition-all duration-300 ease-out"
+            />
+          </svg>
+        )}
       </div>
 
       {withText && (
@@ -55,6 +93,22 @@ export default function LoadingLogo({ withText = true, className = "", textClass
           <p className="text-gray-900 dark:text-white font-semibold text-2xl tracking-tight">
             Unibase ERP Dashboard
           </p>
+          {progress > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {loadingText}
+              </p>
+              <div className="w-64 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-gray-500 dark:text-gray-500 text-xs">
+                {Math.round(progress)}% Complete
+              </p>
+            </div>
+          )}
         </div>
       )}
 

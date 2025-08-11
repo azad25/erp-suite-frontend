@@ -4,6 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 import DashboardLayout from "@/components/common/DashboardLayout";
+import { LazyComponent } from "@/components/performance/FastPageLoader";
 import { GridIcon } from "@/icons";
 
 // Lazy load heavy components for faster initial page load
@@ -70,28 +71,42 @@ export default function Dashboard() {
       {/* Dashboard Content */}
       <div className="grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12 space-y-6 xl:col-span-7">
-          <EcommerceMetrics />
-          <MonthlySalesChart />
+          <LazyComponent fallback={<CardSkeleton className="h-32" />}>
+            <EcommerceMetrics />
+          </LazyComponent>
+          <LazyComponent fallback={<ChartSkeleton className="h-80" />}>
+            <MonthlySalesChart />
+          </LazyComponent>
         </div>
 
         <div className="col-span-12 xl:col-span-5">
-          <MonthlyTarget />
+          <LazyComponent fallback={<ChartSkeleton className="h-64" />}>
+            <MonthlyTarget />
+          </LazyComponent>
         </div>
 
         <div className="col-span-12">
-          <StatisticsChart />
+          <LazyComponent fallback={<ChartSkeleton className="h-96" />}>
+            <StatisticsChart />
+          </LazyComponent>
         </div>
 
         <div className="col-span-12 xl:col-span-5">
-          <DemographicCard />
+          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
+            <DemographicCard />
+          </LazyComponent>
         </div>
 
         <div className="col-span-12 xl:col-span-7">
-          <RecentOrders />
+          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
+            <RecentOrders />
+          </LazyComponent>
         </div>
 
         <div className="col-span-12">
-          <UserManagementDashboard />
+          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
+            <UserManagementDashboard />
+          </LazyComponent>
         </div>
       </div>
     </DashboardLayout>

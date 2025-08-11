@@ -1,5 +1,5 @@
 import Link from "next/link";
-import React from "react";
+import React, { memo } from "react";
 
 interface BreadcrumbProps {
   pageTitle: string;
@@ -49,4 +49,4 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
   );
 };
 
-export default PageBreadcrumb;
+export default memo(PageBreadcrumb);

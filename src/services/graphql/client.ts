@@ -86,14 +86,20 @@ export class GraphQLClient {
 
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
-        
+
         // Handle different types of errors
         const errorMessages = result.errors.map((e: any) => {
           const code = e.extensions?.code;
           const message = e.message || '';
-          
-          if (code === 'UNAUTHENTICATED') {
-            return 'Authentication required - please log in';
+
+          if (code === 'UNAUTHENTICATED' || message.toLowerCase().includes('not authenticated')) {
+            // Clear potentially corrupted tokens
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user');
+            }
+            return 'Authentication required - please sign in';
           }
           if (code === 'FORBIDDEN') {
             return 'Insufficient permissions for this operation';
@@ -107,8 +113,20 @@ export class GraphQLClient {
         // Create error with appropriate code
         const firstError = result.errors[0];
         const errorCode = firstError?.extensions?.code;
-        const isNotFound = errorCode === 'NOT_FOUND' || 
+        const isUnauthenticated = errorCode === 'UNAUTHENTICATED' ||
+          result.errors.some((e: any) => String(e.message || '').toLowerCase().includes('not authenticated'));
+        const isNotFound = errorCode === 'NOT_FOUND' ||
           result.errors.some((e: any) => String(e.message || '').toLowerCase().includes('not found'));
+
+        if (isUnauthenticated) {
+          const authError: any = new Error(errorMessages[0] || 'Authentication required');
+          authError.code = 'UNAUTHENTICATED';
+          // Redirect to sign in if we're in the browser
+          if (typeof window !== 'undefined') {
+            window.location.href = '/signin';
+          }
+          throw authError;
+        }
 
         if (isNotFound) {
           const notFoundError: any = new Error(errorMessages[0] || 'Resource not found');

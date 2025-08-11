@@ -1,132 +1,78 @@
 "use client";
 
-import React, { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
+import { useInView } from '@/hooks/useInView';
 
 interface VirtualizedTableProps<T> {
   data: T[];
   columns: Array<{
-    key: string;
+    key: keyof T;
     header: string;
-    render: (item: T, index: number) => React.ReactNode;
+    render?: (value: any, item: T) => React.ReactNode;
     width?: string;
-    sortable?: boolean;
   }>;
-  rowHeight?: number;
+  itemHeight?: number;
   containerHeight?: number;
+  overscan?: number;
   className?: string;
-  onRowClick?: (item: T, index: number) => void;
-  keyExtractor?: (item: T, index: number) => string | number;
 }
 
-const VirtualizedTable = <T,>({
+export function VirtualizedTable<T extends Record<string, any>>({
   data,
   columns,
-  rowHeight = 60,
+  itemHeight = 60,
   containerHeight = 400,
-  className = '',
-  onRowClick,
-  keyExtractor = (_, index) => index,
-}: VirtualizedTableProps<T>) => {
+  overscan = 5,
+  className = ""
+}: VirtualizedTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
-  const [sortConfig, setSortConfig] = useState<{
-    key: string;
-    direction: 'asc' | 'desc';
-  } | null>(null);
-  
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Calculate visible range
   const visibleRange = useMemo(() => {
-    const start = Math.floor(scrollTop / rowHeight);
-    const visibleCount = Math.ceil(containerHeight / rowHeight);
-    const end = Math.min(start + visibleCount + 2, data.length); // +2 for buffer
-    
-    return { start: Math.max(0, start - 1), end }; // -1 for buffer
-  }, [scrollTop, rowHeight, containerHeight, data.length]);
-
-  // Sort data if needed
-  const sortedData = useMemo(() => {
-    if (!sortConfig) return data;
-
-    return [...data].sort((a, b) => {
-      const aValue = (a as any)[sortConfig.key];
-      const bValue = (b as any)[sortConfig.key];
-      
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-  }, [data, sortConfig]);
+    const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+    const endIndex = Math.min(
+      data.length - 1,
+      Math.ceil((scrollTop + containerHeight) / itemHeight) + overscan
+    );
+    return { startIndex, endIndex };
+  }, [scrollTop, itemHeight, containerHeight, overscan, data.length]);
 
   // Get visible items
   const visibleItems = useMemo(() => {
-    return sortedData.slice(visibleRange.start, visibleRange.end);
-  }, [sortedData, visibleRange]);
+    return data.slice(visibleRange.startIndex, visibleRange.endIndex + 1);
+  }, [data, visibleRange]);
 
-  // Handle scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  // Handle sort
-  const handleSort = useCallback((columnKey: string) => {
-    setSortConfig(current => {
-      if (current?.key === columnKey) {
-        return {
-          key: columnKey,
-          direction: current.direction === 'asc' ? 'desc' : 'asc',
-        };
-      }
-      return { key: columnKey, direction: 'asc' };
-    });
-  }, []);
-
-  // Handle row click
-  const handleRowClick = useCallback((item: T, originalIndex: number) => {
-    onRowClick?.(item, originalIndex);
-  }, [onRowClick]);
-
-  const totalHeight = sortedData.length * rowHeight;
-  const offsetY = visibleRange.start * rowHeight;
+  const totalHeight = data.length * itemHeight;
+  const offsetY = visibleRange.startIndex * itemHeight;
 
   return (
-    <div className={`relative overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg ${className}`}>
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+    <div className={`border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden ${className}`}>
+      {/* Table Header */}
+      <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex">
-          {columns.map((column) => (
+          {columns.map((column, index) => (
             <div
-              key={column.key}
-              className={`px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${
+              key={String(column.key)}
+              className={`px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
                 column.width || 'flex-1'
-              } ${column.sortable ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600' : ''}`}
-              onClick={column.sortable ? () => handleSort(column.key) : undefined}
+              }`}
             >
-              <div className="flex items-center space-x-1">
-                <span>{column.header}</span>
-                {column.sortable && sortConfig?.key === column.key && (
-                  <span className="text-gray-400">
-                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
-              </div>
+              {column.header}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Scrollable content */}
+      {/* Virtualized Table Body */}
       <div
-        ref={containerRef}
-        className="overflow-auto"
+        className="relative overflow-auto bg-white dark:bg-gray-900"
         style={{ height: containerHeight }}
         onScroll={handleScroll}
       >
-        {/* Virtual spacer */}
         <div style={{ height: totalHeight, position: 'relative' }}>
           <div
             style={{
@@ -138,43 +84,74 @@ const VirtualizedTable = <T,>({
             }}
           >
             {visibleItems.map((item, index) => {
-              const originalIndex = visibleRange.start + index;
-              const key = keyExtractor(item, originalIndex);
-              
+              const actualIndex = visibleRange.startIndex + index;
               return (
-                <div
-                  key={key}
-                  className={`flex border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                    onRowClick ? 'cursor-pointer' : ''
-                  }`}
-                  style={{ height: rowHeight }}
-                  onClick={() => handleRowClick(item, originalIndex)}
-                >
-                  {columns.map((column) => (
-                    <div
-                      key={column.key}
-                      className={`px-6 py-4 text-sm text-gray-900 dark:text-white flex items-center ${
-                        column.width || 'flex-1'
-                      }`}
-                    >
-                      {column.render(item, originalIndex)}
-                    </div>
-                  ))}
-                </div>
+                <VirtualizedRow
+                  key={actualIndex}
+                  item={item}
+                  columns={columns}
+                  height={itemHeight}
+                  isEven={actualIndex % 2 === 0}
+                />
               );
             })}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Loading state for empty data */}
-      {data.length === 0 && (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">No data available</p>
+interface VirtualizedRowProps<T> {
+  item: T;
+  columns: Array<{
+    key: keyof T;
+    header: string;
+    render?: (value: any, item: T) => React.ReactNode;
+    width?: string;
+  }>;
+  height: number;
+  isEven: boolean;
+}
+
+function VirtualizedRow<T extends Record<string, any>>({
+  item,
+  columns,
+  height,
+  isEven
+}: VirtualizedRowProps<T>) {
+  const { ref, inView } = useInView({
+    threshold: 0,
+    rootMargin: '50px',
+    triggerOnce: false
+  });
+
+  return (
+    <div
+      ref={ref}
+      className={`flex border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+        isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/50'
+      }`}
+      style={{ height }}
+    >
+      {inView ? (
+        columns.map((column) => (
+          <div
+            key={String(column.key)}
+            className={`px-4 py-3 text-sm text-gray-900 dark:text-gray-100 flex items-center ${
+              column.width || 'flex-1'
+            }`}
+          >
+            {column.render
+              ? column.render(item[column.key], item)
+              : String(item[column.key] || '')}
+          </div>
+        ))
+      ) : (
+        <div className="flex-1 px-4 py-3 text-sm text-gray-400">
+          Loading...
         </div>
       )}
     </div>
   );
-};
-
-export default memo(VirtualizedTable) as typeof VirtualizedTable;
+}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 
 interface StatsCardProps {
   title: string;
@@ -17,7 +17,7 @@ const colorClasses = {
   indigo: "bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
 };
 
-export const StatsCard: React.FC<StatsCardProps> = ({
+export const StatsCard: React.FC<StatsCardProps> = memo(({
   title,
   value,
   icon,
@@ -43,6 +43,6 @@ export const StatsCard: React.FC<StatsCardProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default StatsCard; 

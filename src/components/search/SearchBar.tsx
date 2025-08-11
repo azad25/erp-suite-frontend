@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchService, SearchResult, searchCategories } from '@/services/searchService';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { highlightText } from '@/utils/textHighlight';
 
 interface SearchBarProps {
   placeholder?: string;
@@ -211,14 +212,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {result.title}
+                            {highlightText(result.title, query)}
                           </h4>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${category?.color || 'bg-gray-100 text-gray-800'}`}>
                             {result.category}
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 overflow-hidden text-ellipsis line-clamp-2">
-                          {result.description}
+                          {highlightText(result.description, query)}
                         </p>
                       </div>
                       <div className="flex-shrink-0">

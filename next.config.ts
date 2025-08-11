@@ -3,28 +3,38 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable React strict mode for better performance
   reactStrictMode: true,
-  
+
   // Optimize power consumption
   poweredByHeader: false,
-  
-  webpack(config, { dev, isServer }) {
-    // SVG handling with optimization
-    config.module.rules.push({
-      test: /\.svg$/,
-      use: ["@svgr/webpack"],
-    });
+
+  webpack(config, { dev, isServer, webpack }) {
+    // Development optimizations for faster compilation
+    if (dev) {
+      // Faster source maps in development
+      config.devtool = 'eval-cheap-module-source-map';
+      
+      // Reduce bundle analysis overhead
+      config.optimization.removeAvailableModules = false;
+      config.optimization.removeEmptyChunks = false;
+      config.optimization.splitChunks = false;
+      
+      // Faster module resolution
+      config.resolve.symlinks = false;
+      config.resolve.cacheWithContext = false;
+    }
 
     // Production optimizations
     if (!dev) {
-      // Enable tree shaking for better bundle size
+      // Enable aggressive tree shaking
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
+      config.optimization.concatenateModules = true;
 
-      // Advanced chunk splitting for optimal caching
+      // Optimize chunk splitting for maximum caching
       config.optimization.splitChunks = {
         chunks: 'all',
         minSize: 20000,
-        maxSize: 244000,
+        maxSize: 200000,
         cacheGroups: {
           default: {
             minChunks: 2,
@@ -44,54 +54,89 @@ const nextConfig: NextConfig = {
             chunks: 'all',
           },
           charts: {
-            test: /[\\/]node_modules[\\/](apexcharts|react-apexcharts|@fullcalendar)[\\/]/,
+            test: /[\\/]node_modules[\\/](apexcharts|react-apexcharts)[\\/]/,
             name: 'charts',
             priority: 15,
-            chunks: 'all',
+            chunks: 'async',
           },
           ui: {
-            test: /[\\/]src[\\/]components[\\/]ui[\\/]/,
+            test: /[\\/]src[\\/]components[\\/](ui|common)[\\/]/,
             name: 'ui',
             priority: 10,
             chunks: 'all',
           },
         },
       };
-
-      // Enable module concatenation
-      config.optimization.concatenateModules = true;
     }
 
-    // Resolve optimizations
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      // Reduce bundle size by aliasing to lighter alternatives
-      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
-    };
+    // SVG optimization
+    config.module.rules.push({
+      test: /\.svg$/,
+      use: ["@svgr/webpack"],
+    });
+
+    // Server-side optimizations
+    if (isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+
+      // Fix 'self is not defined' error on server
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          self: 'globalThis',
+          global: 'globalThis',
+        })
+      );
+
+      // Exclude problematic packages from server bundle
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push({
+          'apexcharts': 'apexcharts',
+          'react-apexcharts': 'react-apexcharts',
+          'canvas': 'canvas',
+        });
+      }
+    }
 
     return config;
   },
 
+  // Disable ESLint during builds for faster compilation
   eslint: {
     ignoreDuringBuilds: true,
   },
 
-  // Optimize images with modern formats
+  // Optimize images aggressively
   images: {
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 31536000,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
   },
 
   // Enable compression
   compress: true,
 
-  // Experimental features for blazing performance
+  // Handle chart packages and other client-only packages separately
+  serverExternalPackages: [
+    'apexcharts', 
+    'react-apexcharts',
+    'canvas',
+    'jsdom',
+    'sharp'
+  ],
+
+  // Experimental features for maximum performance
   experimental: {
-    // Optimize package imports to reduce bundle size
+    // Optimize package imports (excluding chart packages to avoid conflicts)
     optimizePackageImports: [
       'react-icons',
       'lodash',
@@ -99,7 +144,9 @@ const nextConfig: NextConfig = {
       'axios',
       'socket.io-client'
     ],
-    // Enable modern bundling with Turbo
+    // Enable optimized CSS
+    optimizeCss: true,
+    // Enable turbo mode
     turbo: {
       rules: {
         '*.svg': {
@@ -108,19 +155,14 @@ const nextConfig: NextConfig = {
         },
       },
     },
-    // Enable optimized CSS loading
-    optimizeCss: true,
   },
 
-  // Optimize output for production
+  // Optimize output
   output: 'standalone',
 
-
-
-  // Advanced caching and performance headers
+  // Performance headers
   async headers() {
     return [
-      // Static assets - aggressive caching
       {
         source: '/_next/static/:path*',
         headers: [
@@ -128,46 +170,8 @@ const nextConfig: NextConfig = {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
           },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
         ],
       },
-      // API routes - smart caching
-      {
-        source: '/api/config',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
-          },
-          {
-            key: 'Vary',
-            value: 'Accept-Encoding',
-          },
-        ],
-      },
-      {
-        source: '/api/health',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=60, s-maxage=60',
-          },
-        ],
-      },
-      // Default API caching
-      {
-        source: '/api/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'private, max-age=0, must-revalidate',
-          },
-        ],
-      },
-      // Performance and security headers for all pages
       {
         source: '/((?!api|_next/static|_next/image|favicon.ico).*)',
         headers: [
@@ -183,23 +187,9 @@ const nextConfig: NextConfig = {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
           },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
-          },
-          // Preload critical resources
-          {
-            key: 'Link',
-            value: '</api/config>; rel=preload; as=fetch; crossorigin',
-          },
         ],
       },
     ];
-  },
-
-  // Redirect configuration
-  async redirects() {
-    return [];
   },
 };
 

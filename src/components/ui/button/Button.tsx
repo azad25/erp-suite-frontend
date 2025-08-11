@@ -1,5 +1,5 @@
 "use client";
-import React, { ReactNode } from "react";
+import React, { ReactNode, memo } from "react";
 
 interface ButtonProps {
   children: ReactNode; // Button text or content
@@ -68,4 +68,4 @@ const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export default Button;
+export default memo(Button);

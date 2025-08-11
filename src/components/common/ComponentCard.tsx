@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 
 interface ComponentCardProps {
   title: string;
@@ -37,4 +37,4 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
   );
 };
 
-export default ComponentCard;
+export default memo(ComponentCard);

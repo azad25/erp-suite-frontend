@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 
 interface DashboardLayoutProps {
   title: string;
@@ -44,4 +44,4 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   );
 };
 
-export default DashboardLayout; 
+export default memo(DashboardLayout); 

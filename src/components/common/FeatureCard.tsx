@@ -12,12 +12,12 @@ interface FeatureCardProps {
 }
 
 const colorClasses = {
-  blue: "bg-blue-50 border-blue-200 hover:bg-blue-100",
-  green: "bg-green-50 border-green-200 hover:bg-green-100",
-  yellow: "bg-yellow-50 border-yellow-200 hover:bg-yellow-100",
-  purple: "bg-purple-50 border-purple-200 hover:bg-purple-100",
-  red: "bg-red-50 border-red-200 hover:bg-red-100",
-  indigo: "bg-indigo-50 border-indigo-200 hover:bg-indigo-100",
+  blue: "bg-blue-50 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:hover:bg-blue-900/30",
+  green: "bg-green-50 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:border-green-800 dark:hover:bg-green-900/30",
+  yellow: "bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:border-yellow-800 dark:hover:bg-yellow-900/30",
+  purple: "bg-purple-50 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 dark:hover:bg-purple-900/30",
+  red: "bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800 dark:hover:bg-red-900/30",
+  indigo: "bg-indigo-50 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:hover:bg-indigo-900/30",
 };
 
 export const FeatureCard: React.FC<FeatureCardProps> = ({

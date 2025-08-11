@@ -153,7 +153,7 @@ export default function UserManagementDashboard() {
               <p className="text-sm text-red-600 dark:text-red-300">
                 {error}
               </p>
-              <button 
+              <button
                 onClick={loadDashboardData}
                 className="mt-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline"
               >
@@ -303,7 +303,7 @@ export default function UserManagementDashboard() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <Link 
+        <Link
           href="/users"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
         >
@@ -324,7 +324,7 @@ export default function UserManagementDashboard() {
           </div>
         </Link>
 
-        <Link 
+        <Link
           href="/users/roles"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
         >
@@ -345,7 +345,7 @@ export default function UserManagementDashboard() {
           </div>
         </Link>
 
-        <Link 
+        <Link
           href="/users/organizations"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
         >
@@ -366,7 +366,7 @@ export default function UserManagementDashboard() {
           </div>
         </Link>
 
-        <Link 
+        <Link
           href="/users/activity"
           className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors lg:p-6"
         >
@@ -395,14 +395,14 @@ export default function UserManagementDashboard() {
             <h4 className="text-base font-semibold text-gray-800 dark:text-white/90">
               Recent Activity
             </h4>
-            <Link 
+            <Link
               href="/users/activity"
               className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
               View All
             </Link>
           </div>
-          
+
           <div className="space-y-3">
             {recentActivity.length > 0 ? (
               recentActivity.map((activity) => (
@@ -422,7 +422,7 @@ export default function UserManagementDashboard() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {activity.timestamp}

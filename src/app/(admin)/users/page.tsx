@@ -1,10 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import StatsCard from "@/components/common/StatsCard";
-import UserManagementDashboard from "@/components/user-management/UserManagementDashboard";
+import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
 import { UserIcon, LockIcon, TimeIcon, CheckCircleIcon } from "@/icons";
+
+// Lazy load heavy components
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyUserManagementDashboard = lazy(() => import("@/components/user-management/UserManagementDashboard"));
+const LazyUserListTable = lazy(() => import("@/components/user-management/UserListTable"));
 
 const UsersPage = () => {
   return (
@@ -15,34 +19,49 @@ const UsersPage = () => {
     >
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatsCard
-          title="Total Users"
-          value="156"
-          icon={<UserIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="Active Users"
-          value="142"
-          icon={<CheckCircleIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="User Roles"
-          value="8"
-          icon={<LockIcon />}
-          color="purple"
-        />
-        <StatsCard
-          title="Last Login"
-          value="2 min ago"
-          icon={<TimeIcon />}
-          color="yellow"
-        />
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Users"
+            value="156"
+            icon={<UserIcon />}
+            color="blue"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Active Users"
+            value="142"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="User Roles"
+            value="8"
+            icon={<LockIcon />}
+            color="purple"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Last Login"
+            value="2 min ago"
+            icon={<TimeIcon />}
+            color="yellow"
+          />
+        </LazyComponent>
       </div>
 
+      {/* User List Table */}
+      <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+        <LazyUserListTable />
+      </LazyComponent>
+
       {/* User Management Dashboard */}
-      <UserManagementDashboard />
+      <LazyComponent fallback={<ComponentSkeleton height="h-96" />}>
+        <LazyUserManagementDashboard />
+      </LazyComponent>
     </DashboardLayout>
   );
 };
