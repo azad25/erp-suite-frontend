@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, memo } from "react";
 
 // Props for Table
 interface TableProps {
@@ -31,34 +31,43 @@ interface TableCellProps {
   className?: string; // Optional className for styling
 }
 
-// Table Component
-const Table: React.FC<TableProps> = ({ children, className }) => {
-  return <table className={`min-w-full  ${className}`}>{children}</table>;
-};
+// Optimized Table Components with memo for better performance
+const Table = memo<TableProps>(({ children, className = '' }) => {
+  return (
+    <div className="overflow-x-auto">
+      <table className={`min-w-full ${className}`} style={{ contain: 'layout style paint' }}>
+        {children}
+      </table>
+    </div>
+  );
+});
 
-// TableHeader Component
-const TableHeader: React.FC<TableHeaderProps> = ({ children, className }) => {
+const TableHeader = memo<TableHeaderProps>(({ children, className = '' }) => {
   return <thead className={className}>{children}</thead>;
-};
+});
 
-// TableBody Component
-const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
+const TableBody = memo<TableBodyProps>(({ children, className = '' }) => {
   return <tbody className={className}>{children}</tbody>;
-};
+});
 
-// TableRow Component
-const TableRow: React.FC<TableRowProps> = ({ children, className }) => {
+const TableRow = memo<TableRowProps>(({ children, className = '' }) => {
   return <tr className={className}>{children}</tr>;
-};
+});
 
-// TableCell Component
-const TableCell: React.FC<TableCellProps> = ({
+const TableCell = memo<TableCellProps>(({
   children,
   isHeader = false,
-  className,
+  className = '',
 }) => {
   const CellTag = isHeader ? "th" : "td";
-  return <CellTag className={` ${className}`}>{children}</CellTag>;
-};
+  return <CellTag className={className}>{children}</CellTag>;
+});
+
+// Set display names for better debugging
+Table.displayName = 'Table';
+TableHeader.displayName = 'TableHeader';
+TableBody.displayName = 'TableBody';
+TableRow.displayName = 'TableRow';
+TableCell.displayName = 'TableCell';
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };

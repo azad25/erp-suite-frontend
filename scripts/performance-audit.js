@@ -1,392 +1,337 @@
 #!/usr/bin/env node
 
-/**
- * Performance Audit Script
- * Audits the application for performance issues and provides recommendations
- */
-
 const fs = require('fs');
 const path = require('path');
 
-// Colors for console output
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-};
-
-function log(message, color = 'reset') {
-  console.log(`${colors[color]}${message}${colors.reset}`);
-}
-
-function performanceAudit() {
-  log('\n🔍 Performance Audit Report', 'cyan');
-  log('=' .repeat(60), 'cyan');
-  
-  const auditResults = {
-    critical: [],
-    warnings: [],
-    suggestions: [],
-    passed: []
-  };
-
-  // Run all audit checks
-  auditNextConfig(auditResults);
-  auditPackageJson(auditResults);
-  auditSourceCode(auditResults);
-  auditAssets(auditResults);
-  auditCaching(auditResults);
-  
-  // Display results
-  displayAuditResults(auditResults);
-  
-  // Provide action plan
-  provideActionPlan(auditResults);
-}
-
-function auditNextConfig(results) {
-  log('\n📋 Next.js Configuration Audit', 'yellow');
-  
-  const configPath = path.join(process.cwd(), 'next.config.ts');
-  
-  if (!fs.existsSync(configPath)) {
-    results.critical.push('Missing next.config.ts file');
-    return;
+// Performance audit script for the ERP frontend
+class PerformanceAuditor {
+  constructor() {
+    this.results = {
+      bundleSize: {},
+      componentCount: 0,
+      unusedDependencies: [],
+      largeFiles: [],
+      recommendations: [],
+    };
   }
-  
-  const configContent = fs.readFileSync(configPath, 'utf8');
-  
-  // Check for performance optimizations
-  const checks = [
-    {
-      test: /compress:\s*true/,
-      message: 'Compression enabled',
-      type: 'passed'
-    },
-    {
-      test: /experimental:\s*{[\s\S]*optimizePackageImports/,
-      message: 'Package import optimization enabled',
-      type: 'passed'
-    },
-    {
-      test: /splitChunks/,
-      message: 'Code splitting configured',
-      type: 'passed'
-    },
-    {
-      test: /Cache-Control/,
-      message: 'Caching headers configured',
-      type: 'passed'
+
+  // Analyze bundle sizes
+  analyzeBundleSize() {
+    const buildDir = path.join(process.cwd(), '.next');
+    
+    if (!fs.existsSync(buildDir)) {
+      console.log('❌ Build directory not found. Run "npm run build" first.');
+      return;
     }
-  ];
-  
-  checks.forEach(check => {
-    if (check.test.test(configContent)) {
-      results[check.type].push(`✅ ${check.message}`);
-    } else {
-      results.warnings.push(`⚠️ Missing: ${check.message}`);
-    }
-  });
-}
 
-function auditPackageJson(results) {
-  log('\n📦 Package.json Audit', 'yellow');
-  
-  const packagePath = path.join(process.cwd(), 'package.json');
-  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-  
-  // Check for heavy dependencies
-  const heavyDependencies = [
-    'moment', // Should use date-fns or dayjs
-    'lodash', // Should use lodash-es or individual functions
-    'jquery', // Should avoid in React apps
-    'bootstrap', // Heavy CSS framework
-  ];
-  
-  const foundHeavyDeps = heavyDependencies.filter(dep => 
-    packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep]
-  );
-  
-  if (foundHeavyDeps.length > 0) {
-    results.warnings.push(`Heavy dependencies found: ${foundHeavyDeps.join(', ')}`);
-  } else {
-    results.passed.push('✅ No heavy dependencies detected');
-  }
-  
-  // Check for performance scripts
-  const perfScripts = ['analyze', 'perf:audit', 'build:analyze'];
-  const hasPerformanceScripts = perfScripts.some(script => packageJson.scripts?.[script]);
-  
-  if (hasPerformanceScripts) {
-    results.passed.push('✅ Performance analysis scripts available');
-  } else {
-    results.suggestions.push('Add performance analysis scripts');
-  }
-  
-  // Check dependency count
-  const totalDeps = Object.keys(packageJson.dependencies || {}).length;
-  if (totalDeps > 50) {
-    results.warnings.push(`High dependency count: ${totalDeps} dependencies`);
-  } else {
-    results.passed.push(`✅ Reasonable dependency count: ${totalDeps}`);
-  }
-}
-
-function auditSourceCode(results) {
-  log('\n💻 Source Code Audit', 'yellow');
-  
-  const srcDir = path.join(process.cwd(), 'src');
-  
-  if (!fs.existsSync(srcDir)) {
-    results.critical.push('Source directory not found');
-    return;
-  }
-  
-  // Check for dynamic imports
-  const hasLazyLoading = checkForPattern(srcDir, /lazy\(|dynamic\(/);
-  if (hasLazyLoading) {
-    results.passed.push('✅ Lazy loading implemented');
-  } else {
-    results.suggestions.push('Implement lazy loading for large components');
-  }
-  
-  // Check for React.memo usage
-  const hasMemoization = checkForPattern(srcDir, /React\.memo|memo\(/);
-  if (hasMemoization) {
-    results.passed.push('✅ Component memoization found');
-  } else {
-    results.suggestions.push('Add React.memo for expensive components');
-  }
-  
-  // Check for useCallback/useMemo
-  const hasHookOptimization = checkForPattern(srcDir, /useCallback|useMemo/);
-  if (hasHookOptimization) {
-    results.passed.push('✅ Hook optimization found');
-  } else {
-    results.suggestions.push('Use useCallback/useMemo for expensive operations');
-  }
-  
-  // Check for large files
-  const largeFiles = findLargeFiles(srcDir, 50 * 1024); // 50KB
-  if (largeFiles.length > 0) {
-    results.warnings.push(`Large files found: ${largeFiles.slice(0, 3).map(f => f.name).join(', ')}`);
-  } else {
-    results.passed.push('✅ No excessively large source files');
-  }
-}
-
-function auditAssets(results) {
-  log('\n🖼️  Assets Audit', 'yellow');
-  
-  const publicDir = path.join(process.cwd(), 'public');
-  
-  if (!fs.existsSync(publicDir)) {
-    results.suggestions.push('Create public directory for static assets');
-    return;
-  }
-  
-  // Check for unoptimized images
-  const imageFiles = findFilesByExtension(publicDir, ['.jpg', '.jpeg', '.png', '.gif']);
-  const largeImages = imageFiles.filter(file => file.size > 500 * 1024); // 500KB
-  
-  if (largeImages.length > 0) {
-    results.warnings.push(`Large images found: ${largeImages.slice(0, 3).map(f => f.name).join(', ')}`);
-  } else if (imageFiles.length > 0) {
-    results.passed.push('✅ Image sizes are reasonable');
-  }
-  
-  // Check for modern image formats
-  const modernFormats = findFilesByExtension(publicDir, ['.webp', '.avif']);
-  if (modernFormats.length > 0) {
-    results.passed.push('✅ Modern image formats in use');
-  } else if (imageFiles.length > 0) {
-    results.suggestions.push('Consider using WebP/AVIF formats for better compression');
-  }
-}
-
-function auditCaching(results) {
-  log('\n🗄️  Caching Strategy Audit', 'yellow');
-  
-  // Check for service worker
-  const swPath = path.join(process.cwd(), 'public', 'sw.js');
-  if (fs.existsSync(swPath)) {
-    results.passed.push('✅ Service worker found');
-  } else {
-    results.suggestions.push('Consider implementing service worker for caching');
-  }
-  
-  // Check for API caching implementation
-  const apiDir = path.join(process.cwd(), 'src', 'app', 'api');
-  if (fs.existsSync(apiDir)) {
-    const hasCaching = checkForPattern(apiDir, /Cache-Control|ETag|max-age/);
-    if (hasCaching) {
-      results.passed.push('✅ API caching headers implemented');
-    } else {
-      results.warnings.push('API endpoints missing caching headers');
-    }
-  }
-}
-
-// Helper functions
-function checkForPattern(dir, pattern) {
-  const files = getAllFiles(dir, ['.ts', '.tsx', '.js', '.jsx']);
-  return files.some(file => {
     try {
-      const content = fs.readFileSync(file, 'utf8');
-      return pattern.test(content);
+      const staticDir = path.join(buildDir, 'static');
+      if (fs.existsSync(staticDir)) {
+        this.analyzeDirectory(staticDir, 'static');
+      }
+
+      const serverDir = path.join(buildDir, 'server');
+      if (fs.existsSync(serverDir)) {
+        this.analyzeDirectory(serverDir, 'server');
+      }
     } catch (error) {
-      return false;
+      console.error('Error analyzing bundle size:', error.message);
     }
-  });
-}
+  }
 
-function findLargeFiles(dir, sizeThreshold) {
-  const files = getAllFiles(dir, ['.ts', '.tsx', '.js', '.jsx']);
-  return files
-    .map(file => ({
-      name: path.basename(file),
-      path: file,
-      size: fs.statSync(file).size
-    }))
-    .filter(file => file.size > sizeThreshold)
-    .sort((a, b) => b.size - a.size);
-}
+  analyzeDirectory(dir, type) {
+    const files = this.getFilesRecursively(dir);
+    let totalSize = 0;
 
-function findFilesByExtension(dir, extensions) {
-  const files = getAllFiles(dir, extensions);
-  return files.map(file => ({
-    name: path.basename(file),
-    path: file,
-    size: fs.statSync(file).size
-  }));
-}
+    files.forEach(file => {
+      const stats = fs.statSync(file);
+      const size = stats.size;
+      totalSize += size;
 
-function getAllFiles(dir, extensions) {
-  const files = [];
-  
-  function traverse(currentDir) {
+      // Flag large files (>500KB)
+      if (size > 500 * 1024) {
+        this.results.largeFiles.push({
+          file: path.relative(process.cwd(), file),
+          size: this.formatBytes(size),
+        });
+      }
+    });
+
+    this.results.bundleSize[type] = {
+      totalSize: this.formatBytes(totalSize),
+      fileCount: files.length,
+    };
+  }
+
+  getFilesRecursively(dir) {
+    let files = [];
+    
     try {
-      const items = fs.readdirSync(currentDir);
+      const items = fs.readdirSync(dir);
       
       items.forEach(item => {
-        const itemPath = path.join(currentDir, item);
-        const stat = fs.statSync(itemPath);
+        const fullPath = path.join(dir, item);
+        const stats = fs.statSync(fullPath);
         
-        if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
-          traverse(itemPath);
-        } else if (stat.isFile() && extensions.some(ext => item.endsWith(ext))) {
-          files.push(itemPath);
+        if (stats.isDirectory()) {
+          files = files.concat(this.getFilesRecursively(fullPath));
+        } else {
+          files.push(fullPath);
         }
       });
     } catch (error) {
-      // Skip directories we can't read
+      // Ignore permission errors
+    }
+    
+    return files;
+  }
+
+  // Analyze component usage
+  analyzeComponents() {
+    const srcDir = path.join(process.cwd(), 'src');
+    
+    if (!fs.existsSync(srcDir)) {
+      return;
+    }
+
+    const componentFiles = this.findComponentFiles(srcDir);
+    this.results.componentCount = componentFiles.length;
+
+    // Check for potential optimizations
+    componentFiles.forEach(file => {
+      const content = fs.readFileSync(file, 'utf8');
+      
+      // Check for missing React.memo
+      if (content.includes('export default') && !content.includes('memo(') && !content.includes('React.memo')) {
+        this.results.recommendations.push({
+          type: 'memoization',
+          file: path.relative(process.cwd(), file),
+          message: 'Consider using React.memo for this component',
+        });
+      }
+
+      // Check for large components (>500 lines)
+      const lineCount = content.split('\n').length;
+      if (lineCount > 500) {
+        this.results.recommendations.push({
+          type: 'component-size',
+          file: path.relative(process.cwd(), file),
+          message: `Large component (${lineCount} lines) - consider splitting`,
+        });
+      }
+    });
+  }
+
+  findComponentFiles(dir) {
+    let files = [];
+    
+    try {
+      const items = fs.readdirSync(dir);
+      
+      items.forEach(item => {
+        const fullPath = path.join(dir, item);
+        const stats = fs.statSync(fullPath);
+        
+        if (stats.isDirectory()) {
+          files = files.concat(this.findComponentFiles(fullPath));
+        } else if (item.endsWith('.tsx') || item.endsWith('.jsx')) {
+          files.push(fullPath);
+        }
+      });
+    } catch (error) {
+      // Ignore permission errors
+    }
+    
+    return files;
+  }
+
+  // Check for unused dependencies
+  analyzeUnusedDependencies() {
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      const srcDir = path.join(process.cwd(), 'src');
+      const allFiles = this.getFilesRecursively(srcDir);
+      
+      // Read all source files
+      let allContent = '';
+      allFiles.forEach(file => {
+        if (file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.js') || file.endsWith('.jsx')) {
+          try {
+            allContent += fs.readFileSync(file, 'utf8') + '\n';
+          } catch (error) {
+            // Ignore read errors
+          }
+        }
+      });
+
+      // Check which dependencies are not imported
+      Object.keys(dependencies).forEach(dep => {
+        const importPatterns = [
+          new RegExp(`from ['"]${dep}['"]`, 'g'),
+          new RegExp(`import ['"]${dep}['"]`, 'g'),
+          new RegExp(`require\\(['"]${dep}['"]\\)`, 'g'),
+        ];
+
+        const isUsed = importPatterns.some(pattern => pattern.test(allContent));
+        
+        if (!isUsed && !this.isEssentialDependency(dep)) {
+          this.results.unusedDependencies.push(dep);
+        }
+      });
+    } catch (error) {
+      console.error('Error analyzing dependencies:', error.message);
     }
   }
-  
-  traverse(dir);
-  return files;
-}
 
-function displayAuditResults(results) {
-  log('\n📊 Audit Results Summary', 'bright');
-  log('-' .repeat(40), 'bright');
-  
-  if (results.critical.length > 0) {
-    log(`\n🚨 Critical Issues (${results.critical.length}):`, 'red');
-    results.critical.forEach(issue => log(`  ${issue}`, 'red'));
+  isEssentialDependency(dep) {
+    const essential = [
+      'next',
+      'react',
+      'react-dom',
+      'typescript',
+      '@types/node',
+      '@types/react',
+      '@types/react-dom',
+      'eslint',
+      'tailwindcss',
+      'postcss',
+      'autoprefixer',
+    ];
+    
+    return essential.includes(dep) || dep.startsWith('@types/');
   }
-  
-  if (results.warnings.length > 0) {
-    log(`\n⚠️  Warnings (${results.warnings.length}):`, 'yellow');
-    results.warnings.forEach(warning => log(`  ${warning}`, 'yellow'));
-  }
-  
-  if (results.suggestions.length > 0) {
-    log(`\n💡 Suggestions (${results.suggestions.length}):`, 'blue');
-    results.suggestions.forEach(suggestion => log(`  ${suggestion}`, 'blue'));
-  }
-  
-  if (results.passed.length > 0) {
-    log(`\n✅ Passed Checks (${results.passed.length}):`, 'green');
-    results.passed.forEach(check => log(`  ${check}`, 'green'));
-  }
-}
 
-function provideActionPlan(results) {
-  log('\n🎯 Performance Action Plan', 'magenta');
-  log('=' .repeat(40), 'magenta');
-  
-  const totalIssues = results.critical.length + results.warnings.length;
-  const score = Math.max(0, 100 - (results.critical.length * 20) - (results.warnings.length * 10) - (results.suggestions.length * 2));
-  
-  log(`\nPerformance Score: ${score}/100`, score >= 80 ? 'green' : score >= 60 ? 'yellow' : 'red');
-  
-  if (totalIssues === 0) {
-    log('\n🎉 Excellent! Your application is well optimized.', 'green');
-    return;
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
-  
-  log('\n📋 Immediate Actions (Priority Order):', 'bright');
-  
-  const actions = [
-    {
-      condition: results.critical.length > 0,
-      action: '1. Fix critical issues first - these significantly impact performance',
-      color: 'red'
-    },
-    {
-      condition: results.warnings.some(w => w.includes('Heavy dependencies')),
-      action: '2. Replace heavy dependencies with lighter alternatives',
-      color: 'yellow'
-    },
-    {
-      condition: results.warnings.some(w => w.includes('Large files')),
-      action: '3. Split large components into smaller, lazy-loaded modules',
-      color: 'yellow'
-    },
-    {
-      condition: results.suggestions.some(s => s.includes('lazy loading')),
-      action: '4. Implement code splitting and lazy loading',
-      color: 'blue'
-    },
-    {
-      condition: results.suggestions.some(s => s.includes('memoization')),
-      action: '5. Add React.memo and hook optimizations',
-      color: 'blue'
-    },
-    {
-      condition: results.warnings.some(w => w.includes('caching')),
-      action: '6. Implement proper caching strategies',
-      color: 'yellow'
+
+  // Generate performance recommendations
+  generateRecommendations() {
+    // Bundle size recommendations
+    if (this.results.largeFiles.length > 0) {
+      this.results.recommendations.push({
+        type: 'bundle-optimization',
+        message: `Found ${this.results.largeFiles.length} large files. Consider code splitting or lazy loading.`,
+      });
     }
-  ];
-  
-  actions
-    .filter(action => action.condition)
-    .forEach(action => log(`  ${action.action}`, action.color));
-  
-  log('\n🚀 Quick Wins:', 'green');
-  log('  • Enable Next.js Turbo mode: npm run dev:turbo', 'green');
-  log('  • Use Next.js Image component for all images', 'green');
-  log('  • Add loading="lazy" to non-critical images', 'green');
-  log('  • Implement proper error boundaries', 'green');
-  log('  • Use React DevTools Profiler to identify bottlenecks', 'green');
-  
-  log('\n📈 Monitoring:', 'cyan');
-  log('  • Run this audit regularly: npm run perf:audit', 'cyan');
-  log('  • Monitor bundle size: npm run analyze', 'cyan');
-  log('  • Use Lighthouse for runtime performance', 'cyan');
-  log('  • Set up performance budgets in CI/CD', 'cyan');
+
+    // Unused dependencies
+    if (this.results.unusedDependencies.length > 0) {
+      this.results.recommendations.push({
+        type: 'dependency-cleanup',
+        message: `Found ${this.results.unusedDependencies.length} potentially unused dependencies.`,
+      });
+    }
+
+    // Component count
+    if (this.results.componentCount > 100) {
+      this.results.recommendations.push({
+        type: 'component-organization',
+        message: `High component count (${this.results.componentCount}). Consider better organization and lazy loading.`,
+      });
+    }
+  }
+
+  // Run the complete audit
+  async run() {
+    console.log('🔍 Starting performance audit...\n');
+
+    console.log('📦 Analyzing bundle size...');
+    this.analyzeBundleSize();
+
+    console.log('🧩 Analyzing components...');
+    this.analyzeComponents();
+
+    console.log('📋 Checking dependencies...');
+    this.analyzeUnusedDependencies();
+
+    console.log('💡 Generating recommendations...');
+    this.generateRecommendations();
+
+    this.printResults();
+  }
+
+  printResults() {
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 PERFORMANCE AUDIT RESULTS');
+    console.log('='.repeat(60));
+
+    // Bundle size
+    console.log('\n📦 Bundle Analysis:');
+    Object.entries(this.results.bundleSize).forEach(([type, data]) => {
+      console.log(`  ${type}: ${data.totalSize} (${data.fileCount} files)`);
+    });
+
+    // Large files
+    if (this.results.largeFiles.length > 0) {
+      console.log('\n⚠️  Large Files:');
+      this.results.largeFiles.forEach(file => {
+        console.log(`  ${file.file}: ${file.size}`);
+      });
+    }
+
+    // Components
+    console.log(`\n🧩 Components: ${this.results.componentCount} total`);
+
+    // Unused dependencies
+    if (this.results.unusedDependencies.length > 0) {
+      console.log('\n📋 Potentially Unused Dependencies:');
+      this.results.unusedDependencies.forEach(dep => {
+        console.log(`  - ${dep}`);
+      });
+    }
+
+    // Recommendations
+    if (this.results.recommendations.length > 0) {
+      console.log('\n💡 Recommendations:');
+      this.results.recommendations.forEach((rec, index) => {
+        console.log(`  ${index + 1}. [${rec.type}] ${rec.message}`);
+        if (rec.file) {
+          console.log(`     File: ${rec.file}`);
+        }
+      });
+    }
+
+    console.log('\n✅ Audit complete!');
+    
+    // Performance score
+    const score = this.calculatePerformanceScore();
+    console.log(`\n🎯 Performance Score: ${score}/100`);
+    
+    if (score >= 90) {
+      console.log('🎉 Excellent performance!');
+    } else if (score >= 70) {
+      console.log('👍 Good performance, room for improvement.');
+    } else {
+      console.log('⚠️  Performance needs attention.');
+    }
+  }
+
+  calculatePerformanceScore() {
+    let score = 100;
+
+    // Deduct points for issues
+    score -= this.results.largeFiles.length * 10;
+    score -= this.results.unusedDependencies.length * 2;
+    score -= Math.max(0, (this.results.componentCount - 50) * 0.5);
+    score -= this.results.recommendations.filter(r => r.type === 'memoization').length * 3;
+
+    return Math.max(0, Math.round(score));
+  }
 }
 
 // Run the audit
 if (require.main === module) {
-  performanceAudit();
+  const auditor = new PerformanceAuditor();
+  auditor.run().catch(console.error);
 }
 
-module.exports = { performanceAudit };
+module.exports = PerformanceAuditor;

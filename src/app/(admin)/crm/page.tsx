@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { memo, useMemo } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import { usePageLoading } from "@/hooks/usePageLoading";
 import ComponentCard from "@/components/common/ComponentCard";
 import FeatureCard from "@/components/common/FeatureCard";
 import StatsCard from "@/components/common/StatsCard";
@@ -20,25 +19,11 @@ import {
   PlusIcon
 } from "@/icons";
 
-const CRMDashboardPage = () => {
-  const [isLoading, setIsLoading] = useState(true);
+const CRMDashboardPage = memo(() => {
+  // Remove artificial loading delay - data should load instantly for static content
 
-  // Simulate loading data
-  useEffect(() => {
-    const loadData = async () => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setIsLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Use the page loading hook
-  usePageLoading(isLoading, {
-    loadingMessage: 'Loading CRM Dashboard...',
-  });
-
-  const crmFeatures = [
+  // Memoize static data to prevent unnecessary re-renders
+  const crmFeatures = useMemo(() => [
     {
       title: "Lead Management",
       description: "Capture, qualify, and convert leads into opportunities",
@@ -87,21 +72,21 @@ const CRMDashboardPage = () => {
       color: "red" as const,
       stats: "25 reports",
     },
-  ];
+  ], []);
 
-  const recentActivities = [
+  const recentActivities = useMemo(() => [
     { activity: "New lead from website", time: "5 min ago", type: "lead" },
     { activity: "Deal closed - TechCorp", time: "2 hours ago", type: "opportunity" },
     { activity: "Customer feedback received", time: "4 hours ago", type: "feedback" },
     { activity: "Follow-up call scheduled", time: "1 day ago", type: "activity" },
-  ];
+  ], []);
 
-  const pipelineOverview = [
+  const pipelineOverview = useMemo(() => [
     { stage: "Leads", count: 156, value: "$0", color: "primary" },
     { stage: "Qualified", count: 89, value: "$0", color: "warning" },
     { stage: "Opportunities", count: 34, value: "$245,600", color: "info" },
     { stage: "Customers", count: 89, value: "$1,245,000", color: "success" },
-  ];
+  ], []);
 
   return (
     <DashboardLayout
@@ -328,6 +313,8 @@ const CRMDashboardPage = () => {
       </ComponentCard>
     </DashboardLayout>
   );
-};
+});
+
+CRMDashboardPage.displayName = 'CRMDashboardPage';
 
 export default CRMDashboardPage;

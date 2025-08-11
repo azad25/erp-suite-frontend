@@ -3,6 +3,7 @@
 import { useSidebar } from "@/context/SidebarContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import React, { memo, useMemo, Suspense, lazy } from "react";
+// import { usePerformanceMonitor } from "@/components/performance/PerformanceMonitor";
 
 // Lazy load components for better performance
 const AppHeader = lazy(() => import("@/layout/AppHeader"));
@@ -25,11 +26,14 @@ function AdminLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
+  // Performance monitoring for the layout
+  // usePerformanceMonitor({ componentName: 'AdminLayout' });
+
   // Memoize the margin calculation to prevent unnecessary re-renders
   const mainContentMargin = useMemo(() => {
     // Mobile sidebar is overlay, so no margin needed
     if (isMobileOpen) return "ml-0";
-    
+
     // On desktop, adjust margin based on sidebar state
     if (isExpanded || isHovered) return "lg:ml-[290px]";
     return "lg:ml-[90px]";
@@ -51,19 +55,19 @@ function AdminLayout({
         <Suspense fallback={<SidebarSkeleton />}>
           <AppSidebar />
         </Suspense>
-        
+
         {/* Backdrop with Suspense */}
         <Suspense fallback={null}>
           <Backdrop />
         </Suspense>
-        
+
         {/* Main Content Area - Fixed positioning with scroll */}
         <div {...mainContentStyles}>
           {/* Fixed Header with Suspense for lazy loading */}
           <Suspense fallback={<HeaderSkeleton />}>
             <AppHeader />
           </Suspense>
-          
+
           {/* Scrollable Page Content */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
             <div className="w-full p-4 md:p-6 lg:p-8" style={{ contain: 'layout style paint' }}>
