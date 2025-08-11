@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     if (!dev && !isServer) {
       // Enable tree shaking for better bundle size
       config.optimization.usedExports = true;
-      
+
       // Split chunks for better caching
       config.optimization.splitChunks = {
         chunks: 'all',
@@ -35,12 +35,12 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  
+
   eslint: {
     // Disable ESLint during production builds
     ignoreDuringBuilds: true,
   },
-  
+
   // Optimize images
   images: {
     formats: ['image/webp', 'image/avif'],
@@ -48,15 +48,15 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  
+
   // Enable compression
   compress: true,
-  
+
   // Experimental features for performance
   experimental: {
     optimizePackageImports: [
-      'react-icons', 
-      'lodash', 
+      'react-icons',
+      'lodash',
       '@fullcalendar/core',
       'apexcharts',
       'react-apexcharts'
@@ -71,10 +71,10 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  
+
   // Optimize output
   output: 'standalone',
-  
+
   // Cache configuration
   async headers() {
     return [
@@ -130,7 +130,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  
+
   // Redirect configuration for better SEO and performance
   async redirects() {
     return [
