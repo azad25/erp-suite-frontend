@@ -548,8 +548,7 @@ const AppSidebar: React.FC = () => {
       style={{ pointerEvents: 'auto' }}
     >
       <div
-        className={`py-8 flex  ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
-          }`}
+        className={`py-4 flex justify-center`}
       >
         <Link href="/">
           {isExpanded || isHovered || isMobileOpen ? (

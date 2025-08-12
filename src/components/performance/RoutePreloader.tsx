@@ -26,8 +26,8 @@ const ALL_ROUTES = [
 
 // API endpoints to preload
 const API_ENDPOINTS = process.env.NODE_ENV === 'production'
-  ? ['/api/config', '/api/v1/auth/me', '/api/v1/users', '/api/v1/dashboard/stats']
-  : ['/api/config'];
+  ? ['/api/v1/auth/me', '/api/v1/users', '/api/v1/dashboard/stats']
+  : [];
 
 export function RoutePreloader() {
   const router = useRouter();
@@ -44,7 +44,7 @@ export function RoutePreloader() {
     const preloadAPI = async (endpoint: string) => {
       if (!preloadedRef.current.has(endpoint)) {
         try {
-          await fetch(endpoint, { 
+          await fetch(endpoint, {
             method: 'HEAD',
             headers: { 'Cache-Control': 'max-age=300' }
           });

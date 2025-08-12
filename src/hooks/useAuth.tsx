@@ -4,6 +4,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { User, LoginRequest, RegisterRequest } from '@/types/user';
+import { useLoading } from '@/context/LoadingContext';
 
 interface AuthContextType {
   user: User | null;
@@ -22,41 +23,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
+  const { showLoading, hideLoading } = useLoading();
 
   const initAuth = () => {
-      try {
-        // Synchronous check for immediate response
-        if (apiClient.isAuthenticated()) {
-          const storedUser = apiClient.getCurrentUserFromStorage();
-          if (storedUser) {
-            // Use cached user data immediately - no async operations
-            setUser(storedUser);
-            setLoading(false);
-            setInitialized(true);
-            return; // Exit early with cached data
-          }
+    try {
+      // Synchronous check for immediate response
+      if (apiClient.isAuthenticated()) {
+        const storedUser = apiClient.getCurrentUserFromStorage();
+        if (storedUser) {
+          // Use cached user data immediately - no async operations
+          setUser(storedUser);
+          setLoading(false);
+          setInitialized(true);
+          return; // Exit early with cached data
         }
-        
-        // If no cached data, set as unauthenticated immediately
-        setUser(null);
-        setLoading(false);
-        setInitialized(true);
-        
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-          document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-        }
-        setUser(null);
-        setLoading(false);
-        setInitialized(true);
       }
-    };
 
-    useEffect(() => {
+      // If no cached data, set as unauthenticated immediately
+      setUser(null);
+      setLoading(false);
+      setInitialized(true);
+
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+      setUser(null);
+      setLoading(false);
+      setInitialized(true);
+    }
+  };
+
+  useEffect(() => {
     if (!initialized) {
       initAuth();
     }
@@ -64,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (credentials: LoginRequest) => {
     try {
-      setLoading(true);
+      showLoading('Signing in to dashboard...');
       const response = await apiClient.login(credentials);
 
       if (response.success && response.data) {
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cookieExists = document.cookie.includes('access_token=');
 
         if (!hasToken || !storedUser || !cookieExists) {
+          hideLoading();
           return {
             success: false,
             message: 'Authentication setup failed. Please try again.',
@@ -87,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true };
       } else {
+        hideLoading();
         return {
           success: false,
           message: response.message,
@@ -95,18 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Login error:', error);
+      hideLoading();
       return {
         success: false,
         message: 'An unexpected error occurred',
       };
-    } finally {
-      setLoading(false);
     }
   };
 
   const register = async (userData: RegisterRequest) => {
     try {
-      setLoading(true);
+      showLoading('Creating account and signing in...');
       const response = await apiClient.register(userData);
 
       if (response.success && response.data) {
@@ -118,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cookieExists = document.cookie.includes('access_token=');
 
         if (!hasToken || !storedUser || !cookieExists) {
+          hideLoading();
           return {
             success: false,
             message: 'Authentication setup failed. Please try logging in manually.',
@@ -129,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true };
       } else {
+        hideLoading();
         return {
           success: false,
           message: response.message,
@@ -137,22 +142,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Registration error:', error);
+      hideLoading();
       return {
         success: false,
         message: 'An unexpected error occurred',
       };
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
+      showLoading('Logging out...');
       await apiClient.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      hideLoading();
 
       // Use Next.js router for navigation
       router.push('/signin');

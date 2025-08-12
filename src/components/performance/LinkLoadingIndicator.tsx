@@ -41,7 +41,7 @@ export default function LinkLoadingIndicator() {
       navigatingRef.current = true;
 
       // Show immediately (no delay) so animation starts instantly
-      showLoading('Loading page...');
+      showLoading('');
     };
 
     document.addEventListener('click', onClick, { capture: true, passive: true });

@@ -127,10 +127,7 @@ export default function PerformanceMonitor() {
   useEffect(() => {
     const preloadCriticalResources = () => {
       // Only preload resources that are actually used
-      // Preload API config only if we're authenticated
-      if (typeof window !== 'undefined' && localStorage.getItem('access_token')) {
-        preloadResource('/api/config', 'fetch');
-      }
+      // Removed config API call to prevent 502 errors
       
       // Preload critical images that exist
       const criticalImages: string[] = [
