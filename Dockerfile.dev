@@ -24,7 +24,8 @@ WORKDIR /app
 
 # Copy package files
 COPY --chown=appuser:appgroup package*.json ./
-COPY --chown=appuser:appgroup .npmrc ./
+## .npmrc is optional; copy only if present to avoid build failures
+# COPY --chown=appuser:appgroup .npmrc ./
 
 # Install dependencies with lightningcss support
 RUN npm config set target_platform linux && \
@@ -62,4 +63,4 @@ RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modul
 
 # Run development server with hot reload
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "dev:webpack"]

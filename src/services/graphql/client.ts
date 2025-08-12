@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { getRuntimeConfig } from '@/lib/runtime-config';
+import { apiClient as unifiedApiClient } from '@/lib/api';
 
 // Simple GraphQL client that uses the API Gateway GraphQL endpoint
 export class GraphQLClient {
@@ -123,6 +124,8 @@ export class GraphQLClient {
           authError.code = 'UNAUTHENTICATED';
           // Redirect to sign in if we're in the browser
           if (typeof window !== 'undefined') {
+            // Ensure cookie + localStorage are cleared so middleware and client agree
+            unifiedApiClient.clearAuth();
             window.location.href = '/signin';
           }
           throw authError;
@@ -166,7 +169,8 @@ export class GraphQLClient {
             if (response.ok) {
               const data = await response.json();
               if (data.success && data.data?.access_token) {
-                localStorage.setItem('access_token', data.data.access_token);
+                // Keep cookie and local storage in sync
+                unifiedApiClient.setAccessToken(data.data.access_token);
                 // Retry the original request with the new token
                 return this.request(query, variables);
               }
@@ -177,6 +181,8 @@ export class GraphQLClient {
           throw new Error('Authentication required - please sign in');
         } catch (refreshError) {
           console.error('Token refresh failed:', refreshError);
+          // Ensure auth state is cleared so middleware redirects correctly
+          unifiedApiClient.clearAuth();
           throw new Error('Authentication required - please sign in');
         }
       }

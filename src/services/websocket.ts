@@ -328,7 +328,14 @@ class WebSocketService {
       const data = await response.json();
       if (data.success && data.data) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem('access_token', data.data.access_token);
+          // Ensure cookie is set in addition to localStorage for middleware
+          try {
+            const { apiClient: unifiedApiClient } = await import('@/lib/api');
+            unifiedApiClient.setAccessToken(data.data.access_token);
+          } catch {
+            // Fallback to localStorage if import fails
+            localStorage.setItem('access_token', data.data.access_token);
+          }
           localStorage.setItem('refresh_token', data.data.refresh_token);
         }
 
@@ -341,9 +348,14 @@ class WebSocketService {
     } catch (error) {
       console.error('Token refresh failed:', error);
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
+        try {
+          const { apiClient: unifiedApiClient } = await import('@/lib/api');
+          unifiedApiClient.clearAuth();
+        } catch {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+        }
         window.location.href = '/signin';
       }
     }

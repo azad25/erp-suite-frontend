@@ -4,13 +4,12 @@
   "private": true,
   "sideEffects": false,
   "scripts": {
-    "dev": "next dev --turbo",
-    "dev:fast": "next dev --turbo",
+    "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
     "build": "next build",
     "build:analyze": "ANALYZE=true next build",
     "build:fast": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "next start",
-    "start:fast": "next start --turbo",
+    "start:fast": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "analyze": "ANALYZE=true npm run build",
@@ -23,7 +22,10 @@
     "docker:install": "npm install --prefer-offline --no-audit --progress=false",
     "docker:rebuild": "npm rebuild lightningcss --verbose || echo 'LightningCSS rebuild failed, continuing...'",
     "perf:dev": "npm run dev:fast",
-    "perf:build": "npm run build:fast && npm run start"
+    "perf:build": "npm run build:fast && npm run start",
+    "dev:fast": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "dev:classic": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "dev:webpack": "NEXT_DISABLE_TURBOPACK=1 next dev"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",

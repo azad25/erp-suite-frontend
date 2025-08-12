@@ -1,5 +1,6 @@
 // API service for connecting to the ERP API Gateway
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { apiClient as unifiedApiClient } from '@/lib/api';
 
 // API Configuration - Connect to API Gateway, not directly to auth service
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -45,16 +46,16 @@ apiClient.interceptors.response.use(
           });
           
           const { access_token, refresh_token: newRefreshToken } = response.data;
-          localStorage.setItem('access_token', access_token);
+          // Use unified client to ensure cookie is also updated for middleware
+          unifiedApiClient.setAccessToken(access_token);
           localStorage.setItem('refresh_token', newRefreshToken);
           
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, clear tokens and bubble up
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        // Refresh failed, clear tokens (cookie + localStorage) and bubble up
+        unifiedApiClient.clearAuth();
         return Promise.reject(refreshError);
       }
     }

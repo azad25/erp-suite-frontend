@@ -4,7 +4,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import { EyeCloseIcon, EyeIcon } from "@/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { extractMainError } from "@/lib/errorMessages";
 import Link from "next/link";
@@ -104,7 +104,7 @@ export default function SignInForm() {
           href="/"
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
-          <ChevronLeftIcon />
+          <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
           Back to dashboard
         </Link>
       </div>

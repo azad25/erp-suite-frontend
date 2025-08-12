@@ -251,6 +251,15 @@ class ApiClient {
     document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   }
 
+  // Public helpers to keep middleware cookie and localStorage in sync across the app
+  public setAccessToken(token: string): void {
+    this.setToken(token);
+  }
+
+  public clearAuth(): void {
+    this.removeToken();
+  }
+
   // Auth methods - all go through API Gateway
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     // Use type assertion since we know this endpoint returns nested data
