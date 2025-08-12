@@ -63,4 +63,5 @@ RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modul
 
 # Run development server with hot reload
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["npm", "run", "perf:bundle"]
 CMD ["npm", "run", "dev:webpack"]

@@ -1,33 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 // All ERP routes that need preloading
-const ERP_ROUTES = [
-  '/',
-  '/dashboard',
-  '/users',
-  '/crm',
-  '/sales',
-  '/inventory',
-  '/finance',
-  '/projects',
-  '/hrm',
-  '/reports',
-  '/settings',
-  '/analytics',
-  '/notifications',
-  '/profile'
-];
+const ERP_ROUTES =
+  process.env.NODE_ENV === 'production'
+    ? [
+        '/',
+        '/dashboard',
+        '/users',
+        '/crm',
+        '/sales',
+        '/inventory',
+        '/finance',
+        '/projects',
+        '/hrm',
+        '/reports',
+        '/settings',
+        '/analytics',
+        '/notifications',
+        '/profile',
+      ]
+    : ['/', '/dashboard'];
 
 // Critical API endpoints to preload
-const API_ENDPOINTS = [
-  '/api/config',
-  '/api/auth/me',
-  '/api/users',
-  '/api/dashboard/stats'
-];
+const API_ENDPOINTS =
+  process.env.NODE_ENV === 'production'
+    ? ['/api/config', '/api/v1/auth/me', '/api/v1/users', '/api/v1/dashboard/stats']
+    : ['/api/config'];
 
 interface PreloadProgress {
   routes: number;
@@ -39,6 +40,8 @@ interface PreloadProgress {
 
 export function useAppPreloader() {
   const router = useRouter();
+  // Ensure we only run expensive preloads once per session (guards StrictMode double-invoke as well)
+  const hasPreloadedRef = useRef(false);
   const [progress, setProgress] = useState<PreloadProgress>({
     routes: 0,
     apis: 0,
@@ -47,6 +50,16 @@ export function useAppPreloader() {
     currentTask: 'Initializing...'
   });
   const [isComplete, setIsComplete] = useState(false);
+
+  // Schedule work for browser idle time to avoid competing with navigation/render
+  const runWhenIdle = useCallback((fn: () => void) => {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      // @ts-ignore - requestIdleCallback exists in modern browsers
+      (window as any).requestIdleCallback(fn, { timeout: 1200 });
+    } else {
+      setTimeout(fn, 150);
+    }
+  }, []);
 
   const updateProgress = useCallback((update: Partial<PreloadProgress>) => {
     setProgress(prev => {
@@ -79,19 +92,23 @@ export function useAppPreloader() {
     updateProgress({ currentTask: 'Preloading API data...' });
     
     const apiPromises = API_ENDPOINTS.map((endpoint, index) =>
-      fetch(endpoint, { 
-        method: 'GET',
-        headers: { 'Cache-Control': 'max-age=300' }
-      })
-        .then(() => {
-          const apiProgress = ((index + 1) / API_ENDPOINTS.length) * 100;
-          updateProgress({ apis: apiProgress });
+      new Promise<void>((resolve) =>
+        runWhenIdle(() => {
+          fetch(endpoint, {
+            method: 'GET',
+            // Encourage caching and avoid competing with primary nav requests
+            cache: 'force-cache',
+            headers: { 'Cache-Control': 'max-age=300' },
+            keepalive: true,
+          })
+            .catch(() => void 0)
+            .finally(() => {
+              const apiProgress = ((index + 1) / API_ENDPOINTS.length) * 100;
+              updateProgress({ apis: apiProgress });
+              resolve();
+            });
         })
-        .catch(() => {
-          // Ignore errors, just update progress
-          const apiProgress = ((index + 1) / API_ENDPOINTS.length) * 100;
-          updateProgress({ apis: apiProgress });
-        })
+      )
     );
 
     await Promise.all(apiPromises);
@@ -110,46 +127,52 @@ export function useAppPreloader() {
     ];
 
     const componentPromises = componentTasks.map((task, index) =>
-      task()
-        .then(() => {
-          const componentProgress = ((index + 1) / componentTasks.length) * 100;
-          updateProgress({ components: componentProgress });
+      new Promise<void>((resolve) =>
+        runWhenIdle(() => {
+          task()
+            .catch(() => void 0)
+            .finally(() => {
+              const componentProgress = ((index + 1) / componentTasks.length) * 100;
+              updateProgress({ components: componentProgress });
+              resolve();
+            });
         })
-        .catch(() => {
-          const componentProgress = ((index + 1) / componentTasks.length) * 100;
-          updateProgress({ components: componentProgress });
-        })
+      )
     );
 
     await Promise.all(componentPromises);
   }, [updateProgress]);
 
   const startPreloading = useCallback(async () => {
+    if (hasPreloadedRef.current) return;
+    hasPreloadedRef.current = true;
+
     try {
       setIsComplete(false);
-      
-      // Run preloading tasks in parallel for maximum speed
-      await Promise.all([
-        preloadRoutes(),
-        preloadAPIs(),
-        preloadComponents()
-      ]);
 
-      updateProgress({ 
-        currentTask: 'Ready!', 
-        total: 100 
-      });
-      
-      // Small delay to show completion
-      setTimeout(() => {
-        setIsComplete(true);
-      }, 300);
-      
+      await new Promise<void>((resolve) =>
+        runWhenIdle(async () => {
+          try {
+            await Promise.all([
+              preloadRoutes(),
+              preloadAPIs(),
+              preloadComponents(),
+            ]);
+            updateProgress({ currentTask: '', total: 100 });
+            setTimeout(() => setIsComplete(true), 300);
+          } catch (error) {
+            console.error('Preloading failed:', error);
+            setIsComplete(true);
+          } finally {
+            resolve();
+          }
+        })
+      );
     } catch (error) {
-      console.error('Preloading failed:', error);
-      setIsComplete(true); // Continue anyway
+      console.error('Preloading scheduler failed:', error);
+      setIsComplete(true);
     }
-  }, [preloadRoutes, preloadAPIs, preloadComponents, updateProgress]);
+  }, [preloadRoutes, preloadAPIs, preloadComponents, updateProgress, runWhenIdle]);
 
   return {
     progress,

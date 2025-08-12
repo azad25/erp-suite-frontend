@@ -77,7 +77,7 @@ const InvoiceDetailPage = () => {
   const handleDownloadPDF = async () => {
     try {
       // In a real app, this would call an API to generate PDF
-      const response = await fetch('/api/invoices/pdf', {
+      const response = await fetch('/api/v1/invoices/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoice)
@@ -103,7 +103,7 @@ const InvoiceDetailPage = () => {
 
   const handleSendEmail = async () => {
     try {
-      const response = await fetch('/api/invoices/send', {
+      const response = await fetch('/api/v1/invoices/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceId: invoice.id, email: invoice.customerEmail })

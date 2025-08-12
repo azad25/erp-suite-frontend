@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import path from "path";
+import fs from "fs";
 
 const nextConfig: NextConfig = {
   // Enable React strict mode for better performance
@@ -10,14 +12,11 @@ const nextConfig: NextConfig = {
   webpack(config, { dev, isServer, webpack }) {
     // Development optimizations for faster compilation
     if (dev) {
-      // Faster source maps in development
-      config.devtool = 'eval-cheap-module-source-map';
-      
+      // Let Next.js manage devtool for performance; avoid overriding to prevent regressions
       // Reduce bundle analysis overhead
       config.optimization.removeAvailableModules = false;
       config.optimization.removeEmptyChunks = false;
       config.optimization.splitChunks = false;
-      
       // Faster module resolution
       config.resolve.symlinks = false;
       config.resolve.cacheWithContext = false;
@@ -74,6 +73,25 @@ const nextConfig: NextConfig = {
           },
         },
       };
+    }
+
+    // Generate bundle stats for analyzer when ANALYZE=true
+    if (process.env.ANALYZE && !isServer) {
+      try {
+        const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
+        const analyzeDir = path.resolve(process.cwd(), '.next/analyze');
+        try { fs.mkdirSync(analyzeDir, { recursive: true }); } catch {}
+        config.plugins.push(
+          new BundleAnalyzerPlugin({
+            analyzerMode: 'disabled',
+            generateStatsFile: true,
+            statsFilename: path.join(analyzeDir, 'client.json'),
+            statsOptions: { source: false },
+          })
+        );
+      } catch (err) {
+        console.warn('Bundle analyzer not available:', err);
+      }
     }
 
     // SVG optimization

@@ -15,7 +15,7 @@ export default function LoadingLogo({
   withText = true, 
   className = "", 
   textClassName = "",
-  progress = 0,
+  progress: _progress = 0,
   loadingText = "Loading..."
 }: Props) {
   return (
@@ -58,34 +58,6 @@ export default function LoadingLogo({
           </g>
         </svg>
         
-        {/* Progress ring */}
-        {progress > 0 && (
-          <svg
-            className="absolute inset-0 w-full h-full -rotate-90"
-            viewBox="0 0 140 140"
-          >
-            <circle
-              cx="70"
-              cy="70"
-              r="65"
-              fill="none"
-              stroke="rgba(70, 95, 255, 0.2)"
-              strokeWidth="3"
-            />
-            <circle
-              cx="70"
-              cy="70"
-              r="65"
-              fill="none"
-              stroke="#465FFF"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray={`${2 * Math.PI * 65}`}
-              strokeDashoffset={`${2 * Math.PI * 65 * (1 - progress / 100)}`}
-              className="transition-all duration-300 ease-out"
-            />
-          </svg>
-        )}
       </div>
 
       {withText && (
@@ -93,60 +65,61 @@ export default function LoadingLogo({
           <p className="text-gray-900 dark:text-white font-semibold text-2xl tracking-tight">
             Unibase ERP Dashboard
           </p>
-          {progress > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {loadingText}
-              </p>
-              <div className="w-64 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-gray-500 dark:text-gray-500 text-xs">
-                {Math.round(progress)}% Complete
-              </p>
+          {/* Loading text and dot animation */}
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              {loadingText}
+            </p>
+            <div className="flex items-end gap-2" aria-label="Loading">
+              <span className="dot dot-1" />
+              <span className="dot dot-2" />
+              <span className="dot dot-3" />
             </div>
-          )}
+          </div>
         </div>
       )}
 
       <style jsx>{`
-        :root { --shift: 6px; }
-        @media (prefers-reduced-motion: reduce) {
-          :root { --shift: 2px; }
-        }
         @keyframes upDownA {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(calc(var(--shift) * -1)); }
+          50% { transform: translateY(-2px); }
         }
         @keyframes upDownB {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(var(--shift)); }
+          50% { transform: translateY(-3px); }
         }
         @keyframes upDownC {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(calc(var(--shift) * -0.5)); }
+          50% { transform: translateY(-2px); }
         }
+        /* Apply animations directly to the bar groups */
         .bar {
           transform-origin: center;
-          animation-duration: 1.5s;
+          transform-box: fill-box;
+          will-change: transform;
+          animation-duration: 1.2s;
           animation-timing-function: ease-in-out;
           animation-iteration-count: infinite;
         }
-        .bar-a { 
-          animation-name: upDownA; 
-          animation-delay: 0s;
+        .bar-a { animation-name: upDownA; animation-delay: 0s; }
+        .bar-b { animation-name: upDownB; animation-delay: 0.2s; }
+        .bar-c { animation-name: upDownC; animation-delay: 0.4s; }
+        /* Dots animation */
+        @keyframes dotBounce {
+          0%, 100% { transform: translateY(0); opacity: 0.6; }
+          50% { transform: translateY(-5px); opacity: 1; }
         }
-        .bar-b { 
-          animation-name: upDownB; 
-          animation-delay: 0.2s;
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 9999px;
+          background: #465FFF;
+          display: inline-block;
+          animation: dotBounce 1s ease-in-out infinite;
         }
-        .bar-c { 
-          animation-name: upDownC; 
-          animation-delay: 0.4s;
-        }
+        .dot-1 { animation-delay: 0s; }
+        .dot-2 { animation-delay: 0.15s; }
+        .dot-3 { animation-delay: 0.3s; }
       `}</style>
     </div>
   );

@@ -2,7 +2,7 @@ import { lazy, ComponentType } from 'react';
 
 // Lazy load pages with optimized imports
 export const LazyDashboard = lazy(() => 
-  import('@/app/page').then(module => ({ default: module.default }))
+  import('@/app/(admin)/dashboard/page').then(module => ({ default: module.default }))
 );
 
 export const LazyUsersPage = lazy(() => 
@@ -60,7 +60,7 @@ export const preloadCriticalComponents = () => {
 
 // Dynamic page imports for route-based code splitting
 export const dynamicPageImports = {
-  dashboard: () => import('@/app/page'),
+  dashboard: () => import('@/app/(admin)/dashboard/page'),
   users: () => import('@/app/(admin)/users/page'),
   // Add more pages as needed
 } as const;

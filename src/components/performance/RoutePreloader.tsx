@@ -26,7 +26,7 @@ const ALL_ROUTES = [
 
 // API endpoints to preload
 const API_ENDPOINTS = process.env.NODE_ENV === 'production'
-  ? ['/api/config', '/api/auth/me', '/api/users', '/api/dashboard/stats']
+  ? ['/api/config', '/api/v1/auth/me', '/api/v1/users', '/api/v1/dashboard/stats']
   : ['/api/config'];
 
 export function RoutePreloader() {

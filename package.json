@@ -4,7 +4,7 @@
   "private": true,
   "sideEffects": false,
   "scripts": {
-    "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "dev": "next dev",
     "build": "next build",
     "build:analyze": "ANALYZE=true next build",
     "build:fast": "NEXT_TELEMETRY_DISABLED=1 next build",
@@ -22,8 +22,8 @@
     "docker:install": "npm install --prefer-offline --no-audit --progress=false",
     "docker:rebuild": "npm rebuild lightningcss --verbose || echo 'LightningCSS rebuild failed, continuing...'",
     "perf:dev": "npm run dev:fast",
-    "perf:build": "npm run build:fast && npm run start",
-    "dev:fast": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "perf:build": "npm run perf:bundle && npm run dev:webpack",
+    "dev:fast": "next dev",
     "dev:classic": "NEXT_DISABLE_TURBOPACK=1 next dev",
     "dev:webpack": "NEXT_DISABLE_TURBOPACK=1 next dev"
   },
@@ -41,6 +41,7 @@
     "autoprefixer": "^10.4.20",
     "axios": "^1.11.0",
     "clsx": "^2.1.1",
+    "critters": "^0.0.24",
     "flatpickr": "^4.6.13",
     "graphql": "^16.11.0",
     "graphql-request": "^7.2.0",
@@ -50,8 +51,7 @@
     "react-dom": "^19.1.1",
     "react-dropzone": "^14.3.5",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^2.6.0",
-    "critters": "^0.0.24"
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@svgr/webpack": "^8.1.0",
@@ -65,7 +65,8 @@
     "postcss": "^8",
     "tailwindcss": "^4.0.0",
     "typescript": "^5",
-    "webpack": "^5.96.1"
+    "webpack": "^5.96.1",
+    "webpack-bundle-analyzer": "^4.10.2"
   },
   "overrides": {
     "@react-jvectormap/core": {

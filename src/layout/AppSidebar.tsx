@@ -304,6 +304,7 @@ const MenuItem = memo(({
           {nav.path ? (
             <Link
               href={nav.path}
+              prefetch={process.env.NODE_ENV === 'production'}
               className={`menu-item group flex-1 ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"}`}
             >
               <span className={`${isActive(nav.path) ? "menu-item-icon-active" : "menu-item-icon-inactive"}`}>
@@ -369,6 +370,7 @@ const MenuItem = memo(({
                 <li key={subItem.name}>
                   <Link
                     href={subItem.path}
+                    prefetch={process.env.NODE_ENV === 'production'}
                     className={`menu-dropdown-item ${
                       isActive(subItem.path)
                         ? "menu-dropdown-item-active"
@@ -411,6 +413,7 @@ const MenuItem = memo(({
       nav.path && (
         <Link
           href={nav.path}
+          prefetch={process.env.NODE_ENV === 'production'}
           className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"}`}
         >
           <span className={`${isActive(nav.path) ? "menu-item-icon-active" : "menu-item-icon-inactive"}`}>

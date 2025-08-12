@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { NextRequest } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const config = {
     apiUrls: {
-      // Use nginx proxy for all requests to ensure proper routing
-      base: process.env.NEXT_PUBLIC_API_URL || 'http://localhost',
-      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql',
-      websocket: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws',
+      base: apiBase,
+      graphql: process.env.NEXT_PUBLIC_GRAPHQL_URL || `${apiBase.replace(/\/$/, '')}/graphql`,
+      websocket:
+        process.env.NEXT_PUBLIC_WEBSOCKET_URL || `${apiBase.replace(/^http/, 'ws').replace(/\/$/, '')}/ws`,
     },
     features: {
       aiChatbot: process.env.NEXT_PUBLIC_ENABLE_AI_CHATBOT === 'true',
@@ -16,27 +16,25 @@ export async function GET(request: NextRequest) {
     },
   };
 
-  // Generate ETag based on config content
   const configString = JSON.stringify(config);
   const etag = `"${crypto.createHash('md5').update(configString).digest('hex')}"`;
 
-  // Check if client has the same version
   const clientETag = request.headers.get('if-none-match');
   if (clientETag === etag) {
-    return new NextResponse(null, { 
+    return new NextResponse(null, {
       status: 304,
       headers: {
-        'ETag': etag,
+        ETag: etag,
         'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
-      }
+      },
     });
   }
 
   return NextResponse.json(config, {
     headers: {
       'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
-      'ETag': etag,
-      'Vary': 'Accept-Encoding',
+      ETag: etag,
+      Vary: 'Accept-Encoding',
       'Content-Type': 'application/json',
     },
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useLoading } from '@/context/LoadingContext';
 import { useAppPreloader } from '@/hooks/useAppPreloader';
 import LoadingLogo from './LoadingLogo';
@@ -8,12 +8,17 @@ import LoadingLogo from './LoadingLogo';
 export default function GlobalLoadingScreen() {
   const { isLoading, loadingMessage } = useLoading();
   const { progress, isComplete, startPreloading } = useAppPreloader();
+  const initialPreloadStartedRef = useRef(false);
 
+  // Kick off a single, idle-time preload on first mount to warm caches without blocking navigation
   useEffect(() => {
-    if (isLoading && !isComplete) {
-      startPreloading();
+    if (!initialPreloadStartedRef.current) {
+      initialPreloadStartedRef.current = true;
+      // Let the page render first
+      const t = setTimeout(() => startPreloading(), 0);
+      return () => clearTimeout(t);
     }
-  }, [isLoading, isComplete, startPreloading]);
+  }, [startPreloading]);
 
   if (!isLoading) return null;
 
@@ -24,8 +29,8 @@ export default function GlobalLoadingScreen() {
           withText={true}
           className=""
           textClassName="text-gray-900 dark:text-white"
-          progress={progress.total}
-          loadingText={progress.currentTask || loadingMessage || 'Loading...'}
+          progress={0}
+          loadingText={loadingMessage || 'Loading...'}
         />
       </div>
     </div>

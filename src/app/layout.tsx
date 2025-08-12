@@ -1,16 +1,7 @@
 import { Outfit } from "next/font/google";
 import "./globals.css";
 
-import { SidebarProvider } from "@/context/SidebarContext";
-import { ThemeProvider } from "@/context/ThemeContext";
-import { AuthProvider } from "@/hooks/useAuth";
-import { LoadingProvider } from "@/context/LoadingContext";
-import GlobalLoadingScreen from "@/components/common/GlobalLoadingScreen";
-import { NavigationPerformanceMonitor } from "@/components/performance/NavigationPerformanceMonitor";
-import { RoutePreloader } from "@/components/performance/RoutePreloader";
-import { NavigationOptimizer } from "@/components/performance/NavigationOptimizer";
-import { SitePreloaderWrapper } from "@/components/performance/SitePreloaderWrapper";
-import { ProductionPerformanceMonitor } from "@/components/performance/ProductionPerformanceMonitor";
+import { ClientProviders } from "./ClientProviders";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -32,21 +23,9 @@ export default function RootLayout({
         <link rel="preconnect" href="//fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className={`${outfit.className} dark:bg-gray-900`}>
-        <ThemeProvider>
-          <LoadingProvider>
-            <AuthProvider>
-              <SidebarProvider>
-                {children}
-                <GlobalLoadingScreen />
-                <NavigationPerformanceMonitor />
-                <RoutePreloader />
-                <NavigationOptimizer />
-                <SitePreloaderWrapper />
-                <ProductionPerformanceMonitor />
-              </SidebarProvider>
-            </AuthProvider>
-          </LoadingProvider>
-        </ThemeProvider>
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );

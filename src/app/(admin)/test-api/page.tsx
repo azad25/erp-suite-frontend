@@ -9,7 +9,7 @@ export default function TestApi() {
   const testApiConnection = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/health');
+      const response = await fetch('/api/v1/health');
       const data = await response.json();
       setTestResult(JSON.stringify(data, null, 2));
     } catch (error) {
@@ -70,7 +70,7 @@ export default function TestApi() {
             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
               GET
             </span>
-            <code className="text-sm text-gray-700 dark:text-gray-300">/api/health</code>
+            <code className="text-sm text-gray-700 dark:text-gray-300">/api/v1/health</code>
             <span className="text-sm text-gray-500">API health check</span>
           </div>
           
@@ -78,7 +78,7 @@ export default function TestApi() {
             <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
               POST
             </span>
-            <code className="text-sm text-gray-700 dark:text-gray-300">/api/auth/login</code>
+            <code className="text-sm text-gray-700 dark:text-gray-300">/api/v1/auth/login</code>
             <span className="text-sm text-gray-500">User authentication</span>
           </div>
           
@@ -86,7 +86,7 @@ export default function TestApi() {
             <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
               GET
             </span>
-            <code className="text-sm text-gray-700 dark:text-gray-300">/api/users</code>
+            <code className="text-sm text-gray-700 dark:text-gray-300">/api/v1/users</code>
             <span className="text-sm text-gray-500">Get users list</span>
           </div>
         </div>
