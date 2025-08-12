@@ -161,7 +161,7 @@ export function useAppPreloader() {
             updateProgress({ currentTask: '', total: 100 });
             setTimeout(() => setIsComplete(true), 300);
           } catch (error) {
-            console.error('Preloading failed:', error);
+            // Preloading failed - silently handle
             setIsComplete(true);
           } finally {
             resolve();
@@ -169,7 +169,7 @@ export function useAppPreloader() {
         })
       );
     } catch (error) {
-      console.error('Preloading scheduler failed:', error);
+      // Preloading scheduler failed - silently handle
       setIsComplete(true);
     }
   }, [preloadRoutes, preloadAPIs, preloadComponents, updateProgress, runWhenIdle]);

@@ -163,7 +163,7 @@ export const useSitePreloader = (isAuthenticated: boolean) => {
       
       return true;
     } catch (error) {
-      console.warn(`Failed to preload route: ${route}`, error);
+      // Failed to preload route - silently handle
       return false;
     }
   }, [router]);
@@ -171,7 +171,7 @@ export const useSitePreloader = (isAuthenticated: boolean) => {
   const preloadAllRoutes = useCallback(async () => {
     if (!isAuthenticated || isPreloading) return;
 
-    console.log('🚀 Starting site preload...');
+    // Starting site preload (console logs removed for production)
     setIsPreloading(true);
     
     const startTime = performance.now();
@@ -224,7 +224,7 @@ export const useSitePreloader = (isAuthenticated: boolean) => {
 
     setIsPreloading(false);
     
-    console.log(`✅ Site preload complete! Loaded ${loadedCount}/${ALL_ROUTES.length} routes in ${totalTime}ms`);
+    // Site preload complete (console logs removed for production)
 
     // Store preload completion in localStorage
     localStorage.setItem('site_preloaded', Date.now().toString());

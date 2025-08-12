@@ -43,7 +43,7 @@ class PerformanceAnalytics {
         this.metrics = JSON.parse(stored);
       }
     } catch (error) {
-      console.warn('Failed to load performance metrics:', error);
+      // Failed to load performance metrics - silently handle
       this.metrics = [];
     }
   }
@@ -51,7 +51,7 @@ class PerformanceAnalytics {
   // Add a new performance metric
   addMetric(metric: PerformanceMetrics): void {
     this.metrics.push(metric);
-    
+
     // Keep only last 500 metrics to prevent storage bloat
     if (this.metrics.length > 500) {
       this.metrics = this.metrics.slice(-500);
@@ -61,7 +61,7 @@ class PerformanceAnalytics {
     try {
       localStorage.setItem('performance_metrics', JSON.stringify(this.metrics));
     } catch (error) {
-      console.warn('Failed to save performance metrics:', error);
+      // Failed to save performance metrics - silently handle
     }
   }
 
@@ -202,32 +202,21 @@ if (typeof window !== 'undefined') {
   (window as any).performanceReport = () => {
     performanceAnalytics.loadMetrics();
     const report = performanceAnalytics.generateReport();
-    
-    console.log('📊 ERP Performance Report');
-    console.log('========================');
-    console.log(`🎯 Performance Grade: ${report.performanceGrade}`);
-    console.log(`⚡ Average Load Time: ${report.averageLoadTime}ms`);
-    console.log(`🚀 Fastest Route: ${report.fastestRoute.route} (${report.fastestRoute.time}ms)`);
-    console.log(`🐌 Slowest Route: ${report.slowestRoute.route} (${report.slowestRoute.time}ms)`);
-    console.log(`📈 Total Routes Analyzed: ${report.totalRoutes}`);
-    console.log('\n💡 Recommendations:');
-    report.recommendations.forEach(rec => console.log(`   ${rec}`));
-    console.log('\n📋 Detailed Route Performance:');
-    console.table(report.routePerformance);
-    
+
+    // Performance report generation (console logs removed for production)
+
     return report;
   };
 
   (window as any).clearPerformanceData = () => {
     performanceAnalytics.clearMetrics();
-    console.log('🗑️ Performance data cleared');
+    // Performance data cleared (console logs removed for production)
   };
 
   (window as any).exportPerformanceData = () => {
     performanceAnalytics.loadMetrics();
     const data = performanceAnalytics.exportMetrics();
-    console.log('📤 Performance data exported:');
-    console.log(data);
+    // Performance data exported (console logs removed for production)
     return data;
   };
 }

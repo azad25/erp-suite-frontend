@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setInitialized(true);
 
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      // Auth initialization error - silently handle
       if (typeof window !== 'undefined') {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     } catch (error) {
-      console.error('Login error:', error);
+      // Login error - silently handle
       hideLoading();
       return {
         success: false,
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      // Registration error - silently handle
       hideLoading();
       return {
         success: false,
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       showLoading('Logging out...');
       await apiClient.logout();
     } catch (error) {
-      console.error('Logout error:', error);
+      // Logout error - silently handle
     } finally {
       setUser(null);
       hideLoading();
@@ -173,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         message: response.message,
       };
     } catch (error) {
-      console.error('Forgot password error:', error);
+      // Forgot password error - silently handle
       return {
         success: false,
         message: 'An unexpected error occurred',

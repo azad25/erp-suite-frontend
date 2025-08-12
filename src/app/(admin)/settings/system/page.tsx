@@ -16,7 +16,6 @@ const SystemSettingsPage = () => {
   });
 
   const handleSave = () => {
-    console.log("Saving settings:", settings);
     // Add save logic here
   };
 

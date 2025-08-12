@@ -48,6 +48,11 @@ const GlobalRouteLoading = dynamic(
   { ssr: false, loading: () => null }
 );
 
+const NavigationLoadingProvider = dynamic(
+  () => import("@/components/navigation/NavigationLoadingProvider"),
+  { ssr: false, loading: () => null }
+);
+
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
@@ -56,9 +61,10 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
           <SidebarProvider>
             {children}
             <GlobalLoadingScreen />
+            <NavigationLoadingProvider />
             <LinkLoadingIndicator />
             <GlobalRouteLoading />
-            {process.env.NODE_ENV === "production" && (
+            {/* {process.env.NODE_ENV === "production" && (
               <>
                 <NavigationPerformanceMonitor />
                 <RoutePreloader />
@@ -66,7 +72,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                 <SitePreloaderWrapper />
                 <ProductionPerformanceMonitor />
               </>
-            )}
+            )} */}
           </SidebarProvider>
         </AuthProvider>
       </LoadingProvider>

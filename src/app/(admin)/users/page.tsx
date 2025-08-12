@@ -4,6 +4,7 @@ import React, { Suspense, lazy } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
 import { UserIcon, LockIcon, TimeIcon, CheckCircleIcon } from "@/icons";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 // Lazy load heavy components
 const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
@@ -11,6 +12,8 @@ const LazyUserManagementDashboard = lazy(() => import("@/components/user-managem
 const LazyUserListTable = lazy(() => import("@/components/user-management/UserListTable"));
 
 const UsersPage = () => {
+  usePageTitle("User Management", "Manage system users, roles, and permissions");
+
   return (
     <DashboardLayout
       title="User Management"

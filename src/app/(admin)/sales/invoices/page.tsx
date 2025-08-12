@@ -28,17 +28,14 @@ const InvoicesPage = () => {
   ]);
 
   const handleViewInvoice = (invoice: Invoice) => {
-    console.log("View invoice:", invoice);
     // Navigate to invoice detail page
   };
 
   const handleSendInvoice = (invoice: Invoice) => {
-    console.log("Send invoice:", invoice);
     // Send invoice logic
   };
 
   const handleRecordPayment = (invoice: Invoice) => {
-    console.log("Record payment for invoice:", invoice);
     // Record payment logic
   };
 

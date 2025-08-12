@@ -9,12 +9,12 @@ export default function RealtimeSecuritySnackbar() {
 
   React.useEffect(() => {
     // Ensure connection and subscribe to security events
-    console.log('RealtimeSecuritySnackbar: Initializing WebSocket connection and subscribing to security events');
+    // Initializing WebSocket connection and subscribing to security events
     websocketService.subscribeToSecurityEvents("failed_login");
     websocketService.ensureConnection();
 
     const handler = (msg: WebSocketMessage) => {
-      console.log('RealtimeSecuritySnackbar: Received security event:', msg);
+      // Received security event
       const data = (msg?.data ?? {}) as Record<string, unknown>;
       const ip =
         (typeof data["ip_address"] === "string" && (data["ip_address"] as string)) ||
@@ -23,13 +23,13 @@ export default function RealtimeSecuritySnackbar() {
         "unknown";
       const attempts = typeof data["attempts"] === "number" ? (data["attempts"] as number) : 1;
       
-      console.log('RealtimeSecuritySnackbar: Showing security alert for IP:', ip, 'attempts:', attempts);
+      // Showing security alert
       setSecurityMessage(`Multiple failed login attempts detected from IP ${ip} (${attempts} attempts)`);
       setVisible(true);
       
       // Auto-hide after 10s
       const t = setTimeout(() => {
-        console.log('RealtimeSecuritySnackbar: Auto-hiding security alert');
+        // Auto-hiding security alert
         setVisible(false);
       }, 10000);
       return () => clearTimeout(t);
@@ -39,17 +39,17 @@ export default function RealtimeSecuritySnackbar() {
     
     // Also listen for general WebSocket connection events for debugging
     const connectionHandler = () => {
-      console.log('RealtimeSecuritySnackbar: WebSocket connected');
+      // WebSocket connected
     };
     const disconnectionHandler = () => {
-      console.log('RealtimeSecuritySnackbar: WebSocket disconnected');
+      // WebSocket disconnected
     };
     
     websocketService.on('connected', connectionHandler);
     websocketService.on('disconnected', disconnectionHandler);
     
     return () => {
-      console.log('RealtimeSecuritySnackbar: Cleaning up event listeners');
+      // Cleaning up event listeners
       unsubscribe();
       websocketService.off('connected', connectionHandler);
       websocketService.off('disconnected', disconnectionHandler);

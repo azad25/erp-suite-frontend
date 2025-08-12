@@ -35,7 +35,7 @@ export const useUserRole = () => {
           }
         }
       } catch (err) {
-        console.error('Error fetching user role type:', err);
+        // Error fetching user role type - silently handle
         setError('Failed to fetch user role type');
         // Default to 'user' role on error
         setRoleType('user');

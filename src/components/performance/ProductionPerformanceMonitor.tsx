@@ -43,12 +43,7 @@ export const ProductionPerformanceMonitor: React.FC = () => {
         // Store metrics for analytics
         storePerformanceMetrics(metrics);
 
-        // Log slow performance in production
-        if (totalTime > 1000) {
-          console.warn(`🐌 Slow route performance: ${pathname} took ${totalTime}ms`);
-        } else if (totalTime < 100) {
-          console.log(`⚡ Ultra-fast route: ${pathname} in ${totalTime}ms`);
-        }
+        // Performance monitoring (console logs removed for production)
       };
 
       // Use requestIdleCallback for non-blocking measurement
@@ -95,9 +90,7 @@ function storePerformanceMetrics(metrics: PerformanceMetrics) {
     if (routeMetrics.length >= 5) {
       const avgTime = routeMetrics.reduce((sum: number, m: PerformanceMetrics) => sum + m.totalTime, 0) / routeMetrics.length;
       
-      if (avgTime > 500) {
-        console.warn(`📊 Route ${metrics.route} average: ${Math.round(avgTime)}ms (${routeMetrics.length} samples)`);
-      }
+      // Performance tracking (console logs removed for production)
     }
   } catch (error) {
     // Ignore storage errors

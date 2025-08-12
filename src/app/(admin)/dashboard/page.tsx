@@ -6,6 +6,7 @@ import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import { LazyComponent } from "@/components/performance/FastPageLoader";
 import { GridIcon } from "@/icons";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 // Lazy load heavy components for faster initial page load
 // EcommerceMetrics is a named export, so we need to destructure it
@@ -62,6 +63,8 @@ const UserManagementDashboard = dynamic(
 );
 
 export default function Dashboard() {
+  usePageTitle("Dashboard", "ERP Dashboard - Monitor your business performance and key metrics");
+
   return (
     <DashboardLayout
       title="Dashboard Overview"

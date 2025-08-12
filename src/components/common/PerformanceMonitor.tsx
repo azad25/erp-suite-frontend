@@ -54,16 +54,7 @@ export default function PerformanceMonitor() {
           navigationTime <= PERFORMANCE_THRESHOLDS.NEEDS_IMPROVEMENT ? '🟡 NEEDS IMPROVEMENT' :
           '🔴 POOR';
         
-        console.log(`Navigation to ${pathname}: ${navigationTime.toFixed(2)}ms [${status}]`);
-        
-        // Detailed performance breakdown
-        if (navigationTime > PERFORMANCE_THRESHOLDS.GOOD) {
-          console.group('Performance Breakdown:');
-          console.log('- Target: <500ms for optimal UX');
-          console.log('- Current:', `${navigationTime.toFixed(2)}ms`);
-          console.log('- Improvement needed:', `${(navigationTime - PERFORMANCE_THRESHOLDS.GOOD).toFixed(2)}ms`);
-          console.groupEnd();
-        }
+        // Navigation performance monitoring (console logs removed for production)
       }
 
       // Send metrics to analytics in production
@@ -140,7 +131,7 @@ export default function PerformanceMonitor() {
         // Check if image exists before preloading
         const img = new Image();
         img.onload = () => preloadResource(src, 'image');
-        img.onerror = () => console.warn(`Image not found for preloading: ${src}`);
+        img.onerror = () => {}; // Image not found - silently handle
         img.src = src;
       });
     };
@@ -208,7 +199,7 @@ function prefetchRoute(href: string): void {
     link.as = 'document';
     document.head.appendChild(link);
   } catch (error) {
-    console.warn('Failed to prefetch route:', href, error);
+    // Failed to prefetch route - silently handle
   }
 }
 
@@ -226,6 +217,6 @@ function preloadResource(href: string, as: string): void {
     }
     document.head.appendChild(link);
   } catch (error) {
-    console.warn('Failed to preload resource:', href, error);
+    // Failed to preload resource - silently handle
   }
 }

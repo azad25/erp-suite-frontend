@@ -33,7 +33,7 @@ export function useNavigationPerformance() {
           router.prefetch(route);
           prefetchedRoutes.current.add(route);
         } catch (error) {
-          console.warn('Failed to prefetch route:', route, error);
+          // Silently handle prefetch errors
         }
       }
 
@@ -122,41 +122,7 @@ export function useNavigationMetrics() {
       const entries = performance.getEntriesByType('navigation');
       const paintEntries = performance.getEntriesByType('paint');
       
-      if (process.env.NODE_ENV === 'development') {
-        console.group(`🚀 Navigation Performance: ${pathname}`);
-        console.log(`Total Time: ${navigationTime.toFixed(2)}ms`);
-        
-        // Log paint metrics
-        paintEntries.forEach(entry => {
-          if (entry.name === 'first-contentful-paint') {
-            console.log(`First Contentful Paint: ${entry.startTime.toFixed(2)}ms`);
-          }
-          if (entry.name === 'largest-contentful-paint') {
-            console.log(`Largest Contentful Paint: ${entry.startTime.toFixed(2)}ms`);
-          }
-        });
-
-        // Log navigation timing if available
-        if (entries.length > 0) {
-          const navEntry = entries[0] as PerformanceNavigationTiming;
-          console.log(`DNS Lookup: ${(navEntry.domainLookupEnd - navEntry.domainLookupStart).toFixed(2)}ms`);
-          console.log(`TCP Connect: ${(navEntry.connectEnd - navEntry.connectStart).toFixed(2)}ms`);
-          console.log(`Request: ${(navEntry.responseStart - navEntry.requestStart).toFixed(2)}ms`);
-          console.log(`Response: ${(navEntry.responseEnd - navEntry.responseStart).toFixed(2)}ms`);
-          console.log(`DOM Processing: ${(navEntry.domComplete - navEntry.domContentLoadedEventStart).toFixed(2)}ms`);
-        }
-
-        // Performance recommendations
-        if (navigationTime > 1000) {
-          console.warn('⚠️ Slow navigation detected. Consider:');
-          console.log('- Reducing bundle size');
-          console.log('- Implementing code splitting');
-          console.log('- Optimizing API calls');
-          console.log('- Adding more aggressive caching');
-        }
-
-        console.groupEnd();
-      }
+      // Navigation performance monitoring (console logs removed for production)
 
       // Send metrics to analytics in production
       if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
@@ -215,9 +181,7 @@ export function useNavigationMetrics() {
           const clsObserver = new PerformanceObserver((list) => {
             for (const entry of list.getEntries()) {
               if (entry.entryType === 'layout-shift' && !(entry as any).hadRecentInput) {
-                if (process.env.NODE_ENV === 'development') {
-                  console.log(`Layout Shift: ${(entry as any).value.toFixed(4)}`);
-                }
+                // Layout shift monitoring (console logs removed for production)
               }
             }
           });
@@ -228,9 +192,7 @@ export function useNavigationMetrics() {
             for (const entry of list.getEntries()) {
               if (entry.entryType === 'first-input') {
                 const fid = (entry as any).processingStart - entry.startTime;
-                if (process.env.NODE_ENV === 'development') {
-                  console.log(`First Input Delay: ${fid.toFixed(2)}ms`);
-                }
+                // First Input Delay monitoring (console logs removed for production)
               }
             }
           });
@@ -241,7 +203,7 @@ export function useNavigationMetrics() {
             fidObserver.disconnect();
           };
         } catch (error) {
-          console.warn('Performance Observer not supported:', error);
+          // Performance Observer not supported - silently handle
         }
       }
     };

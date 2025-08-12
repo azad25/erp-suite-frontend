@@ -64,7 +64,7 @@ export interface SystemNotificationMessage {
   };
 }
 
-export type WebSocketEventData = 
+export type WebSocketEventData =
   | UserActivityMessage
   | UserStatusMessage
   | SecurityAlertMessage
@@ -87,7 +87,7 @@ class WebSocketService {
   constructor() {
     // Initialize URL immediately with fallback
     this.websocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws';
-    
+
     // Don't auto-initialize - only connect when explicitly requested
     // This prevents unnecessary connection attempts and console warnings
   }
@@ -101,10 +101,10 @@ class WebSocketService {
       const config = await getRuntimeConfig();
       this.websocketUrl = config.apiUrls.websocket;
     } catch (error) {
-      console.warn('Failed to get WebSocket URL from config, using fallback:', error);
+      // Failed to get WebSocket URL from config, using fallback
       // Keep the fallback URL already set
     }
-    
+
     // Only connect if explicitly requested
     if (this.shouldConnect) {
       this.connect();
@@ -118,34 +118,34 @@ class WebSocketService {
     }
 
     if (!this.websocketUrl) {
-      console.error('WebSocket URL not available');
+      // WebSocket URL not available
       return;
     }
 
     if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket connection already in progress');
+      // WebSocket connection already in progress
       return;
     }
 
     const token = localStorage.getItem('access_token');
-    
+
     if (!token) {
-      console.warn('No access token available for WebSocket connection');
+      // No access token available for WebSocket connection
       return;
     }
 
     try {
       this.connectionState = 'connecting';
-      
+
       // Add token as query parameter for WebSocket authentication
       const wsUrl = `${this.websocketUrl}?token=${encodeURIComponent(token)}`;
-      
+
       this.socket = new WebSocket(wsUrl);
       this.setupEventHandlers();
-      
-      console.log('Attempting WebSocket connection to:', this.websocketUrl);
+
+      // Attempting WebSocket connection
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      // Failed to create WebSocket connection
       this.connectionState = 'disconnected';
       this.handleReconnect();
     }
@@ -155,19 +155,19 @@ class WebSocketService {
     if (!this.socket) return;
 
     this.socket.onopen = () => {
-      console.log('WebSocket connected');
+      // WebSocket connected
       this.connectionState = 'connected';
       this.reconnectAttempts = 0;
-      
+
       // Clear any pending reconnect timeout
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
         this.reconnectTimeout = null;
       }
-      
+
       // Start heartbeat
       this.startHeartbeat();
-      
+
       // Process queued subscriptions
       this.queuedSubscriptions.forEach(channel => {
         this.sendMessage({
@@ -175,26 +175,26 @@ class WebSocketService {
           data: { channel },
           timestamp: new Date().toISOString()
         });
-        console.log('Subscribed to queued channel:', channel);
+        // Subscribed to queued channel
       });
       this.queuedSubscriptions.clear();
-      
+
       this.emit('connected', { timestamp: new Date().toISOString() });
     };
 
     this.socket.onclose = (event) => {
-      console.log('WebSocket disconnected:', event.code, event.reason);
+      // WebSocket disconnected
       this.connectionState = 'disconnected';
-      
+
       // Stop heartbeat
       this.stopHeartbeat();
-      
-      this.emit('disconnected', { 
+
+      this.emit('disconnected', {
         code: event.code,
-        reason: event.reason, 
-        timestamp: new Date().toISOString() 
+        reason: event.reason,
+        timestamp: new Date().toISOString()
       });
-      
+
       // Attempt to reconnect unless it was a clean close
       if (event.code !== 1000) {
         this.handleReconnect();
@@ -202,7 +202,7 @@ class WebSocketService {
     };
 
     this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      // WebSocket error
       this.emit('error', { error: 'WebSocket error', timestamp: new Date().toISOString() });
     };
 
@@ -211,21 +211,21 @@ class WebSocketService {
         const message: WebSocketMessage = JSON.parse(event.data);
         this.handleMessage(message);
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error, event.data);
+        // Failed to parse WebSocket message
       }
     };
   }
 
   private handleMessage(message: WebSocketMessage): void {
     // console.log('Received WebSocket message:', message);
-    
+
     // Handle special message types
     switch (message.type) {
       case 'ack':
-        console.log('Received acknowledgment:', message.data);
+        // Received acknowledgment
         break;
       case 'error':
-        console.error('WebSocket server error:', message.data);
+        // WebSocket server error
         this.emit('error', message.data);
         break;
       case 'heartbeat':
@@ -239,7 +239,7 @@ class WebSocketService {
       default:
         // Emit the message to listeners
         this.emit('message', message);
-        
+
         // Emit specific event type
         if (message.type) {
           this.emit(message.type, message.data);
@@ -254,7 +254,7 @@ class WebSocketService {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      // Max reconnection attempts reached
       this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempts });
       return;
     }
@@ -262,9 +262,9 @@ class WebSocketService {
     this.connectionState = 'reconnecting';
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
+
+    // Attempting to reconnect
+
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
@@ -272,7 +272,7 @@ class WebSocketService {
 
   private startHeartbeat(): void {
     this.stopHeartbeat(); // Clear any existing heartbeat
-    
+
     this.heartbeatInterval = setInterval(() => {
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
         this.sendMessage({
@@ -295,7 +295,7 @@ class WebSocketService {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     } else {
-      console.warn('WebSocket not connected, cannot send message:', message);
+      // WebSocket not connected, cannot send message
     }
   }
 
@@ -346,7 +346,7 @@ class WebSocketService {
         throw new Error('Invalid refresh response format');
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      // Token refresh failed
       if (typeof window !== 'undefined') {
         try {
           const { apiClient: unifiedApiClient } = await import('@/lib/api');
@@ -373,17 +373,17 @@ class WebSocketService {
   public disconnect(): void {
     this.shouldConnect = false;
     this.stopHeartbeat();
-    
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.socket) {
       this.socket.close(1000, 'Client disconnect');
       this.socket = null;
     }
-    
+
     this.connectionState = 'disconnected';
   }
 
@@ -414,7 +414,7 @@ class WebSocketService {
 
   public off(event: string, callback?: Function): void {
     if (!this.eventListeners.has(event)) return;
-    
+
     if (callback) {
       this.eventListeners.get(event)!.delete(callback);
     } else {
@@ -424,12 +424,12 @@ class WebSocketService {
 
   private emit(event: string, data: any): void {
     if (!this.eventListeners.has(event)) return;
-    
+
     this.eventListeners.get(event)!.forEach(callback => {
       try {
         callback(data);
       } catch (error) {
-        console.error(`Error in WebSocket event handler for ${event}:`, error);
+        // Error in WebSocket event handler - silently handle
       }
     });
   }
@@ -439,7 +439,7 @@ class WebSocketService {
     if (!this.isConnected()) {
       // Queue subscription for when connection is established
       this.queuedSubscriptions.add(channel);
-      console.log('Queued subscription for channel:', channel);
+      // Queued subscription for channel
       return;
     }
 
@@ -448,12 +448,12 @@ class WebSocketService {
       data: { channel },
       timestamp: new Date().toISOString()
     });
-    console.log('Subscribed to channel:', channel);
+    // Subscribed to channel
   }
 
   public unsubscribe(channel: string): void {
     if (!this.isConnected()) {
-      console.warn('WebSocket not connected, cannot unsubscribe from channel:', channel);
+      // WebSocket not connected, cannot unsubscribe from channel
       return;
     }
 
@@ -462,13 +462,13 @@ class WebSocketService {
       data: { channel },
       timestamp: new Date().toISOString()
     });
-    console.log('Unsubscribed from channel:', channel);
+    // Unsubscribed from channel
   }
 
   // Send message
   public send(type: string, data: any, channel?: string): void {
     if (!this.isConnected()) {
-      console.warn('WebSocket not connected, cannot send message');
+      // WebSocket not connected, cannot send message
       return;
     }
 
@@ -527,14 +527,14 @@ class WebSocketService {
     // Listen for all messages and filter by specific event type
     const handler = (message: WebSocketMessage) => {
       // Handle different message formats from backend
-      const isSecurityEvent = 
+      const isSecurityEvent =
         (message.type === 'event' && message.channel === eventType) ||
         (message.type === 'event' && message.channel === `events:${eventType}`) ||
         (message.type === 'security_alert' && message.data?.type === eventType) ||
         (message.type === eventType);
-      
+
       if (isSecurityEvent) {
-        console.log('Security event received:', message);
+        // Security event received
         callback(message);
       }
     };
@@ -578,7 +578,7 @@ export function useWebSocket() {
     };
 
     const handleError = (error: any) => {
-      console.error('WebSocket error:', error);
+      // WebSocket error - silently handle
       setStatus(websocketService.getStatus());
     };
 

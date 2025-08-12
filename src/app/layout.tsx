@@ -1,7 +1,17 @@
 import { Outfit } from "next/font/google";
 import "./globals.css";
+import { Metadata } from "next";
 
 import { ClientProviders } from "./ClientProviders";
+
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Unibase ERP',
+    default: 'Unibase ERP - Business Solution',
+  },
+  description: 'Comprehensive ERP solution for modern businesses - Manage sales, inventory, finance, HR, and more.',
+  keywords: ['ERP', 'Enterprise Resource Planning', 'Business Management', 'Unibase'],
+};
 
 const outfit = Outfit({
   subsets: ["latin"],

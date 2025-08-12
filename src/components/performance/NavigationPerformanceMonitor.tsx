@@ -14,12 +14,7 @@ export function NavigationPerformanceMonitor() {
       const endTime = performance.now();
       const navigationTime = endTime - startTime;
       
-      // Log slow navigations (>2 seconds)
-      if (navigationTime > 2000) {
-        console.warn('🐌 Slow navigation to ' + pathname + ': ' + navigationTime.toFixed(2) + 'ms');
-      } else {
-        console.log('⚡ Navigation to ' + pathname + ': ' + navigationTime.toFixed(2) + 'ms');
-      }
+      // Performance monitoring (console logs removed for production)
     };
 
     // Use requestIdleCallback for non-blocking measurement
