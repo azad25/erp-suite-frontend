@@ -71,7 +71,10 @@ function AdminLayout({
           {/* Scrollable Page Content */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
             <div className="w-full p-4 md:p-6 lg:p-8" style={{ contain: 'layout style paint' }}>
-              {children}
+              {/* Center content on large screens (>1920px) */}
+              <div className="w-full max-w-none 2xl:max-w-7xl 2xl:mx-auto">
+                {children}
+              </div>
             </div>
           </main>
         </div>

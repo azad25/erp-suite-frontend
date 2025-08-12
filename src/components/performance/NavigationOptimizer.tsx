@@ -77,7 +77,7 @@ export function NavigationOptimizer() {
 
       // Show immediately so the animation starts instantly
       showStartRef.current = performance.now();
-      showLoading('Loading page...');
+      showLoading('');
 
       const result = originalMethod(href, options);
 

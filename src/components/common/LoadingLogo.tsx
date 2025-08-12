@@ -16,7 +16,7 @@ export default function LoadingLogo({
   className = "",
   textClassName = "",
   progress: _progress = 0,
-  loadingText = "Loading..."
+  loadingText = ""
 }: Props) {
   return (
     <div className={`flex flex-col items-center justify-center gap-8 ${className}`}>

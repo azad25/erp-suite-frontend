@@ -16,7 +16,7 @@ export default function GlobalRouteLoading() {
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
-      showLoading('Loading page...');
+      showLoading('');
       hideTimerRef.current = setTimeout(() => hideLoading(), 400);
     }
     // Cleanup on unmount
@@ -34,7 +34,7 @@ export default function GlobalRouteLoading() {
       hideTimerRef.current = null;
     }
 
-    showLoading('Loading page...');
+    showLoading('');
     hideTimerRef.current = setTimeout(() => hideLoading(), 400);
 
     return () => {
