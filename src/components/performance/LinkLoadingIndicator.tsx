@@ -32,6 +32,12 @@ export default function LinkLoadingIndicator() {
       // Already navigating
       if (navigatingRef.current) return;
 
+      // Check if clicking on the same page
+      if (href === pathname) {
+        // Don't show loading for same-page navigation
+        return;
+      }
+
       navigatingRef.current = true;
 
       // Show immediately (no delay) so animation starts instantly
@@ -40,7 +46,7 @@ export default function LinkLoadingIndicator() {
 
     document.addEventListener('click', onClick, { capture: true, passive: true });
     return () => document.removeEventListener('click', onClick, { capture: true } as any);
-  }, [showLoading]);
+  }, [showLoading, pathname]);
 
   // Hide loader when the route actually changes
   useEffect(() => {
