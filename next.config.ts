@@ -10,16 +10,31 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   webpack(config, { dev, isServer, webpack }) {
-    // Development optimizations for faster compilation
+    // Development optimizations for faster compilation and lower memory usage
     if (dev) {
-      // Let Next.js manage devtool for performance; avoid overriding to prevent regressions
-      // Reduce bundle analysis overhead
+      // Memory optimization for development
       config.optimization.removeAvailableModules = false;
       config.optimization.removeEmptyChunks = false;
       config.optimization.splitChunks = false;
-      // Faster module resolution
+      
+      // Faster module resolution with memory optimization
       config.resolve.symlinks = false;
       config.resolve.cacheWithContext = false;
+      
+      // Reduce memory usage in development
+      config.watchOptions = {
+        ignored: /node_modules/,
+        aggregateTimeout: 300,
+        poll: false,
+      };
+      
+      // Limit concurrent processing to reduce memory spikes
+      config.parallelism = 1;
+      
+      // Disable source maps in Docker to save memory
+      if (process.env.DOCKER_ENV) {
+        config.devtool = false;
+      }
     }
 
     // Ensure webpack uses a Node-safe global object when bundling server code

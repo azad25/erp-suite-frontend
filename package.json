@@ -25,7 +25,11 @@
     "perf:build": "npm run perf:bundle && npm run dev:webpack",
     "dev:fast": "next dev",
     "dev:classic": "NEXT_DISABLE_TURBOPACK=1 next dev",
-    "dev:webpack": "NEXT_DISABLE_TURBOPACK=1 next dev"
+    "dev:webpack": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "memory:monitor": "node scripts/memory-optimization.js monitor",
+    "memory:cleanup": "node scripts/memory-optimization.js cleanup",
+    "memory:tips": "node scripts/memory-optimization.js tips",
+    "dev:memory-optimized": "node --max-old-space-size=2048 --expose-gc node_modules/.bin/next dev"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",

@@ -61,7 +61,6 @@ RUN apk add --no-cache su-exec
 RUN printf '#!/bin/sh\n# Create directories\nmkdir -p /app/.next /app/node_modules\n# Install dependencies if node_modules is missing or incomplete\nif [ ! -d "/app/node_modules" ] || [ ! -d "/app/node_modules/graphql-request" ]; then\n  echo "Installing dependencies..."\n  npm config set target_platform linux\n  npm config set target_libc musl\n  npm install --prefer-offline --no-audit --progress=false\n  # Try to rebuild lightningcss, but continue if it fails\n  npm rebuild lightningcss --verbose || echo "LightningCSS rebuild failed, using fallback mode"\nfi\n# If running as root, just run the command directly\nif [ "$(id -u)" = "0" ]; then\n  exec "$@"\nelse\n  # If running as non-root, fix permissions and switch user\n  chown -R appuser:appgroup /app/.next /app/node_modules /app 2>/dev/null || true\n  chmod -R 755 /app/.next 2>/dev/null || true\n  exec su-exec appuser "$@"\nfi\n' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
-# Run development server with hot reload
+# Run development server with memory optimization
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["npm", "run", "perf:bundle"]
-CMD ["npm", "run", "dev:webpack"]
+CMD ["npm", "run", "dev:memory-optimized"]
