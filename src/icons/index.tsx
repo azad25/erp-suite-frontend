@@ -52,6 +52,17 @@ import ChatIcon from "./chat.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
 
+// Create aliases for missing icons
+const EditIcon = PencilIcon;
+const ReceiptIcon = DocsIcon;
+const TrashIcon = TrashBinIcon;
+const UpdateIcon = TimeIcon;
+const TruckIcon = BoxIcon;
+const MessageIcon = ChatIcon;
+const SendIcon = PaperPlaneIcon;
+const CreditCardIcon = DollarLineIcon;
+const FileTextIcon = DocsIcon;
+
 export {
   DownloadIcon,
   BellIcon,
@@ -106,4 +117,14 @@ export {
   HorizontaLDots,
   ChevronUpIcon,
   ChatIcon,
+  // Export missing icon aliases
+  EditIcon,
+  ReceiptIcon,
+  TrashIcon,
+  UpdateIcon,
+  TruckIcon,
+  MessageIcon,
+  SendIcon,
+  CreditCardIcon,
+  FileTextIcon,
 };

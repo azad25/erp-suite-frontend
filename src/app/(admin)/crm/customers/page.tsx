@@ -3,18 +3,132 @@ import React, { useState } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import ComponentCard from "@/components/common/ComponentCard";
 import StatsCard from "@/components/common/StatsCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card/Card";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { UserCircleIcon, PlusIcon } from "@/icons";
+import { UserCircleIcon, PlusIcon, EyeIcon, PencilIcon as EditIcon, MailIcon as MessageIcon } from "@/icons";
+
+interface Customer {
+  id: string;
+  name: string;
+  contact: string;
+  email: string;
+  phone: string;
+  type: "Enterprise" | "SMB" | "Individual";
+  status: "Active" | "Inactive";
+  lastContact: string;
+}
 
 const CustomersPage = () => {
-  const [customers] = useState([
+  const [customers] = useState<Customer[]>([
     { id: "CUS-001", name: "Tech Corp", contact: "John Smith", email: "john@techcorp.com", phone: "+1234567890", type: "Enterprise", status: "Active", lastContact: "2024-02-20" },
     { id: "CUS-002", name: "Design Studio", contact: "Sarah Johnson", email: "sarah@design.com", phone: "+1234567891", type: "SMB", status: "Active", lastContact: "2024-02-18" },
     { id: "CUS-003", name: "Marketing Inc", contact: "Mike Wilson", email: "mike@marketing.com", phone: "+1234567892", type: "SMB", status: "Inactive", lastContact: "2024-01-15" },
+    { id: "CUS-004", name: "Startup XYZ", contact: "Emily Davis", email: "emily@startup.com", phone: "+1234567893", type: "SMB", status: "Active", lastContact: "2024-02-22" },
+    { id: "CUS-005", name: "Enterprise Solutions", contact: "David Brown", email: "david@enterprise.com", phone: "+1234567894", type: "Enterprise", status: "Active", lastContact: "2024-02-25" },
+    { id: "CUS-006", name: "Freelance Developer", contact: "Alex Chen", email: "alex@freelance.com", phone: "+1234567895", type: "Individual", status: "Active", lastContact: "2024-02-19" },
   ]);
+
+  const handleViewCustomer = (customer: Customer) => {
+    console.log("View customer:", customer);
+    // Navigate to customer detail page
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    console.log("Edit customer:", customer);
+    // Navigate to edit customer page
+  };
+
+  const handleContactCustomer = (customer: Customer) => {
+    console.log("Contact customer:", customer);
+    // Open contact form or communication modal
+  };
+
+  const columns: DataTableColumn<Customer>[] = [
+    {
+      key: "name",
+      header: "Customer",
+      searchable: true,
+      render: (customer) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{customer.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{customer.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "contact",
+      header: "Contact Person",
+      searchable: true,
+    },
+    {
+      key: "email",
+      header: "Contact Info",
+      searchable: true,
+      render: (customer) => (
+        <div>
+          <div className="text-gray-800 dark:text-white/90">{customer.email}</div>
+          <div className="text-xs text-gray-400 dark:text-gray-500">{customer.phone}</div>
+        </div>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (customer) => {
+        const typeColors = {
+          Enterprise: "primary" as const,
+          SMB: "info" as const,
+          Individual: "success" as const,
+        };
+        return (
+          <Badge color={typeColors[customer.type]}>
+            {customer.type}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (customer) => (
+        <Badge color={customer.status === "Active" ? "success" : "light"}>
+          {customer.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "lastContact",
+      header: "Last Contact",
+      render: (customer) => (
+        <span className="text-gray-800 dark:text-white/90">{customer.lastContact}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Customer>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewCustomer,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <EditIcon className="w-4 h-4" />,
+      onClick: handleEditCustomer,
+      variant: "ghost",
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      icon: <MessageIcon className="w-4 h-4" />,
+      onClick: handleContactCustomer,
+      variant: "ghost",
+    },
+  ];
 
   return (
     <DashboardLayout
@@ -23,7 +137,7 @@ const CustomersPage = () => {
       icon={<UserCircleIcon />}
     >
       {/* Customer Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatsCard
           title="Total Customers"
           value="245"
@@ -55,99 +169,23 @@ const CustomersPage = () => {
         title="Customer Directory" 
         desc="Complete list of customers with contact information and status"
       >
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-4">
-            <input
-              type="text"
-              placeholder="Search customers..."
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-            <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-              <option>All Types</option>
-              <option>Enterprise</option>
-              <option>SMB</option>
-              <option>Individual</option>
-            </select>
-          </div>
+        <div className="flex justify-end mb-6">
           <Button startIcon={<PlusIcon />}>Add Customer</Button>
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Customer
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Contact Person
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Contact Info
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Type
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Last Contact
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {customers.map((customer) => (
-              <TableRow key={customer.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{customer.name}</div>
-                    <div className="text-xs text-gray-500">{customer.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {customer.contact}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  <div>
-                    <div>{customer.email}</div>
-                    <div className="text-xs text-gray-400">{customer.phone}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge 
-                    variant="light" 
-                    color={
-                      customer.type === "Enterprise" ? "primary" :
-                      customer.type === "SMB" ? "info" : "success"
-                    }
-                    size="sm"
-                  >
-                    {customer.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge 
-                    variant="light" 
-                    color={customer.status === "Active" ? "success" : "light"}
-                    size="sm"
-                  >
-                    {customer.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {customer.lastContact}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">Edit</Button>
-                  <Button variant="link">View Profile</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={customers}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search customers..."
+          searchKeys={["name", "contact", "email", "type"]}
+          title="Customer List"
+          description="Manage all customer relationships and contact information"
+          showHeader={true}
+          emptyMessage="No customers found"
+          sortable={true}
+        />
       </ComponentCard>
     </DashboardLayout>
   );

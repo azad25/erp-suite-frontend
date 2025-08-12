@@ -44,7 +44,7 @@ export function FastPageLoader({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Only show loading for actual navigation changes
     setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 10); // Minimal delay
+    const timer = setTimeout(() => setIsLoading(false), 800); // Increased delay for better UX
     return () => clearTimeout(timer);
   }, [pathname]);
 

@@ -3,39 +3,140 @@ import React, { useState } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import ComponentCard from "@/components/common/ComponentCard";
 import StatsCard from "@/components/common/StatsCard";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { DollarLineIcon, CheckCircleIcon, BoxIcon } from "@/icons";
+import { DollarLineIcon, CheckCircleIcon, BoxIcon, EyeIcon, PencilIcon, LockIcon } from "@/icons";
 
+interface Account {
+  id: string;
+  name: string;
+  type: "Bank Account" | "Cash Account" | "Credit Account";
+  bank: string;
+  accountNumber: string;
+  balance: string;
+  status: "Active" | "Inactive" | "Frozen";
+}
 
 const AccountsPage = () => {
-  const [accounts] = useState([
+  const [accounts] = useState<Account[]>([
     { id: "ACC-001", name: "Main Business Account", type: "Bank Account", bank: "Chase Bank", accountNumber: "****1234", balance: "$125,450.00", status: "Active" },
     { id: "ACC-002", name: "Petty Cash", type: "Cash Account", bank: "-", accountNumber: "-", balance: "$2,500.00", status: "Active" },
     { id: "ACC-003", name: "Savings Account", type: "Bank Account", bank: "Wells Fargo", accountNumber: "****5678", balance: "$50,000.00", status: "Active" },
     { id: "ACC-004", name: "Payroll Account", type: "Bank Account", bank: "Bank of America", accountNumber: "****9012", balance: "$75,200.00", status: "Active" },
+    { id: "ACC-005", name: "Credit Line", type: "Credit Account", bank: "Chase Bank", accountNumber: "****3456", balance: "-$15,000.00", status: "Active" },
   ]);
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "Bank Account": return "primary";
-      case "Cash Account": return "success";
-      case "Credit Account": return "warning";
-      default: return "light";
-    }
+  const handleViewAccount = (account: Account) => {
+    console.log("View account:", account);
+    // Navigate to account detail page
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active": return "success";
-      case "Inactive": return "light";
-      case "Frozen": return "error";
-      default: return "light";
-    }
+  const handleEditAccount = (account: Account) => {
+    console.log("Edit account:", account);
+    // Navigate to edit account page
   };
 
+  const handleFreezeAccount = (account: Account) => {
+    console.log("Freeze account:", account);
+    // Freeze account
+  };
 
+  const columns: DataTableColumn<Account>[] = [
+    {
+      key: "name",
+      header: "Account Name",
+      searchable: true,
+      render: (account) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{account.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{account.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (account) => {
+        const typeColors = {
+          "Bank Account": "primary" as const,
+          "Cash Account": "success" as const,
+          "Credit Account": "warning" as const,
+        };
+        return (
+          <Badge color={typeColors[account.type]}>
+            {account.type}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "bank",
+      header: "Bank/Institution",
+      searchable: true,
+      render: (account) => (
+        <span className="text-gray-600 dark:text-gray-400">{account.bank}</span>
+      ),
+    },
+    {
+      key: "accountNumber",
+      header: "Account Number",
+      render: (account) => (
+        <span className="text-gray-600 dark:text-gray-400">{account.accountNumber}</span>
+      ),
+    },
+    {
+      key: "balance",
+      header: "Balance",
+      render: (account) => (
+        <span className={`font-medium ${account.balance.startsWith('-') ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-white/90'}`}>
+          {account.balance}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (account) => {
+        const statusColors = {
+          Active: "success" as const,
+          Inactive: "light" as const,
+          Frozen: "error" as const,
+        };
+        return (
+          <Badge color={statusColors[account.status]}>
+            {account.status}
+          </Badge>
+        );
+      },
+    },
+  ];
+
+  const actions: DataTableAction<Account>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewAccount,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <PencilIcon className="w-4 h-4" />,
+      onClick: handleEditAccount,
+      variant: "ghost",
+      hidden: (account) => account.status === "Frozen",
+    },
+    {
+      key: "freeze",
+      label: "Freeze",
+      icon: <LockIcon className="w-4 h-4" />,
+      onClick: handleFreezeAccount,
+      variant: "ghost",
+      hidden: (account) => account.status === "Frozen",
+    },
+  ];
 
   return (
     <DashboardLayout title="Accounts" description="Manage your financial accounts">
@@ -74,68 +175,19 @@ const AccountsPage = () => {
           />
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Account Name
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Type
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Bank/Institution
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Account Number
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Balance
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {accounts.map((account) => (
-              <TableRow key={account.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{account.name}</div>
-                    <div className="text-xs text-gray-500">{account.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge color={getTypeColor(account.type)}>
-                    {account.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {account.bank}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {account.accountNumber}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  {account.balance}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge color={getStatusColor(account.status)}>
-                    {account.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">Edit</Button>
-                  <Button variant="link">View Details</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={accounts}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search accounts..."
+          searchKeys={["name", "bank", "type"]}
+          title="Financial Accounts"
+          description="View and manage all your business accounts"
+          showHeader={true}
+          emptyMessage="No accounts found"
+          sortable={true}
+        />
       </ComponentCard>
     </DashboardLayout>
   );

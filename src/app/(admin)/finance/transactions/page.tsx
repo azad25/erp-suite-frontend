@@ -1,29 +1,127 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, EditIcon, ReceiptIcon } from "@/icons";
+
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  category: string;
+  account: string;
+  amount: string;
+  type: "Income" | "Expense" | "Transfer";
+  reference: string;
+}
 
 const TransactionsPage = () => {
-  const [transactions] = useState([
+  const [transactions] = useState<Transaction[]>([
     { id: "TXN-001", date: "2024-02-26", description: "Office Rent Payment", category: "Expense", account: "Main Business Account", amount: "-$5,000", type: "Expense", reference: "BILL-001" },
     { id: "TXN-002", date: "2024-02-25", description: "Client Payment - Tech Corp", category: "Revenue", account: "Main Business Account", amount: "+$25,000", type: "Income", reference: "INV-001" },
     { id: "TXN-003", date: "2024-02-24", description: "Software License Purchase", category: "Expense", account: "Main Business Account", amount: "-$2,500", type: "Expense", reference: "PO-002" },
     { id: "TXN-004", date: "2024-02-23", description: "Consulting Service Payment", category: "Revenue", account: "Main Business Account", amount: "+$8,000", type: "Income", reference: "INV-003" },
+    { id: "TXN-005", date: "2024-02-22", description: "Utility Bill Payment", category: "Expense", account: "Main Business Account", amount: "-$850", type: "Expense", reference: "BILL-002" },
+    { id: "TXN-006", date: "2024-02-21", description: "Product Sales Revenue", category: "Revenue", account: "Main Business Account", amount: "+$12,500", type: "Income", reference: "INV-004" },
   ]);
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "Income": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Expense": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      case "Transfer": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewTransaction = (transaction: Transaction) => {
+    console.log("View transaction:", transaction);
+    // Navigate to transaction detail page
   };
 
-  const getAmountColor = (amount: string) => {
-    return amount.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+  const handleEditTransaction = (transaction: Transaction) => {
+    console.log("Edit transaction:", transaction);
+    // Navigate to edit transaction page
   };
+
+  const handleViewReceipt = (transaction: Transaction) => {
+    console.log("View receipt for transaction:", transaction);
+    // Open receipt modal or navigate to receipt page
+  };
+
+  const columns: DataTableColumn<Transaction>[] = [
+    {
+      key: "date",
+      header: "Date",
+      searchable: true,
+      render: (transaction) => (
+        <span className="text-gray-800 dark:text-white/90">{transaction.date}</span>
+      ),
+    },
+    {
+      key: "description",
+      header: "Description",
+      searchable: true,
+      render: (transaction) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{transaction.description}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{transaction.reference}</div>
+        </div>
+      ),
+    },
+    {
+      key: "category",
+      header: "Category",
+      searchable: true,
+    },
+    {
+      key: "account",
+      header: "Account",
+      searchable: true,
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (transaction) => {
+        const typeColors = {
+          Income: "success" as const,
+          Expense: "error" as const,
+          Transfer: "info" as const,
+        };
+        return (
+          <Badge color={typeColors[transaction.type]}>
+            {transaction.type}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (transaction) => (
+        <span className={`font-medium ${transaction.amount.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {transaction.amount}
+        </span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Transaction>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewTransaction,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <EditIcon className="w-4 h-4" />,
+      onClick: handleEditTransaction,
+      variant: "ghost",
+    },
+    {
+      key: "receipt",
+      label: "Receipt",
+      icon: <ReceiptIcon className="w-4 h-4" />,
+      onClick: handleViewReceipt,
+      variant: "ghost",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -56,94 +154,19 @@ const TransactionsPage = () => {
           </div>
         </div>
 
-        <div className="mb-4 flex gap-4">
-          <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option>All Accounts</option>
-            <option>Main Business Account</option>
-            <option>Savings Account</option>
-            <option>Petty Cash</option>
-          </select>
-          <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option>All Types</option>
-            <option>Income</option>
-            <option>Expense</option>
-            <option>Transfer</option>
-          </select>
-          <input
-            type="date"
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            defaultValue="2024-02-26"
-          />
-        </div>
-
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Description
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Category
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Account
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Type
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Amount
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Reference
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((transaction) => (
-              <TableRow key={transaction.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {transaction.date}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{transaction.description}</div>
-                    <div className="text-xs text-gray-500">{transaction.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {transaction.category}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {transaction.account}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
-                    {transaction.type}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                  <span className={getAmountColor(transaction.amount)}>
-                    {transaction.amount}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {transaction.reference}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">Edit</Button>
-                  <Button variant="link">View Details</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={transactions}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search transactions..."
+          searchKeys={["description", "category", "account", "reference"]}
+          title="Transaction History"
+          description="View and manage all financial transactions"
+          showHeader={true}
+          emptyMessage="No transactions found"
+          sortable={true}
+        />
       </div>
     </div>
   );

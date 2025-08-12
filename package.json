@@ -48,7 +48,8 @@
     "react-dom": "^19.1.1",
     "react-dropzone": "^14.3.5",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "critters": "^0.0.24"
   },
   "devDependencies": {
     "@svgr/webpack": "^8.1.0",

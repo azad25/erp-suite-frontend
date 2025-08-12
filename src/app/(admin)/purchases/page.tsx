@@ -1,14 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import ComponentCard from "@/components/common/ComponentCard";
-import FeatureCard from "@/components/common/FeatureCard";
-import StatsCard from "@/components/common/StatsCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card/Card";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
+import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
+import LoadingLogo from "@/components/common/LoadingLogo";
 import { BoxIcon, DollarLineIcon, PieChartIcon, TimeIcon, UserIcon, PlusIcon, CheckCircleIcon } from "@/icons";
+
+const LazyComponentCard = lazy(() => import("@/components/common/ComponentCard"));
+const LazyFeatureCard = lazy(() => import("@/components/common/FeatureCard"));
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyCard = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.Card })));
+const LazyCardContent = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.CardContent })));
+const LazyBadge = lazy(() => import("@/components/ui/badge/Badge"));
+const LazyButton = lazy(() => import("@/components/ui/button/Button"));
 
 const PurchasesDashboardPage = () => {
   const purchaseFeatures = [
@@ -61,153 +65,170 @@ const PurchasesDashboardPage = () => {
   ];
 
   return (
-    <DashboardLayout
-      title="Purchases Dashboard"
-      description="Manage your purchasing operations and supplier relationships"
-      icon={<BoxIcon />}
-    >
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total Purchases"
-          value="$156,780"
-          icon={<DollarLineIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="Active Suppliers"
-          value="45"
-          icon={<UserIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="Pending Orders"
-          value="23"
-          icon={<BoxIcon />}
-          color="yellow"
-        />
-        <StatsCard
-          title="Cost Savings"
-          value="12.5%"
-          icon={<PieChartIcon />}
-          color="purple"
-        />
-      </div>
-
-      {/* Purchase Tools */}
-      <ComponentCard title="Purchase Tools & Features" desc="Access and manage your purchasing operations">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {purchaseFeatures.map((feature, index) => (
-            <FeatureCard
-              key={index}
-              title={feature.title}
-              description={feature.description}
-              icon={feature.icon}
-              path={feature.path}
-              color={feature.color}
-              stats={feature.stats}
-              className="h-full"
-            />
-          ))}
-        </div>
-      </ComponentCard>
-
-      {/* Recent Activity & Performance Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ComponentCard title="Recent Purchase Activity" desc="Latest purchasing activities and updates">
-          <div className="space-y-3">
-            {recentPurchases.map((purchase, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      purchase.type === 'supplier' ? 'bg-blue-500' : 
-                      purchase.type === 'order' ? 'bg-green-500' : 
-                      purchase.type === 'bill' ? 'bg-yellow-500' : 'bg-purple-500'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-medium text-gray-900 dark:text-white truncate">
-                          {purchase.supplier}
-                        </h4>
-                        <Badge 
-                          variant="light" 
-                          color={
-                            purchase.type === 'supplier' ? 'info' : 
-                            purchase.type === 'order' ? 'success' : 
-                            purchase.type === 'bill' ? 'warning' : 'success'
-                          }
-                          size="sm"
-                        >
-                          {purchase.type}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        {purchase.status}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-gray-900 dark:text-white">
-                          {purchase.amount}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {purchase.date}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ComponentCard>
-
-        <ComponentCard title="Performance Metrics" desc="Key purchasing performance indicators">
-          <div className="space-y-4">
-            {purchaseMetrics.map((metric, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm text-gray-900 dark:text-white">
-                        {metric.metric}
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {metric.value}
-                      </p>
-                    </div>
-                    <Badge 
-                      variant="light" 
-                      color={metric.change.startsWith('+') ? "success" : "error"}
-                      size="sm"
-                    >
-                      {metric.change}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ComponentCard>
-      </div>
-
-      {/* Quick Actions */}
-      <ComponentCard title="Quick Actions" desc="Frequently used purchasing actions">
+    <Suspense fallback={<LoadingLogo withText />}>
+      <DashboardLayout
+        title="Purchases Dashboard"
+        description="Manage your purchasing operations and supplier relationships"
+        icon={<BoxIcon />}
+      >
+        {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Button variant="primary" className="justify-start" startIcon={<PlusIcon />}>
-            Create Purchase Order
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<UserIcon />}>
-            Add Supplier
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<DollarLineIcon />}>
-            Record Bill
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<CheckCircleIcon />}>
-            Process Payment
-          </Button>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Total Purchases"
+              value="$156,780"
+              icon={<DollarLineIcon />}
+              color="blue"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Active Suppliers"
+              value="45"
+              icon={<UserIcon />}
+              color="green"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Pending Orders"
+              value="23"
+              icon={<BoxIcon />}
+              color="yellow"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Cost Savings"
+              value="12.5%"
+              icon={<PieChartIcon />}
+              color="purple"
+            />
+          </LazyComponent>
         </div>
-      </ComponentCard>
-    </DashboardLayout>
+        {/* Purchase Tools */}
+        <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+          <LazyComponentCard title="Purchase Tools & Features" desc="Access and manage your purchasing operations">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {purchaseFeatures.map((feature, index) => (
+                <LazyComponent key={index} fallback={<ComponentSkeleton height="h-32" />}>
+                  <LazyFeatureCard
+                    title={feature.title}
+                    description={feature.description}
+                    icon={feature.icon}
+                    path={feature.path}
+                    color={feature.color}
+                    stats={feature.stats}
+                    className="h-full"
+                  />
+                </LazyComponent>
+              ))}
+            </div>
+          </LazyComponentCard>
+        </LazyComponent>
+        {/* Recent Activity & Performance Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+            <LazyComponentCard title="Recent Purchase Activity" desc="Latest purchasing activities and updates">
+              <div className="space-y-3">
+                {recentPurchases.map((purchase, index) => (
+                  <LazyComponent key={index} fallback={<ComponentSkeleton height="h-20" />}>
+                    <LazyCard>
+                      <LazyCardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-2 h-2 rounded-full mt-2 ${
+                            purchase.type === 'supplier' ? 'bg-blue-500' : 
+                            purchase.type === 'order' ? 'bg-green-500' : 
+                            purchase.type === 'bill' ? 'bg-yellow-500' : 'bg-purple-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-medium text-gray-900 dark:text-white truncate">
+                                {purchase.supplier}
+                              </h4>
+                              <LazyBadge 
+                                variant="light" 
+                                color={
+                                  purchase.type === 'supplier' ? 'info' : 
+                                  purchase.type === 'order' ? 'success' : 
+                                  purchase.type === 'bill' ? 'warning' : 'success'
+                                }
+                                size="sm"
+                              >
+                                {purchase.type}
+                              </LazyBadge>
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                              {purchase.status}
+                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className="font-bold text-gray-900 dark:text-white">
+                                {purchase.amount}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {purchase.date}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </LazyCardContent>
+                    </LazyCard>
+                  </LazyComponent>
+                ))}
+              </div>
+            </LazyComponentCard>
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+            <LazyComponentCard title="Performance Metrics" desc="Key purchasing performance indicators">
+              <div className="space-y-4">
+                {purchaseMetrics.map((metric, index) => (
+                  <LazyComponent key={index} fallback={<ComponentSkeleton height="h-20" />}>
+                    <LazyCard>
+                      <LazyCardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm text-gray-900 dark:text-white">
+                              {metric.metric}
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                              {metric.value}
+                            </p>
+                          </div>
+                          <LazyBadge 
+                            variant="light" 
+                            color={metric.change.startsWith('+') ? "success" : "error"}
+                            size="sm"
+                          >
+                            {metric.change}
+                          </LazyBadge>
+                        </div>
+                      </LazyCardContent>
+                    </LazyCard>
+                  </LazyComponent>
+                ))}
+              </div>
+            </LazyComponentCard>
+          </LazyComponent>
+        </div>
+        {/* Quick Actions */}
+        <LazyComponentCard title="Quick Actions" desc="Frequently used purchasing actions">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <LazyButton variant="primary" className="justify-start" startIcon={<PlusIcon />}>
+              Create Purchase Order
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<UserIcon />}>
+              Add Supplier
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<DollarLineIcon />}>
+              Record Bill
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<CheckCircleIcon />}>
+              Process Payment
+            </LazyButton>
+          </div>
+        </LazyComponentCard>
+      </DashboardLayout>
+    </Suspense>
   );
 };
 

@@ -70,4 +70,19 @@ TableBody.displayName = 'TableBody';
 TableRow.displayName = 'TableRow';
 TableCell.displayName = 'TableCell';
 
+// Export named components
 export { Table, TableHeader, TableBody, TableRow, TableCell };
+
+// Create a default export that can be lazy loaded
+// This is a simple table component that can be used as a fallback
+const DefaultTable: React.FC<TableProps> = ({ children, className = '' }) => {
+  return (
+    <div className="overflow-x-auto">
+      <table className={`min-w-full ${className}`}>
+        {children}
+      </table>
+    </div>
+  );
+};
+
+export default DefaultTable;

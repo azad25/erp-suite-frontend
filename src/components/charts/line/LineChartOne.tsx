@@ -1,11 +1,11 @@
 "use client";
 import React from "react";
 
-import { ApexOptions } from "apexcharts";
+import type { ApexOptions } from "apexcharts";
 
 import dynamic from "next/dynamic";
-// Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"));
+// Dynamically import the ReactApexChart component (client-only)
+const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function LineChartOne() {
   const options: ApexOptions = {

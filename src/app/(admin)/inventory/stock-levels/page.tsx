@@ -1,30 +1,142 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, PencilIcon, AlertIcon } from "@/icons";
+
+interface StockItem {
+  id: string;
+  name: string;
+  currentStock: number;
+  minStock: number;
+  maxStock: number;
+  reorderPoint: number;
+  status: "Good" | "Low Stock" | "Out of Stock" | "Overstock";
+}
 
 const StockLevelsPage = () => {
-  const [stockItems] = useState([
+  const [stockItems] = useState<StockItem[]>([
     { id: "PRD-001", name: "Laptop Pro", currentStock: 25, minStock: 10, maxStock: 100, reorderPoint: 15, status: "Good" },
     { id: "PRD-002", name: "Office Chair", currentStock: 12, minStock: 5, maxStock: 50, reorderPoint: 8, status: "Good" },
     { id: "PRD-003", name: "Software License", currentStock: 0, minStock: 5, maxStock: 25, reorderPoint: 5, status: "Out of Stock" },
     { id: "PRD-004", name: "Wireless Mouse", currentStock: 3, minStock: 10, maxStock: 100, reorderPoint: 15, status: "Low Stock" },
+    { id: "PRD-005", name: "Desk Lamp", currentStock: 45, minStock: 5, maxStock: 30, reorderPoint: 8, status: "Overstock" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Good": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Low Stock": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Out of Stock": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      case "Overstock": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewStock = (item: StockItem) => {
+    console.log("View stock item:", item);
+    // Navigate to stock detail page
+  };
+
+  const handleAdjustStock = (item: StockItem) => {
+    console.log("Adjust stock for item:", item);
+    // Open stock adjustment modal
+  };
+
+  const handleReorder = (item: StockItem) => {
+    console.log("Reorder item:", item);
+    // Create reorder request
   };
 
   const getStockPercentage = (current: number, max: number) => {
     return Math.min((current / max) * 100, 100);
   };
+
+  const columns: DataTableColumn<StockItem>[] = [
+    {
+      key: "name",
+      header: "Product",
+      searchable: true,
+      render: (item) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{item.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{item.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "currentStock",
+      header: "Current Stock",
+      render: (item) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">
+          {item.currentStock} / {item.maxStock}
+        </span>
+      ),
+    },
+    {
+      key: "stockLevel",
+      header: "Stock Level",
+      render: (item) => {
+        const percentage = getStockPercentage(item.currentStock, item.maxStock);
+        const color = item.status === 'Good' ? 'bg-green-600' : 
+                     item.status === 'Low Stock' ? 'bg-yellow-600' : 
+                     item.status === 'Out of Stock' ? 'bg-red-600' : 'bg-blue-600';
+        
+        return (
+          <div className="flex items-center">
+            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+              <div 
+                className={`h-2 rounded-full ${color}`}
+                style={{ width: `${percentage}%` }}
+              ></div>
+            </div>
+            <span className="text-sm text-gray-600 dark:text-gray-400">{Math.round(percentage)}%</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: "reorderPoint",
+      header: "Reorder Point",
+      render: (item) => (
+        <span className="text-gray-600 dark:text-gray-400">{item.reorderPoint}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item) => {
+        const statusColors = {
+          Good: "success" as const,
+          "Low Stock": "warning" as const,
+          "Out of Stock": "error" as const,
+          Overstock: "info" as const,
+        };
+        return (
+          <Badge color={statusColors[item.status]}>
+            {item.status}
+          </Badge>
+        );
+      },
+    },
+  ];
+
+  const actions: DataTableAction<StockItem>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewStock,
+      variant: "ghost",
+    },
+    {
+      key: "adjust",
+      label: "Adjust",
+      icon: <PencilIcon className="w-4 h-4" />,
+      onClick: handleAdjustStock,
+      variant: "ghost",
+    },
+    {
+      key: "reorder",
+      label: "Reorder",
+      icon: <AlertIcon className="w-4 h-4" />,
+      onClick: handleReorder,
+      variant: "ghost",
+      hidden: (item) => item.status === "Good" || item.status === "Overstock",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -60,70 +172,19 @@ const StockLevelsPage = () => {
           </div>
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Product
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Current Stock
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Stock Level
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Reorder Point
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {stockItems.map((item) => (
-              <TableRow key={item.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  {item.name}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {item.currentStock} / {item.maxStock}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          item.status === 'Good' ? 'bg-green-600' :
-                          item.status === 'Low Stock' ? 'bg-yellow-600' :
-                          item.status === 'Out of Stock' ? 'bg-red-600' : 'bg-blue-600'
-                        }`}
-                        style={{ width: `${getStockPercentage(item.currentStock, item.maxStock)}%` }}
-                      ></div>
-                    </div>
-                    {Math.round(getStockPercentage(item.currentStock, item.maxStock))}%
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {item.reorderPoint}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status)}`}>
-                    {item.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">Reorder</Button>
-                  <Button variant="link" className="mr-4">View Details</Button>
-                  <Button variant="link">Movement</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={stockItems}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search stock items..."
+          searchKeys={["name", "id", "status"]}
+          title="Inventory Stock Levels"
+          description="Monitor and manage inventory stock levels"
+          showHeader={true}
+          emptyMessage="No stock items found"
+          sortable={true}
+        />
       </div>
     </div>
   );

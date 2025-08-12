@@ -1,26 +1,124 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, EditIcon, TruckIcon } from "@/icons";
+
+interface PurchaseOrder {
+  id: string;
+  supplier: string;
+  amount: string;
+  status: "Draft" | "Pending" | "Approved" | "Delivered" | "Cancelled";
+  orderDate: string;
+  deliveryDate: string;
+}
 
 const PurchaseOrdersPage = () => {
-  const [orders] = useState([
+  const [orders] = useState<PurchaseOrder[]>([
     { id: "PO-001", supplier: "Tech Solutions Ltd", amount: "$15,000", status: "Pending", orderDate: "2024-02-20", deliveryDate: "2024-03-05" },
     { id: "PO-002", supplier: "Office Supplies Co", amount: "$3,500", status: "Approved", orderDate: "2024-02-22", deliveryDate: "2024-03-01" },
     { id: "PO-003", supplier: "Manufacturing Parts Inc", amount: "$25,000", status: "Delivered", orderDate: "2024-02-15", deliveryDate: "2024-02-28" },
+    { id: "PO-004", supplier: "Software Licenses Corp", amount: "$8,750", status: "Draft", orderDate: "2024-02-25", deliveryDate: "2024-03-10" },
+    { id: "PO-005", supplier: "Hardware Suppliers", amount: "$12,300", status: "Approved", orderDate: "2024-02-18", deliveryDate: "2024-03-02" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Draft": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Approved": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Delivered": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Cancelled": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewOrder = (order: PurchaseOrder) => {
+    console.log("View order:", order);
+    // Navigate to order detail page
   };
+
+  const handleEditOrder = (order: PurchaseOrder) => {
+    console.log("Edit order:", order);
+    // Navigate to edit order page
+  };
+
+  const handleTrackOrder = (order: PurchaseOrder) => {
+    console.log("Track order:", order);
+    // Open tracking modal or navigate to tracking page
+  };
+
+  const columns: DataTableColumn<PurchaseOrder>[] = [
+    {
+      key: "id",
+      header: "PO Number",
+      searchable: true,
+      render: (order) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">{order.id}</span>
+      ),
+    },
+    {
+      key: "supplier",
+      header: "Supplier",
+      searchable: true,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (order) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">{order.amount}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (order) => {
+        const statusColors = {
+          Draft: "light" as const,
+          Pending: "warning" as const,
+          Approved: "info" as const,
+          Delivered: "success" as const,
+          Cancelled: "error" as const,
+        };
+        return (
+          <Badge color={statusColors[order.status]}>
+            {order.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "orderDate",
+      header: "Order Date",
+      render: (order) => (
+        <span className="text-gray-800 dark:text-white/90">{order.orderDate}</span>
+      ),
+    },
+    {
+      key: "deliveryDate",
+      header: "Expected Delivery",
+      render: (order) => (
+        <span className="text-gray-800 dark:text-white/90">{order.deliveryDate}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<PurchaseOrder>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewOrder,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <EditIcon className="w-4 h-4" />,
+      onClick: handleEditOrder,
+      variant: "ghost",
+      hidden: (order) => order.status === "Delivered" || order.status === "Cancelled",
+    },
+    {
+      key: "track",
+      label: "Track",
+      icon: <TruckIcon className="w-4 h-4" />,
+      onClick: handleTrackOrder,
+      variant: "ghost",
+      hidden: (order) => order.status === "Draft" || order.status === "Cancelled",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -34,63 +132,19 @@ const PurchaseOrdersPage = () => {
           <Button>Create Purchase Order</Button>
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                PO Number
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Supplier
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Amount
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Order Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Expected Delivery
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((order) => (
-              <TableRow key={order.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  {order.id}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {order.supplier}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  {order.amount}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                    {order.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {order.orderDate}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {order.deliveryDate}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">View</Button>
-                  <Button variant="link">Track</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={orders}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search purchase orders..."
+          searchKeys={["id", "supplier", "status"]}
+          title="Purchase Orders"
+          description="Manage and track all purchase orders"
+          showHeader={true}
+          emptyMessage="No purchase orders found"
+          sortable={true}
+        />
       </div>
     </div>
   );

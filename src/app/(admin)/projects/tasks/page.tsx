@@ -3,14 +3,24 @@ import React, { useState } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import ComponentCard from "@/components/common/ComponentCard";
 import StatsCard from "@/components/common/StatsCard";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { ListIcon, TimeIcon, CheckCircleIcon, AlertIcon } from "@/icons";
+import { ListIcon, TimeIcon, CheckCircleIcon, AlertIcon, EditIcon, UpdateIcon } from "@/icons";
 
+interface Task {
+  id: string;
+  title: string;
+  project: string;
+  assignee: string;
+  priority: string;
+  status: string;
+  dueDate: string;
+  progress: number;
+}
 
 const TasksPage = () => {
-  const [tasks] = useState([
+  const [tasks] = useState<Task[]>([
     { 
       id: "TSK-001", 
       title: "Design Homepage Mockup", 
@@ -41,6 +51,26 @@ const TasksPage = () => {
       dueDate: "2024-03-05",
       progress: 100
     },
+    { 
+      id: "TSK-004", 
+      title: "API Integration Testing", 
+      project: "E-commerce Platform", 
+      assignee: "David Wilson", 
+      priority: "Low", 
+      status: "Review",
+      dueDate: "2024-03-20",
+      progress: 90
+    },
+    { 
+      id: "TSK-005", 
+      title: "UI Component Library", 
+      project: "Design System", 
+      assignee: "Emma Davis", 
+      priority: "Medium", 
+      status: "In Progress",
+      dueDate: "2024-03-25",
+      progress: 60
+    },
   ]);
 
   const getPriorityColor = (priority: string) => {
@@ -62,7 +92,96 @@ const TasksPage = () => {
     }
   };
 
+  const handleEditTask = (task: Task) => {
+    console.log("Edit task:", task);
+    // Navigate to edit task page
+  };
 
+  const handleUpdateTask = (task: Task) => {
+    console.log("Update task:", task);
+    // Update task logic
+  };
+
+  const columns: DataTableColumn<Task>[] = [
+    {
+      key: "title",
+      header: "Task",
+      searchable: true,
+      render: (task) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{task.title}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{task.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "project",
+      header: "Project",
+      searchable: true,
+    },
+    {
+      key: "assignee",
+      header: "Assignee",
+      searchable: true,
+    },
+    {
+      key: "priority",
+      header: "Priority",
+      render: (task) => (
+        <Badge color={getPriorityColor(task.priority)}>
+          {task.priority}
+        </Badge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (task) => (
+        <Badge color={getStatusColor(task.status)}>
+          {task.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "progress",
+      header: "Progress",
+      render: (task) => (
+        <div className="flex items-center">
+          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+            <div 
+              className="bg-brand-600 h-2 rounded-full" 
+              style={{ width: `${task.progress}%` }}
+            ></div>
+          </div>
+          <span className="text-sm text-gray-800 dark:text-white/90">{task.progress}%</span>
+        </div>
+      ),
+    },
+    {
+      key: "dueDate",
+      header: "Due Date",
+      render: (task) => (
+        <span className="text-gray-800 dark:text-white/90">{task.dueDate}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Task>[] = [
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <EditIcon className="w-4 h-4" />,
+      onClick: handleEditTask,
+      variant: "ghost",
+    },
+    {
+      key: "update",
+      label: "Update",
+      icon: <UpdateIcon className="w-4 h-4" />,
+      onClick: handleUpdateTask,
+      variant: "ghost",
+    },
+  ];
 
   return (
     <DashboardLayout title="Tasks" description="Manage project tasks and assignments">
@@ -101,82 +220,19 @@ const TasksPage = () => {
           />
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Task
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Project
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Assignee
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Priority
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Progress
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Due Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tasks.map((task) => (
-              <TableRow key={task.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{task.title}</div>
-                    <div className="text-xs text-gray-500">{task.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {task.project}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {task.assignee}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge color={getPriorityColor(task.priority)}>
-                    {task.priority}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <Badge color={getStatusColor(task.status)}>
-                    {task.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                      <div 
-                        className="bg-brand-600 h-2 rounded-full" 
-                        style={{ width: `${task.progress}%` }}
-                      ></div>
-                    </div>
-                    {task.progress}%
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {task.dueDate}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">Edit</Button>
-                  <Button variant="link">Update</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={tasks}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search tasks..."
+          searchKeys={["title", "project", "assignee", "status"]}
+          title="Task List"
+          description="Track and manage all project tasks and assignments"
+          showHeader={true}
+          emptyMessage="No tasks found"
+          sortable={true}
+        />
       </ComponentCard>
     </DashboardLayout>
   );

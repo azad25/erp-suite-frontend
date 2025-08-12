@@ -3,50 +3,28 @@ import React, { memo, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import ComponentCard from "@/components/common/ComponentCard";
 import StatsCard from "@/components/common/StatsCard";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { DocsIcon, CheckCircleIcon, DollarLineIcon } from "@/icons";
+import { DocsIcon, CheckCircleIcon, DollarLineIcon, EditIcon, SendIcon, FileTextIcon } from "@/icons";
 
-// Memoized table row component for better performance
-const QuotationRow = memo(({ quotation, getStatusColor }: { 
-  quotation: any; 
-  getStatusColor: (status: string) => "primary" | "success" | "error" | "warning" | "info" | "light" | "dark";
-}) => (
-  <TableRow className="border-b border-gray-200 dark:border-gray-700">
-    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-      {quotation.id}
-    </TableCell>
-    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-      {quotation.customer}
-    </TableCell>
-    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-      {quotation.amount}
-    </TableCell>
-    <TableCell className="px-6 py-4 whitespace-nowrap">
-      <Badge color={getStatusColor(quotation.status)}>
-        {quotation.status}
-      </Badge>
-    </TableCell>
-    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-      {quotation.validUntil}
-    </TableCell>
-    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-      <Button variant="link" className="mr-4">Edit</Button>
-      <Button variant="link" className="mr-4">Send</Button>
-      <Button variant="link">Convert to Invoice</Button>
-    </TableCell>
-  </TableRow>
-));
-
-QuotationRow.displayName = 'QuotationRow';
+interface Quotation {
+  id: string;
+  customer: string;
+  amount: string;
+  status: string;
+  validUntil: string;
+  createdDate: string;
+}
 
 const QuotationsPage = memo(() => {
   // Static data - no need for useState
-  const quotations = useMemo(() => [
+  const quotations = useMemo<Quotation[]>(() => [
     { id: "QUO-001", customer: "Tech Corp", amount: "$25,000", status: "Sent", validUntil: "2024-03-15", createdDate: "2024-02-15" },
     { id: "QUO-002", customer: "Design Studio", amount: "$12,000", status: "Accepted", validUntil: "2024-03-20", createdDate: "2024-02-18" },
     { id: "QUO-003", customer: "Marketing Inc", amount: "$8,500", status: "Draft", validUntil: "2024-03-25", createdDate: "2024-02-20" },
+    { id: "QUO-004", customer: "Startup XYZ", amount: "$18,000", status: "Rejected", validUntil: "2024-03-10", createdDate: "2024-02-12" },
+    { id: "QUO-005", customer: "Enterprise Solutions", amount: "$45,000", status: "Sent", validUntil: "2024-03-30", createdDate: "2024-02-22" },
   ], []);
 
   const getStatusColor = useCallback((status: string): "primary" | "success" | "error" | "warning" | "info" | "light" | "dark" => {
@@ -59,7 +37,85 @@ const QuotationsPage = memo(() => {
     }
   }, []);
 
+  const handleEditQuotation = (quotation: Quotation) => {
+    console.log("Edit quotation:", quotation);
+    // Navigate to edit quotation page
+  };
 
+  const handleSendQuotation = (quotation: Quotation) => {
+    console.log("Send quotation:", quotation);
+    // Send quotation logic
+  };
+
+  const handleConvertToInvoice = (quotation: Quotation) => {
+    console.log("Convert to invoice:", quotation);
+    // Convert to invoice logic
+  };
+
+  const columns: DataTableColumn<Quotation>[] = [
+    {
+      key: "id",
+      header: "Quotation ID",
+      searchable: true,
+      render: (quotation) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">{quotation.id}</span>
+      ),
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      searchable: true,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (quotation) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">{quotation.amount}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (quotation) => (
+        <Badge color={getStatusColor(quotation.status)}>
+          {quotation.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "validUntil",
+      header: "Valid Until",
+      render: (quotation) => (
+        <span className="text-gray-800 dark:text-white/90">{quotation.validUntil}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Quotation>[] = [
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <EditIcon className="w-4 h-4" />,
+      onClick: handleEditQuotation,
+      variant: "ghost",
+    },
+    {
+      key: "send",
+      label: "Send",
+      icon: <SendIcon className="w-4 h-4" />,
+      onClick: handleSendQuotation,
+      variant: "ghost",
+      hidden: (quotation) => quotation.status === "Sent" || quotation.status === "Accepted",
+    },
+    {
+      key: "convert",
+      label: "Convert to Invoice",
+      icon: <FileTextIcon className="w-4 h-4" />,
+      onClick: handleConvertToInvoice,
+      variant: "ghost",
+      hidden: (quotation) => quotation.status !== "Accepted",
+    },
+  ];
 
   return (
     <DashboardLayout title="Quotations" description="Manage sales quotations and proposals">
@@ -98,39 +154,19 @@ const QuotationsPage = memo(() => {
           />
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Quotation ID
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Customer
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Amount
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Valid Until
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {quotations.map((quotation) => (
-              <QuotationRow 
-                key={quotation.id} 
-                quotation={quotation} 
-                getStatusColor={getStatusColor}
-              />
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={quotations}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search quotations..."
+          searchKeys={["id", "customer", "status"]}
+          title="Quotation List"
+          description="Manage and track all sales quotations"
+          showHeader={true}
+          emptyMessage="No quotations found"
+          sortable={true}
+        />
       </ComponentCard>
     </DashboardLayout>
   );

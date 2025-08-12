@@ -1,32 +1,154 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, PencilIcon, ShootingStarIcon } from "@/icons";
+
+interface Feedback {
+  id: string;
+  customer: string;
+  type: "Survey" | "Feedback" | "Review";
+  subject: string;
+  rating: number;
+  status: "Completed" | "Reviewed" | "Pending" | "Archived";
+  date: string;
+  response: string;
+}
 
 const FeedbackPage = () => {
-  const [feedback] = useState([
+  const [feedback] = useState<Feedback[]>([
     { id: "FB-001", customer: "Tech Corp", type: "Survey", subject: "Service Quality Survey", rating: 4.5, status: "Completed", date: "2024-02-25", response: "Excellent service!" },
     { id: "FB-002", customer: "Design Studio", type: "Feedback", subject: "Product Improvement", rating: 3.8, status: "Reviewed", date: "2024-02-23", response: "Good but needs improvement" },
     { id: "FB-003", customer: "Marketing Inc", type: "Survey", subject: "Customer Satisfaction", rating: 5.0, status: "Pending", date: "2024-02-22", response: "Outstanding experience" },
+    { id: "FB-004", customer: "Startup Inc", type: "Review", subject: "Product Review", rating: 4.2, status: "Completed", date: "2024-02-21", response: "Great product, highly recommend" },
+    { id: "FB-005", customer: "Enterprise Solutions", type: "Survey", subject: "Support Quality", rating: 2.5, status: "Reviewed", date: "2024-02-20", response: "Support needs improvement" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Completed": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Reviewed": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewFeedback = (item: Feedback) => {
+    console.log("View feedback:", item);
+    // Navigate to feedback detail page
+  };
+
+  const handleEditFeedback = (item: Feedback) => {
+    console.log("Edit feedback:", item);
+    // Navigate to edit feedback page
+  };
+
+  const handleRespondToFeedback = (item: Feedback) => {
+    console.log("Respond to feedback:", item);
+    // Open response modal
   };
 
   const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span key={i} className={i < Math.floor(rating) ? "text-yellow-400" : "text-gray-300"}>
-        ★
-      </span>
-    ));
+    return (
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={i < Math.floor(rating) ? "text-yellow-400" : "text-gray-300"}>
+            ★
+          </span>
+        ))}
+        <span className="text-sm text-gray-600 dark:text-gray-400 ml-1">({rating})</span>
+      </div>
+    );
   };
+
+  const columns: DataTableColumn<Feedback>[] = [
+    {
+      key: "customer",
+      header: "Customer",
+      searchable: true,
+      render: (item) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{item.customer}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{item.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (item) => {
+        const typeColors = {
+          Survey: "info" as const,
+          Feedback: "warning" as const,
+          Review: "success" as const,
+        };
+        return (
+          <Badge color={typeColors[item.type]}>
+            {item.type}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "subject",
+      header: "Subject",
+      searchable: true,
+      render: (item) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{item.subject}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.response}</div>
+        </div>
+      ),
+    },
+    {
+      key: "rating",
+      header: "Rating",
+      render: (item) => renderStars(item.rating),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item) => {
+        const statusColors = {
+          Completed: "success" as const,
+          Reviewed: "info" as const,
+          Pending: "warning" as const,
+          Archived: "light" as const,
+        };
+        return (
+          <Badge color={statusColors[item.status]}>
+            {item.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "date",
+      header: "Date",
+      render: (item) => (
+        <span className="text-gray-600 dark:text-gray-400">{item.date}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Feedback>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewFeedback,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <PencilIcon className="w-4 h-4" />,
+      onClick: handleEditFeedback,
+      variant: "ghost",
+      hidden: (item) => item.status === "Archived",
+    },
+    {
+      key: "respond",
+      label: "Respond",
+      icon: <ShootingStarIcon className="w-4 h-4" />,
+      onClick: handleRespondToFeedback,
+      variant: "ghost",
+      hidden: (item) => item.status === "Completed" || item.status === "Archived",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -62,69 +184,19 @@ const FeedbackPage = () => {
           </div>
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Customer
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Type
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Subject
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Rating
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {feedback.map((item) => (
-              <TableRow key={item.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{item.customer}</div>
-                    <div className="text-xs text-gray-500">{item.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {item.type}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {item.subject}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  <div className="flex items-center">
-                    <div className="flex mr-2">{renderStars(item.rating)}</div>
-                    <span>{item.rating}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status)}`}>
-                    {item.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {item.date}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">View Details</Button>
-                  <Button variant="link">Respond</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={feedback}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search feedback..."
+          searchKeys={["customer", "subject", "response"]}
+          title="Customer Feedback & Surveys"
+          description="Track and manage all customer feedback and survey responses"
+          showHeader={true}
+          emptyMessage="No feedback found"
+          sortable={true}
+        />
       </div>
     </div>
   );

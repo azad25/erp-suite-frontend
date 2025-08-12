@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import StatsCard from "@/components/common/StatsCard";
-import FeatureCard from "@/components/common/FeatureCard";
+import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
 import { UserIcon, CalenderIcon, DollarLineIcon, PieChartIcon, TimeIcon, BoxIcon, CheckCircleIcon, AlertIcon } from "@/icons";
+
+// Lazy load heavy components
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyFeatureCard = lazy(() => import("@/components/common/FeatureCard"));
 
 const FinanceDashboardPage = () => {
   const financeFeatures = [
@@ -50,44 +53,53 @@ const FinanceDashboardPage = () => {
     >
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total Revenue"
-          value="$2,456,780"
-          icon={<DollarLineIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="Total Assets"
-          value="$1,234,567"
-          icon={<CheckCircleIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="Total Liabilities"
-          value="$567,890"
-          icon={<AlertIcon />}
-          color="red"
-        />
-        <StatsCard
-          title="Net Worth"
-          value="$1,888,457"
-          icon={<PieChartIcon />}
-          color="purple"
-        />
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Revenue"
+            value="$2,456,780"
+            icon={<DollarLineIcon />}
+            color="blue"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Assets"
+            value="$1,234,567"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Liabilities"
+            value="$567,890"
+            icon={<AlertIcon />}
+            color="red"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Net Worth"
+            value="$1,888,457"
+            icon={<PieChartIcon />}
+            color="purple"
+          />
+        </LazyComponent>
       </div>
 
       {/* Finance Features Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {financeFeatures.map((feature, index) => (
-          <FeatureCard
-            key={index}
-            title={feature.title}
-            description={feature.description}
-            icon={feature.icon}
-            path={feature.path}
-            color={feature.color}
-            stats={feature.stats}
-          />
+          <LazyComponent key={index} fallback={<ComponentSkeleton height="h-32" />}>
+            <LazyFeatureCard
+              title={feature.title}
+              description={feature.description}
+              icon={feature.icon}
+              path={feature.path}
+              color={feature.color}
+              stats={feature.stats}
+            />
+          </LazyComponent>
         ))}
       </div>
     </DashboardLayout>

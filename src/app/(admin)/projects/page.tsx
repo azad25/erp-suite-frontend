@@ -1,10 +1,13 @@
 "use client";
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import StatsCard from "@/components/common/StatsCard";
-import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { ListIcon, CheckCircleIcon, TimeIcon, DollarLineIcon } from "@/icons";
+import LoadingLogo from "@/components/common/LoadingLogo";
+import { ListIcon, CheckCircleIcon, TimeIcon, DollarLineIcon, EyeIcon, EditIcon } from "@/icons";
+
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyButton = lazy(() => import("@/components/ui/button/Button"));
+const LazyDataTable = lazy(() => import("@/components/common/DataTable"));
+const LazyComponentCard = lazy(() => import("@/components/common/ComponentCard"));
 
 const ProjectsPage = () => {
   const [projects] = useState([
@@ -52,118 +55,129 @@ const ProjectsPage = () => {
   };
 
   return (
-    <DashboardLayout
-      title="Project Management"
-      description="Manage your projects, tasks, and team collaboration"
-      icon={<ListIcon />}
-    >
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatsCard
-          title="Active Projects"
-          value="12"
-          icon={<ListIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="In Progress"
-          value="8"
-          icon={<TimeIcon />}
-          color="yellow"
-        />
-        <StatsCard
-          title="Completed"
-          value="25"
-          icon={<CheckCircleIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="Total Value"
-          value="$2.5M"
-          icon={<DollarLineIcon />}
-          color="purple"
-        />
-      </div>
-
-      {/* Projects Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Project List
-          </h3>
-          <Button>Create Project</Button>
+    <Suspense fallback={<LoadingLogo withText />}>
+      <DashboardLayout
+        title="Project Management"
+        description="Manage your projects, tasks, and team collaboration"
+        icon={<ListIcon />}
+      >
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <LazyStatsCard
+            title="Active Projects"
+            value="12"
+            icon={<ListIcon />}
+            color="blue"
+          />
+          <LazyStatsCard
+            title="In Progress"
+            value="8"
+            icon={<TimeIcon />}
+            color="yellow"
+          />
+          <LazyStatsCard
+            title="Completed"
+            value="25"
+            icon={<CheckCircleIcon />}
+            color="green"
+          />
+          <LazyStatsCard
+            title="Total Value"
+            value="$2.5M"
+            icon={<DollarLineIcon />}
+            color="purple"
+          />
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Project Name
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Client
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Manager
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Progress
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Deadline
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {projects.map((project) => (
-              <TableRow key={project.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{project.name}</div>
-                    <div className="text-xs text-gray-500">{project.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {project.client}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {project.manager}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                      <div 
-                        className="bg-brand-600 h-2 rounded-full" 
-                        style={{ width: `${project.progress}%` }}
-                      ></div>
+        {/* Projects Table */}
+        <Suspense fallback={<LoadingLogo withText />}>
+          <LazyComponentCard 
+            title="Project List" 
+            desc="Complete list of projects with status and progress information"
+          >
+            <div className="flex justify-end mb-6">
+              <LazyButton>Create Project</LazyButton>
+            </div>
+
+            <LazyDataTable
+              data={projects}
+              columns={[
+                {
+                  key: "name",
+                  header: "Project Name",
+                  render: (project: any) => (
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-white">{project.name}</div>
+                      <div className="text-xs text-gray-500">{project.id}</div>
                     </div>
-                    {project.progress}%
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(project.status)}`}>
-                    {project.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {project.deadline}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">View</Button>
-                  <Button variant="link">Edit</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </DashboardLayout>
+                  ),
+                },
+                {
+                  key: "client",
+                  header: "Client",
+                },
+                {
+                  key: "manager",
+                  header: "Manager",
+                },
+                {
+                  key: "progress",
+                  header: "Progress",
+                  render: (project: any) => (
+                    <div className="flex items-center">
+                      <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                        <div 
+                          className="bg-brand-600 h-2 rounded-full" 
+                          style={{ width: `${project.progress}%` }}
+                        ></div>
+                      </div>
+                      {project.progress}%
+                    </div>
+                  ),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  render: (project: any) => (
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(project.status)}`}>
+                      {project.status}
+                    </span>
+                  ),
+                },
+                {
+                  key: "deadline",
+                  header: "Deadline",
+                },
+              ]}
+              actions={[
+                {
+                  key: "view",
+                  label: "View",
+                  icon: <EyeIcon className="w-4 h-4" />,
+                  onClick: (project: any) => console.log("View project:", project),
+                  variant: "ghost",
+                },
+                {
+                  key: "edit",
+                  label: "Edit",
+                  icon: <EditIcon className="w-4 h-4" />,
+                  onClick: (project: any) => console.log("Edit project:", project),
+                  variant: "ghost",
+                },
+              ]}
+              searchable={true}
+              searchPlaceholder="Search projects..."
+              searchKeys={["name", "client", "manager"] as any}
+              title="Project List"
+              description="Complete list of projects with status and progress information"
+              showHeader={true}
+              emptyMessage="No projects found"
+              sortable={true}
+            />
+          </LazyComponentCard>
+        </Suspense>
+      </DashboardLayout>
+    </Suspense>
   );
 };
 

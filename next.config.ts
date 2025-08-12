@@ -23,8 +23,15 @@ const nextConfig: NextConfig = {
       config.resolve.cacheWithContext = false;
     }
 
-    // Production optimizations
-    if (!dev) {
+    // Ensure webpack uses a Node-safe global object when bundling server code
+    // to avoid `self is not defined` in server chunks
+    if (isServer) {
+      if (!config.output) config.output = {} as any;
+      (config.output as any).globalObject = 'globalThis';
+    }
+
+    // Production optimizations (scope to client bundle to avoid server runtime issues)
+    if (!dev && !isServer) {
       // Enable aggressive tree shaking
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
@@ -93,15 +100,7 @@ const nextConfig: NextConfig = {
         })
       );
 
-      // Exclude problematic packages from server bundle
-      config.externals = config.externals || [];
-      if (Array.isArray(config.externals)) {
-        config.externals.push({
-          'apexcharts': 'apexcharts',
-          'react-apexcharts': 'react-apexcharts',
-          'canvas': 'canvas',
-        });
-      }
+      // Do not customize externals; rely on dynamic imports with ssr: false
     }
 
     return config;
@@ -125,40 +124,33 @@ const nextConfig: NextConfig = {
   // Enable compression
   compress: true,
 
-  // Handle chart packages and other client-only packages separately
-  serverExternalPackages: [
-    'apexcharts', 
-    'react-apexcharts',
-    'canvas',
-    'jsdom',
-    'sharp'
-  ],
+  // Avoid serverExternalPackages customizations to reduce build-time issues
+  serverExternalPackages: [],
 
   // Experimental features for maximum performance
   experimental: {
-    // Optimize package imports (excluding chart packages to avoid conflicts)
-    optimizePackageImports: [
-      'react-icons',
-      'lodash',
-      '@fullcalendar/core',
-      'axios',
-      'socket.io-client'
-    ],
-    // Enable optimized CSS
-    optimizeCss: true,
-    // Enable turbo mode
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
-      },
-    },
+    // Disable aggressive import and turbo tweaks to stabilize prod build
+    optimizePackageImports: undefined,
+    optimizeCss: false,
+    turbo: undefined,
   },
 
   // Optimize output
-  output: 'standalone',
+  // output: 'standalone',
+
+  // Dev proxy for backend APIs to avoid 404s and speed up data fetching
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://localhost:8000/api/v1/:path*',
+      },
+      {
+        source: '/graphql',
+        destination: 'http://localhost:8000/graphql',
+      },
+    ];
+  },
 
   // Performance headers
   async headers() {

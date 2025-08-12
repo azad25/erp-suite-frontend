@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
@@ -24,6 +25,7 @@ export default function EnhancedUserProfile({
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   
   const { isOpen: isEditModalOpen, openModal: openEditModal, closeModal: closeEditModal } = useModal();
   const { isOpen: isPasswordModalOpen, openModal: openPasswordModal, closeModal: closePasswordModal } = useModal();
@@ -130,9 +132,13 @@ export default function EnhancedUserProfile({
   const handleLogout = async () => {
     try {
       await apiClient.logout();
-      window.location.href = '/signin';
+      router.push('/signin');
     } catch (err) {
       console.error("Error logging out:", err);
+      // Fallback to hard redirect only if router push fails
+      if (typeof window !== 'undefined') {
+        window.location.assign('/signin');
+      }
     }
   };
 

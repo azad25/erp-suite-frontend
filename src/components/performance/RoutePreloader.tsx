@@ -7,27 +7,27 @@ import { useRouter } from 'next/navigation';
 const ALL_ROUTES = [
   '/',
   '/dashboard',
-  '/users',
-  '/crm',
-  '/sales',
-  '/inventory',
-  '/finance',
-  '/projects',
-  '/hrm',
-  '/reports',
-  '/settings',
-  '/analytics',
-  '/notifications',
-  '/profile'
+  // Trimmed list in development to reduce compile bursts
+  ...(process.env.NODE_ENV === 'production' ? [
+    '/users',
+    '/crm',
+    '/sales',
+    '/inventory',
+    '/finance',
+    '/projects',
+    '/hrm',
+    '/reports',
+    '/settings',
+    '/analytics',
+    '/notifications',
+    '/profile',
+  ] : [])
 ];
 
 // API endpoints to preload
-const API_ENDPOINTS = [
-  '/api/config',
-  '/api/auth/me',
-  '/api/users',
-  '/api/dashboard/stats'
-];
+const API_ENDPOINTS = process.env.NODE_ENV === 'production'
+  ? ['/api/config', '/api/auth/me', '/api/users', '/api/dashboard/stats']
+  : ['/api/config'];
 
 export function RoutePreloader() {
   const router = useRouter();
@@ -57,14 +57,16 @@ export function RoutePreloader() {
 
     // Immediate preloading of critical routes
     const preloadCritical = () => {
-      const criticalRoutes = ['/', '/dashboard', '/users'];
+      const criticalRoutes = ['/', '/dashboard'];
       criticalRoutes.forEach(preloadRoute);
     };
 
-    // Aggressive preloading of all routes
+    // Aggressive preloading of all routes (disabled in development to avoid dev-server overload)
     const preloadAll = () => {
-      ALL_ROUTES.forEach(preloadRoute);
-      API_ENDPOINTS.forEach(preloadAPI);
+      if (process.env.NODE_ENV === 'production') {
+        ALL_ROUTES.forEach(preloadRoute);
+        API_ENDPOINTS.forEach(preloadAPI);
+      }
     };
 
     // Start immediately
@@ -73,8 +75,8 @@ export function RoutePreloader() {
     // Preload everything else after a tiny delay
     const timeoutId = setTimeout(preloadAll, 50);
 
-    // Continue preloading on idle
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    // Continue preloading on idle (production only)
+    if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       requestIdleCallback(() => {
         ALL_ROUTES.forEach(preloadRoute);
       }, { timeout: 1000 });

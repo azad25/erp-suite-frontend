@@ -1,26 +1,43 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, PencilIcon, PaperPlaneIcon } from "@/icons";
+
+interface Communication {
+  id: string;
+  customer: string;
+  type: string;
+  subject: string;
+  status: "Sent" | "Delivered" | "Read" | "Pending" | "Failed";
+  date: string;
+  channel: "Email" | "SMS" | "WhatsApp" | "Phone";
+}
 
 const CommunicationPage = () => {
-  const [communications] = useState([
+  const [communications] = useState<Communication[]>([
     { id: "COM-001", customer: "Tech Corp", type: "Email", subject: "Project Update", status: "Sent", date: "2024-02-26", channel: "Email" },
     { id: "COM-002", customer: "Design Studio", type: "SMS", subject: "Payment Reminder", status: "Delivered", date: "2024-02-25", channel: "SMS" },
     { id: "COM-003", customer: "Marketing Inc", type: "WhatsApp", subject: "Meeting Confirmation", status: "Read", date: "2024-02-24", channel: "WhatsApp" },
     { id: "COM-004", customer: "Startup Inc", type: "Email", subject: "Proposal Follow-up", status: "Pending", date: "2024-02-23", channel: "Email" },
+    { id: "COM-005", customer: "Enterprise Solutions", type: "Phone", subject: "Contract Discussion", status: "Failed", date: "2024-02-22", channel: "Phone" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Sent": return "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100";
-      case "Delivered": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Read": return "bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100";
-      case "Pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Failed": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewCommunication = (communication: Communication) => {
+    console.log("View communication:", communication);
+    // Navigate to communication detail page
+  };
+
+  const handleEditCommunication = (communication: Communication) => {
+    console.log("Edit communication:", communication);
+    // Navigate to edit communication page
+  };
+
+  const handleResendCommunication = (communication: Communication) => {
+    console.log("Resend communication:", communication);
+    // Resend communication
   };
 
   const getChannelIcon = (channel: string) => {
@@ -32,6 +49,86 @@ const CommunicationPage = () => {
       default: return "💬";
     }
   };
+
+  const columns: DataTableColumn<Communication>[] = [
+    {
+      key: "customer",
+      header: "Customer",
+      searchable: true,
+    },
+    {
+      key: "channel",
+      header: "Channel",
+      render: (communication) => (
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{getChannelIcon(communication.channel)}</span>
+          <span className="text-gray-600 dark:text-gray-400">{communication.channel}</span>
+        </div>
+      ),
+    },
+    {
+      key: "subject",
+      header: "Subject",
+      searchable: true,
+      render: (communication) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{communication.subject}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{communication.type}</div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (communication) => {
+        const statusColors = {
+          Sent: "info" as const,
+          Delivered: "success" as const,
+          Read: "success" as const,
+          Pending: "warning" as const,
+          Failed: "error" as const,
+        };
+        return (
+          <Badge color={statusColors[communication.status]}>
+            {communication.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "date",
+      header: "Date",
+      render: (communication) => (
+        <span className="text-gray-600 dark:text-gray-400">{communication.date}</span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Communication>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewCommunication,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <PencilIcon className="w-4 h-4" />,
+      onClick: handleEditCommunication,
+      variant: "ghost",
+      hidden: (communication) => communication.status === "Read" || communication.status === "Delivered",
+    },
+    {
+      key: "resend",
+      label: "Resend",
+      icon: <PaperPlaneIcon className="w-4 h-4" />,
+      onClick: handleResendCommunication,
+      variant: "ghost",
+      hidden: (communication) => communication.status === "Read" || communication.status === "Delivered",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -68,85 +165,19 @@ const CommunicationPage = () => {
           </div>
         </div>
 
-        <div className="mb-4 flex gap-4">
-          <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option>All Channels</option>
-            <option>Email</option>
-            <option>SMS</option>
-            <option>WhatsApp</option>
-            <option>Phone</option>
-          </select>
-          <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option>All Status</option>
-            <option>Sent</option>
-            <option>Delivered</option>
-            <option>Read</option>
-            <option>Pending</option>
-          </select>
-          <input
-            type="date"
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            defaultValue="2024-02-26"
-          />
-        </div>
-
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Customer
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Channel
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Subject
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {communications.map((comm) => (
-              <TableRow key={comm.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{comm.customer}</div>
-                    <div className="text-xs text-gray-500">{comm.id}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  <div className="flex items-center">
-                    <span className="mr-2">{getChannelIcon(comm.channel)}</span>
-                    {comm.channel}
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {comm.subject}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(comm.status)}`}>
-                    {comm.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {comm.date}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">View</Button>
-                  <Button variant="link">Reply</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={communications}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search communications..."
+          searchKeys={["customer", "subject", "type"]}
+          title="Customer Communication"
+          description="Track and manage all customer communications"
+          showHeader={true}
+          emptyMessage="No communications found"
+          sortable={true}
+        />
       </div>
     </div>
   );

@@ -1,14 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import ComponentCard from "@/components/common/ComponentCard";
-import FeatureCard from "@/components/common/FeatureCard";
-import StatsCard from "@/components/common/StatsCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card/Card";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
+import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
+import LoadingLogo from "@/components/common/LoadingLogo";
 import { PlugInIcon, ChatIcon, BoltIcon, BellIcon, BoxIcon, PlusIcon, CheckCircleIcon } from "@/icons";
+
+const LazyComponentCard = lazy(() => import("@/components/common/ComponentCard"));
+const LazyFeatureCard = lazy(() => import("@/components/common/FeatureCard"));
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyCard = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.Card })));
+const LazyCardContent = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.CardContent })));
+const LazyBadge = lazy(() => import("@/components/ui/badge/Badge"));
+const LazyButton = lazy(() => import("@/components/ui/button/Button"));
 
 const AIDashboardPage = () => {
   const aiFeatures = [
@@ -61,142 +65,159 @@ const AIDashboardPage = () => {
   ];
 
   return (
-    <DashboardLayout
-      title="AI Copilot Dashboard"
-      description="Leverage artificial intelligence to enhance your workflow and productivity"
-      icon={<BoltIcon />}
-    >
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="AI Conversations"
-          value="1,234"
-          icon={<ChatIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="Insights Generated"
-          value="567"
-          icon={<BoltIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="Tasks Automated"
-          value="89"
-          icon={<BellIcon />}
-          color="yellow"
-        />
-        <StatsCard
-          title="Active Workflows"
-          value="45"
-          icon={<BoxIcon />}
-          color="purple"
-        />
-      </div>
-
-      {/* AI Features */}
-      <ComponentCard title="AI Features & Tools" desc="Access and manage AI-powered tools and features">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {aiFeatures.map((feature, index) => (
-            <FeatureCard
-              key={index}
-              title={feature.title}
-              description={feature.description}
-              icon={feature.icon}
-              path={feature.path}
-              color={feature.color}
-              stats={feature.stats}
-              className="h-full"
-            />
-          ))}
-        </div>
-      </ComponentCard>
-
-      {/* Recent Activity & Performance Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ComponentCard title="Recent AI Activity" desc="Latest AI interactions and automated actions">
-          <div className="space-y-3">
-            {recentActivity.map((activity, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${activity.status === 'success' ? 'bg-green-500' :
-                      activity.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                      }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {activity.action}
-                        </p>
-                        <Badge
-                          variant="light"
-                          color={activity.status === 'success' ? 'success' : activity.status === 'warning' ? 'warning' : 'error'}
-                          size="sm"
-                        >
-                          {activity.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        Type: {activity.type}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ComponentCard>
-
-        <ComponentCard title="AI Performance Metrics" desc="Key AI performance indicators">
-          <div className="space-y-4">
-            {aiMetrics.map((metric, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm text-gray-900 dark:text-white">
-                        {metric.metric}
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {metric.value}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="light"
-                      color={metric.change.startsWith('+') || metric.change.startsWith('-') && metric.metric.includes('Time') ? "success" : "info"}
-                      size="sm"
-                    >
-                      {metric.change}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ComponentCard>
-      </div>
-
-      {/* Quick Actions */}
-      <ComponentCard title="Quick Actions" desc="Frequently used AI actions and configurations">
+    <Suspense fallback={<LoadingLogo withText />}>
+      <DashboardLayout
+        title="AI Copilot Dashboard"
+        description="Leverage artificial intelligence to enhance your workflow and productivity"
+        icon={<BoltIcon />}
+      >
+        {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Button variant="primary" className="justify-start" startIcon={<ChatIcon />}>
-            Start AI Chat
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<BoltIcon />}>
-            Generate Insights
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<PlusIcon />}>
-            Create Workflow
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<CheckCircleIcon />}>
-            Configure AI
-          </Button>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="AI Conversations"
+              value="1,234"
+              icon={<ChatIcon />}
+              color="blue"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Insights Generated"
+              value="567"
+              icon={<BoltIcon />}
+              color="green"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Tasks Automated"
+              value="89"
+              icon={<BellIcon />}
+              color="yellow"
+            />
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+            <LazyStatsCard
+              title="Active Workflows"
+              value="45"
+              icon={<BoxIcon />}
+              color="purple"
+            />
+          </LazyComponent>
         </div>
-      </ComponentCard>
-    </DashboardLayout>
+        {/* AI Features */}
+        <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+          <LazyComponentCard title="AI Features & Tools" desc="Access and manage AI-powered tools and features">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {aiFeatures.map((feature, index) => (
+                <LazyComponent key={index} fallback={<ComponentSkeleton height="h-32" />}>
+                  <LazyFeatureCard
+                    title={feature.title}
+                    description={feature.description}
+                    icon={feature.icon}
+                    path={feature.path}
+                    color={feature.color}
+                    stats={feature.stats}
+                    className="h-full"
+                  />
+                </LazyComponent>
+              ))}
+            </div>
+          </LazyComponentCard>
+        </LazyComponent>
+        {/* Recent Activity & Performance Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+            <LazyComponentCard title="Recent AI Activity" desc="Latest AI interactions and automated actions">
+              <div className="space-y-3">
+                {recentActivity.map((activity, index) => (
+                  <LazyComponent key={index} fallback={<ComponentSkeleton height="h-20" />}>
+                    <LazyCard>
+                      <LazyCardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-2 h-2 rounded-full mt-2 ${activity.status === 'success' ? 'bg-green-500' :
+                            activity.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {activity.action}
+                              </p>
+                              <LazyBadge
+                                variant="light"
+                                color={activity.status === 'success' ? 'success' : activity.status === 'warning' ? 'warning' : 'error'}
+                                size="sm"
+                              >
+                                {activity.status}
+                              </LazyBadge>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Type: {activity.type}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {activity.time}
+                            </p>
+                          </div>
+                        </div>
+                      </LazyCardContent>
+                    </LazyCard>
+                  </LazyComponent>
+                ))}
+              </div>
+            </LazyComponentCard>
+          </LazyComponent>
+          <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+            <LazyComponentCard title="AI Performance Metrics" desc="Key AI performance indicators">
+              <div className="space-y-4">
+                {aiMetrics.map((metric, index) => (
+                  <LazyComponent key={index} fallback={<ComponentSkeleton height="h-20" />}>
+                    <LazyCard>
+                      <LazyCardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm text-gray-900 dark:text-white">
+                              {metric.metric}
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                              {metric.value}
+                            </p>
+                          </div>
+                          <LazyBadge
+                            variant="light"
+                            color={metric.change.startsWith('+') || metric.change.startsWith('-') && metric.metric.includes('Time') ? "success" : "info"}
+                            size="sm"
+                          >
+                            {metric.change}
+                          </LazyBadge>
+                        </div>
+                      </LazyCardContent>
+                    </LazyCard>
+                  </LazyComponent>
+                ))}
+              </div>
+            </LazyComponentCard>
+          </LazyComponent>
+        </div>
+        {/* Quick Actions */}
+        <LazyComponentCard title="Quick Actions" desc="Frequently used AI actions and configurations">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <LazyButton variant="primary" className="justify-start" startIcon={<ChatIcon />}>
+              Start AI Chat
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<BoltIcon />}>
+              Generate Insights
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<PlusIcon />}>
+              Create Workflow
+            </LazyButton>
+            <LazyButton variant="outline" className="justify-start" startIcon={<CheckCircleIcon />}>
+              Configure AI
+            </LazyButton>
+          </div>
+        </LazyComponentCard>
+      </DashboardLayout>
+    </Suspense>
   );
 };
 

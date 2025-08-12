@@ -1,25 +1,129 @@
 "use client";
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import DataTable, { DataTableColumn, DataTableAction } from "@/components/common/DataTable";
 import Button from "@/components/ui/button/Button";
-import { Table, TableHeader, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import Badge from "@/components/ui/badge/Badge";
+import { EyeIcon, PencilIcon, CheckCircleIcon } from "@/icons";
+
+interface Bill {
+  id: string;
+  supplier: string;
+  amount: string;
+  status: "Draft" | "Pending" | "Paid" | "Overdue";
+  billDate: string;
+  dueDate: string;
+  poNumber: string;
+}
 
 const BillsPage = () => {
-  const [bills] = useState([
+  const [bills] = useState<Bill[]>([
     { id: "BILL-001", supplier: "Tech Solutions Ltd", amount: "$15,000", status: "Pending", billDate: "2024-02-25", dueDate: "2024-03-25", poNumber: "PO-001" },
     { id: "BILL-002", supplier: "Office Supplies Co", amount: "$3,500", status: "Paid", billDate: "2024-02-20", dueDate: "2024-03-20", poNumber: "PO-002" },
     { id: "BILL-003", supplier: "Manufacturing Parts Inc", amount: "$25,000", status: "Overdue", billDate: "2024-01-15", dueDate: "2024-02-15", poNumber: "PO-003" },
+    { id: "BILL-004", supplier: "Software Licenses Co", amount: "$8,500", status: "Draft", billDate: "2024-02-28", dueDate: "2024-03-28", poNumber: "PO-004" },
+    { id: "BILL-005", supplier: "Consulting Services", amount: "$12,000", status: "Paid", billDate: "2024-02-10", dueDate: "2024-03-10", poNumber: "PO-005" },
   ]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Draft": return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-      case "Pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100";
-      case "Paid": return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
-      case "Overdue": return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
+  const handleViewBill = (bill: Bill) => {
+    console.log("View bill:", bill);
+    // Navigate to bill detail page
   };
+
+  const handleEditBill = (bill: Bill) => {
+    console.log("Edit bill:", bill);
+    // Navigate to edit bill page
+  };
+
+  const handlePayBill = (bill: Bill) => {
+    console.log("Pay bill:", bill);
+    // Process bill payment
+  };
+
+  const columns: DataTableColumn<Bill>[] = [
+    {
+      key: "id",
+      header: "Bill Number",
+      searchable: true,
+      render: (bill) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-white/90">{bill.id}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">PO: {bill.poNumber}</div>
+        </div>
+      ),
+    },
+    {
+      key: "supplier",
+      header: "Supplier",
+      searchable: true,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (bill) => (
+        <span className="font-medium text-gray-800 dark:text-white/90">{bill.amount}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (bill) => {
+        const statusColors = {
+          Draft: "light" as const,
+          Pending: "warning" as const,
+          Paid: "success" as const,
+          Overdue: "error" as const,
+        };
+        return (
+          <Badge color={statusColors[bill.status]}>
+            {bill.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "billDate",
+      header: "Bill Date",
+      render: (bill) => (
+        <span className="text-gray-600 dark:text-gray-400">{bill.billDate}</span>
+      ),
+    },
+    {
+      key: "dueDate",
+      header: "Due Date",
+      render: (bill) => (
+        <span className={`${bill.status === 'Overdue' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+          {bill.dueDate}
+        </span>
+      ),
+    },
+  ];
+
+  const actions: DataTableAction<Bill>[] = [
+    {
+      key: "view",
+      label: "View",
+      icon: <EyeIcon className="w-4 h-4" />,
+      onClick: handleViewBill,
+      variant: "ghost",
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <PencilIcon className="w-4 h-4" />,
+      onClick: handleEditBill,
+      variant: "ghost",
+      hidden: (bill) => bill.status === "Paid",
+    },
+    {
+      key: "pay",
+      label: "Pay",
+      icon: <CheckCircleIcon className="w-4 h-4" />,
+      onClick: handlePayBill,
+      variant: "ghost",
+      hidden: (bill) => bill.status === "Paid" || bill.status === "Draft",
+    },
+  ];
 
   return (
     <div className="p-6">
@@ -52,66 +156,19 @@ const BillsPage = () => {
           </div>
         </div>
 
-        <Table className="border border-gray-200 dark:border-gray-700">
-          <TableHeader>
-            <TableRow className="bg-gray-50 dark:bg-gray-700">
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Bill Number
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Supplier
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Amount
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Status
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Bill Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Due Date
-              </TableCell>
-              <TableCell isHeader className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bills.map((bill) => (
-              <TableRow key={bill.id} className="border-b border-gray-200 dark:border-gray-700">
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  <div>
-                    <div>{bill.id}</div>
-                    <div className="text-xs text-gray-500">PO: {bill.poNumber}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {bill.supplier}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                  {bill.amount}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(bill.status)}`}>
-                    {bill.status}
-                  </span>
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {bill.billDate}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                  {bill.dueDate}
-                </TableCell>
-                <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button variant="link" className="mr-4">View</Button>
-                  <Button variant="link">Pay</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={bills}
+          columns={columns}
+          actions={actions}
+          searchable={true}
+          searchPlaceholder="Search bills..."
+          searchKeys={["id", "supplier", "poNumber"]}
+          title="Supplier Bills"
+          description="Track and manage all supplier bills and payments"
+          showHeader={true}
+          emptyMessage="No bills found"
+          sortable={true}
+        />
       </div>
     </div>
   );

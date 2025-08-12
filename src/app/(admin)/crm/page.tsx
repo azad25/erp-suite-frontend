@@ -1,13 +1,8 @@
 "use client";
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import ComponentCard from "@/components/common/ComponentCard";
-import FeatureCard from "@/components/common/FeatureCard";
-import StatsCard from "@/components/common/StatsCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card/Card";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
+import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
 import {
   UserCircleIcon,
   UserIcon,
@@ -18,6 +13,17 @@ import {
   CheckCircleIcon,
   PlusIcon
 } from "@/icons";
+
+// Lazy load heavy components
+const LazyComponentCard = lazy(() => import("@/components/common/ComponentCard"));
+const LazyFeatureCard = lazy(() => import("@/components/common/FeatureCard"));
+const LazyStatsCard = lazy(() => import("@/components/common/StatsCard"));
+const LazyCard = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.Card })));
+const LazyCardHeader = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.CardHeader })));
+const LazyCardTitle = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.CardTitle })));
+const LazyCardContent = lazy(() => import("@/components/ui/card/Card").then(mod => ({ default: mod.CardContent })));
+const LazyBadge = lazy(() => import("@/components/ui/badge/Badge"));
+const LazyButton = lazy(() => import("@/components/ui/button/Button"));
 
 const CRMDashboardPage = memo(() => {
   // Remove artificial loading delay - data should load instantly for static content
@@ -96,79 +102,90 @@ const CRMDashboardPage = memo(() => {
     >
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total Leads"
-          value="156"
-          icon={<UserIcon />}
-          color="blue"
-        />
-        <StatsCard
-          title="Active Opportunities"
-          value="34"
-          icon={<DollarLineIcon />}
-          color="green"
-        />
-        <StatsCard
-          title="Total Customers"
-          value="89"
-          icon={<UserCircleIcon />}
-          color="purple"
-        />
-        <StatsCard
-          title="Pipeline Value"
-          value="$245,600"
-          icon={<PieChartIcon />}
-          color="yellow"
-        />
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Leads"
+            value="156"
+            icon={<UserIcon />}
+            color="blue"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Active Opportunities"
+            value="34"
+            icon={<DollarLineIcon />}
+            color="green"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Total Customers"
+            value="89"
+            icon={<UserCircleIcon />}
+            color="purple"
+          />
+        </LazyComponent>
+        <LazyComponent fallback={<ComponentSkeleton height="h-24" />}>
+          <LazyStatsCard
+            title="Pipeline Value"
+            value="$245,600"
+            icon={<PieChartIcon />}
+            color="yellow"
+          />
+        </LazyComponent>
       </div>
 
       {/* CRM Tools using existing card grid layout */}
-      <ComponentCard title="CRM Tools & Features" desc="Access all your customer relationship management tools">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {crmFeatures.map((feature, index) => (
-            <FeatureCard
-              key={index}
-              title={feature.title}
-              description={feature.description}
-              icon={feature.icon}
-              path={feature.path}
-              color={feature.color}
-              stats={feature.stats}
-              className="h-full"
-            />
-          ))}
-        </div>
-      </ComponentCard>
+      <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
+        <LazyComponentCard title="CRM Tools & Features" desc="Access all your customer relationship management tools">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {crmFeatures.map((feature, index) => (
+              <LazyComponent key={index} fallback={<ComponentSkeleton height="h-32" />}>
+                <LazyFeatureCard
+                  title={feature.title}
+                  description={feature.description}
+                  icon={feature.icon}
+                  path={feature.path}
+                  color={feature.color}
+                  stats={feature.stats}
+                  className="h-full"
+                />
+              </LazyComponent>
+            ))}
+          </div>
+        </LazyComponentCard>
+      </LazyComponent>
 
       {/* Pipeline Overview & Recent Activities */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ComponentCard title="Pipeline Overview" desc="Track your sales pipeline progress">
+        <LazyComponentCard title="Pipeline Overview" desc="Track your sales pipeline progress">
           <div className="space-y-3">
             {pipelineOverview.map((stage, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
+              <LazyCard key={index}>
+                <LazyCardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-medium text-sm text-gray-900 dark:text-white">
                       {stage.stage}
                     </p>
-                    <Badge variant="light" color={stage.color as any} size="sm">
+                    <LazyBadge variant="light" color={stage.color as any} size="sm">
                       {stage.count}
-                    </Badge>
+                    </LazyBadge>
                   </div>
                   <p className="text-lg font-bold text-gray-900 dark:text-white">
                     {stage.value || `${stage.count} items`}
                   </p>
-                </CardContent>
-              </Card>
+                </LazyCardContent>
+              </LazyCard>
             ))}
           </div>
-        </ComponentCard>
+        </LazyComponentCard>
 
-        <ComponentCard title="Recent Activities" desc="Latest CRM activities and updates">
+        <LazyComponentCard title="Recent Activities" desc="Latest CRM activities and updates">
           <div className="space-y-3">
             {recentActivities.map((activity, index) => (
-              <Card key={index}>
-                <CardContent className="p-4">
+              <LazyCard key={index}>
+                <LazyCardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className={`w-2 h-2 rounded-full mt-2 ${activity.type === "lead" ? "bg-blue-500" :
                       activity.type === "opportunity" ? "bg-green-500" :
@@ -182,7 +199,7 @@ const CRMDashboardPage = memo(() => {
                         {activity.time}
                       </p>
                     </div>
-                    <Badge
+                    <LazyBadge
                       variant="light"
                       color={
                         activity.type === "lead" ? "primary" :
@@ -192,24 +209,24 @@ const CRMDashboardPage = memo(() => {
                       size="sm"
                     >
                       {activity.type}
-                    </Badge>
+                    </LazyBadge>
                   </div>
-                </CardContent>
-              </Card>
+                </LazyCardContent>
+              </LazyCard>
             ))}
           </div>
-        </ComponentCard>
+        </LazyComponentCard>
       </div>
 
       {/* Performance Metrics using existing stats card pattern */}
-      <ComponentCard title="Performance Metrics" desc="Key performance indicators for your CRM">
+      <LazyComponentCard title="Performance Metrics" desc="Key performance indicators for your CRM">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">Lead Conversion Rate</CardTitle>
-              <Badge variant="light" color="success" size="sm">+5%</Badge>
-            </CardHeader>
-            <CardContent>
+          <LazyCard>
+            <LazyCardHeader className="flex flex-row items-center justify-between">
+              <LazyCardTitle className="text-sm font-medium">Lead Conversion Rate</LazyCardTitle>
+              <LazyBadge variant="light" color="success" size="sm">+5%</LazyBadge>
+            </LazyCardHeader>
+            <LazyCardContent>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                   <UserIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -219,19 +236,19 @@ const CRMDashboardPage = memo(() => {
                 </div>
               </div>
               <div className="mt-4">
-                <Button size="sm" variant="outline" className="w-full">
+                <LazyButton size="sm" variant="outline" className="w-full">
                   View Details
-                </Button>
+                </LazyButton>
               </div>
-            </CardContent>
-          </Card>
+            </LazyCardContent>
+          </LazyCard>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">Avg. Deal Size</CardTitle>
-              <Badge variant="light" color="success" size="sm">+12%</Badge>
-            </CardHeader>
-            <CardContent>
+          <LazyCard>
+            <LazyCardHeader className="flex flex-row items-center justify-between">
+              <LazyCardTitle className="text-sm font-medium">Avg. Deal Size</LazyCardTitle>
+              <LazyBadge variant="light" color="success" size="sm">+12%</LazyBadge>
+            </LazyCardHeader>
+            <LazyCardContent>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
                   <DollarLineIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -241,19 +258,19 @@ const CRMDashboardPage = memo(() => {
                 </div>
               </div>
               <div className="mt-4">
-                <Button size="sm" variant="outline" className="w-full">
+                <LazyButton size="sm" variant="outline" className="w-full">
                   View Details
-                </Button>
+                </LazyButton>
               </div>
-            </CardContent>
-          </Card>
+            </LazyCardContent>
+          </LazyCard>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">Avg. Sales Cycle</CardTitle>
-              <Badge variant="light" color="success" size="sm">-8%</Badge>
-            </CardHeader>
-            <CardContent>
+          <LazyCard>
+            <LazyCardHeader className="flex flex-row items-center justify-between">
+              <LazyCardTitle className="text-sm font-medium">Avg. Sales Cycle</LazyCardTitle>
+              <LazyBadge variant="light" color="success" size="sm">-8%</LazyBadge>
+            </LazyCardHeader>
+            <LazyCardContent>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
                   <TimeIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -263,19 +280,19 @@ const CRMDashboardPage = memo(() => {
                 </div>
               </div>
               <div className="mt-4">
-                <Button size="sm" variant="outline" className="w-full">
+                <LazyButton size="sm" variant="outline" className="w-full">
                   View Details
-                </Button>
+                </LazyButton>
               </div>
-            </CardContent>
-          </Card>
+            </LazyCardContent>
+          </LazyCard>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-              <Badge variant="light" color="success" size="sm">+3%</Badge>
-            </CardHeader>
-            <CardContent>
+          <LazyCard>
+            <LazyCardHeader className="flex flex-row items-center justify-between">
+              <LazyCardTitle className="text-sm font-medium">Win Rate</LazyCardTitle>
+              <LazyBadge variant="light" color="success" size="sm">+3%</LazyBadge>
+            </LazyCardHeader>
+            <LazyCardContent>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
                   <CheckCircleIcon className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
@@ -285,32 +302,32 @@ const CRMDashboardPage = memo(() => {
                 </div>
               </div>
               <div className="mt-4">
-                <Button size="sm" variant="outline" className="w-full">
+                <LazyButton size="sm" variant="outline" className="w-full">
                   View Details
-                </Button>
+                </LazyButton>
               </div>
-            </CardContent>
-          </Card>
+            </LazyCardContent>
+          </LazyCard>
         </div>
-      </ComponentCard>
+      </LazyComponentCard>
 
       {/* Quick Actions */}
-      <ComponentCard title="Quick Actions" desc="Frequently used CRM actions">
+      <LazyComponentCard title="Quick Actions" desc="Frequently used CRM actions">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Button variant="primary" className="justify-start" startIcon={<PlusIcon />}>
+          <LazyButton variant="primary" className="justify-start" startIcon={<PlusIcon />}>
             Add New Lead
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<DollarLineIcon />}>
+          </LazyButton>
+          <LazyButton variant="outline" className="justify-start" startIcon={<DollarLineIcon />}>
             Create Opportunity
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<UserCircleIcon />}>
+          </LazyButton>
+          <LazyButton variant="outline" className="justify-start" startIcon={<UserCircleIcon />}>
             Add Customer
-          </Button>
-          <Button variant="outline" className="justify-start" startIcon={<PieChartIcon />}>
+          </LazyButton>
+          <LazyButton variant="outline" className="justify-start" startIcon={<PieChartIcon />}>
             View Reports
-          </Button>
+          </LazyButton>
         </div>
-      </ComponentCard>
+      </LazyComponentCard>
     </DashboardLayout>
   );
 });

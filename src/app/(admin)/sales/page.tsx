@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, lazy } from "react";
+import React, { memo, useMemo, lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
 import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
 import { DollarLineIcon, PieChartIcon, BoxIcon, TimeIcon, UserIcon, PlusIcon, CheckCircleIcon } from "@/icons";
@@ -14,8 +14,9 @@ const LazyCardContent = lazy(() => import("@/components/ui/card/Card").then(mod 
 const LazyBadge = lazy(() => import("@/components/ui/badge/Badge"));
 const LazyButton = lazy(() => import("@/components/ui/button/Button"));
 
-const SalesDashboardPage = () => {
-  const salesFeatures = [
+const SalesDashboardPage = memo(() => {
+  // Memoize static data to prevent unnecessary re-renders
+  const salesFeatures = useMemo(() => [
     {
       title: "Lead Management",
       description: "Manage and track potential customers",
@@ -64,21 +65,21 @@ const SalesDashboardPage = () => {
       color: "red" as const,
       stats: "12 reports",
     },
-  ];
+  ], []);
 
-  const recentSales = [
+  const recentSales = useMemo(() => [
     { customer: "TechCorp Inc", amount: "$15,000", status: "Closed Won", date: "2 hours ago" },
     { customer: "Global Solutions", amount: "$8,500", status: "Proposal Sent", date: "1 day ago" },
     { customer: "StartupXYZ", amount: "$25,000", status: "Negotiation", date: "2 days ago" },
     { customer: "Enterprise Ltd", amount: "$12,000", status: "Qualified", date: "3 days ago" },
-  ];
+  ], []);
 
-  const salesMetrics = [
+  const salesMetrics = useMemo(() => [
     { metric: "Conversion Rate", value: "24.5%", change: "+5.2%" },
     { metric: "Avg. Deal Size", value: "$8,450", change: "+12%" },
     { metric: "Sales Cycle", value: "32 days", change: "-8%" },
     { metric: "Win Rate", value: "68%", change: "+3%" },
-  ];
+  ], []);
 
   return (
     <DashboardLayout
@@ -123,7 +124,7 @@ const SalesDashboardPage = () => {
       </div>
 
       {/* Sales Tools */}
-      <LazyComponent fallback={<ComponentSkeleton height="h-96" />}>
+      <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
         <LazyComponentCard title="Sales Tools & Features" desc="Access all your sales management tools">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {salesFeatures.map((feature, index) => (
@@ -145,7 +146,7 @@ const SalesDashboardPage = () => {
 
       {/* Recent Sales & Performance Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <LazyComponent fallback={<ComponentSkeleton height="h-80" />}>
+        <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
           <LazyComponentCard title="Recent Sales Activity" desc="Latest sales activities and updates">
             <div className="space-y-3">
               {recentSales.map((sale, index) => (
@@ -156,7 +157,7 @@ const SalesDashboardPage = () => {
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {sale.customer}
                         </h4>
-                        <LazyComponent fallback={<div className="w-16 h-6 bg-gray-200 rounded animate-pulse" />}>
+                        <Suspense fallback={<div className="h-5 w-16 bg-gray-200 rounded animate-pulse" />}>
                           <LazyBadge 
                             variant="light" 
                             color={
@@ -168,7 +169,7 @@ const SalesDashboardPage = () => {
                           >
                             {sale.status}
                           </LazyBadge>
-                        </LazyComponent>
+                        </Suspense>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-lg font-bold text-gray-900 dark:text-white">
@@ -186,7 +187,7 @@ const SalesDashboardPage = () => {
           </LazyComponentCard>
         </LazyComponent>
 
-        <LazyComponent fallback={<ComponentSkeleton height="h-80" />}>
+        <LazyComponent fallback={<ComponentSkeleton height="h-64" />}>
           <LazyComponentCard title="Performance Metrics" desc="Key sales performance indicators">
             <div className="space-y-4">
               {salesMetrics.map((metric, index) => (
@@ -202,7 +203,7 @@ const SalesDashboardPage = () => {
                             {metric.value}
                           </p>
                         </div>
-                        <LazyComponent fallback={<div className="w-12 h-6 bg-gray-200 rounded animate-pulse" />}>
+                        <Suspense fallback={<div className="h-5 w-12 bg-gray-200 rounded animate-pulse" />}>
                           <LazyBadge 
                             variant="light" 
                             color={metric.change.startsWith('+') ? "success" : "error"}
@@ -210,7 +211,7 @@ const SalesDashboardPage = () => {
                           >
                             {metric.change}
                           </LazyBadge>
-                        </LazyComponent>
+                        </Suspense>
                       </div>
                     </LazyCardContent>
                   </LazyCard>
@@ -225,31 +226,33 @@ const SalesDashboardPage = () => {
       <LazyComponent fallback={<ComponentSkeleton height="h-32" />}>
         <LazyComponentCard title="Quick Actions" desc="Frequently used sales actions">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <LazyComponent fallback={<div className="w-full h-10 bg-gray-200 rounded animate-pulse" />}>
+            <Suspense fallback={<ComponentSkeleton height="h-10" />}>
               <LazyButton variant="primary" className="justify-start" startIcon={<PlusIcon />}>
                 Add New Lead
               </LazyButton>
-            </LazyComponent>
-            <LazyComponent fallback={<div className="w-full h-10 bg-gray-200 rounded animate-pulse" />}>
+            </Suspense>
+            <Suspense fallback={<ComponentSkeleton height="h-10" />}>
               <LazyButton variant="outline" className="justify-start" startIcon={<DollarLineIcon />}>
                 Create Opportunity
               </LazyButton>
-            </LazyComponent>
-            <LazyComponent fallback={<div className="w-full h-10 bg-gray-200 rounded animate-pulse" />}>
+            </Suspense>
+            <Suspense fallback={<ComponentSkeleton height="h-10" />}>
               <LazyButton variant="outline" className="justify-start" startIcon={<BoxIcon />}>
                 Generate Quote
               </LazyButton>
-            </LazyComponent>
-            <LazyComponent fallback={<div className="w-full h-10 bg-gray-200 rounded animate-pulse" />}>
+            </Suspense>
+            <Suspense fallback={<ComponentSkeleton height="h-10" />}>
               <LazyButton variant="outline" className="justify-start" startIcon={<CheckCircleIcon />}>
                 Create Invoice
               </LazyButton>
-            </LazyComponent>
+            </Suspense>
           </div>
         </LazyComponentCard>
       </LazyComponent>
     </DashboardLayout>
   );
-};
+});
+
+SalesDashboardPage.displayName = 'SalesDashboardPage';
 
 export default SalesDashboardPage; 
