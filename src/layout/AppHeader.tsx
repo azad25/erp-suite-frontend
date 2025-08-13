@@ -1,6 +1,8 @@
 "use client";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
+import InboxDropdown from "@/components/header/InboxDropdown";
+import ChatbotWidget from "@/components/header/ChatbotWidget";
 import UserDropdown from "@/components/header/UserDropdown";
 import SearchBar from "@/components/search/SearchBar";
 import MobileSearchBar from "@/components/search/MobileSearchBar";
@@ -146,6 +148,14 @@ const AppHeader: React.FC = () => {
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
+
+            {/* <!-- Inbox Dropdown --> */}
+            <InboxDropdown />
+            {/* <!-- Inbox Dropdown --> */}
+
+            {/* <!-- Chatbot Widget --> */}
+            <ChatbotWidget />
+            {/* <!-- Chatbot Widget --> */}
 
             <NotificationDropdown />
             {/* <!-- Notification Menu Area --> */}

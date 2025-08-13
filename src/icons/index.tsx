@@ -49,6 +49,7 @@ import DocsIcon from "./docs.svg";
 import MailIcon from "./mail-line.svg";
 import HorizontaLDots from "./horizontal-dots.svg";
 import ChatIcon from "./chat.svg";
+import ChatbotIcon from "./chatbot.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
 
@@ -117,6 +118,7 @@ export {
   HorizontaLDots,
   ChevronUpIcon,
   ChatIcon,
+  ChatbotIcon,
   // Export missing icon aliases
   EditIcon,
   ReceiptIcon,
