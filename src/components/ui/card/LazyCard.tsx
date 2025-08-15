@@ -1,7 +1,7 @@
 "use client";
 
 import React, { lazy, Suspense } from "react";
-import { LazyComponentLoader } from "@/components/performance/LazyComponentLoader";
+import { LazyComponent } from "@/components/common/LazyWrapper";
 
 // Lazy load the card components
 const Card = lazy(() => import("./Card").then(mod => ({ default: mod.Card })));
@@ -34,15 +34,11 @@ export const LazyCard: React.FC<LazyCardProps> = ({
   rootMargin = "50px"
 }) => {
   return (
-    <LazyComponentLoader 
-      threshold={threshold}
-      rootMargin={rootMargin}
-      fallback={<CardSkeleton />}
-    >
+    <LazyComponent fallback={<CardSkeleton />}>
       <Card className={className}>
         {children}
       </Card>
-    </LazyComponentLoader>
+    </LazyComponent>
   );
 };
 

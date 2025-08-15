@@ -221,6 +221,7 @@ const othersItems: NavItem[] = [
     icon: <BoxIcon />,
     subItems: [
       { name: "System Settings", path: "/settings/system", pro: false },
+      { name: "Language Management", path: "/settings/languages", pro: false },
       { name: "Integrations", path: "/settings/integrations", pro: false },
       { name: "Data Import/Export", path: "/settings/data", pro: false },
     ],

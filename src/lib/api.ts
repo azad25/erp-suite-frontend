@@ -1,5 +1,6 @@
 import { getErrorMessage, parseFieldErrors } from './errorMessages';
 import { getRuntimeConfig } from './runtime-config';
+import { authInterceptor } from './auth-interceptor';
 import { User, LoginRequest, RegisterRequest, AuthResponse, ApiResponse, normalizeUser } from '@/types/user';
 
 // Re-export types for convenience
@@ -68,13 +69,8 @@ class ApiClient {
     const defaultHeaders: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Connection': 'keep-alive', // Reuse connections
     };
-
-    // Add auth token if available
-    const token = this.getToken();
-    if (token) {
-      defaultHeaders['Authorization'] = `Bearer ${token}`;
-    }
 
     // Add caching headers for GET requests
     const config: RequestInit = {
@@ -83,6 +79,8 @@ class ApiClient {
         ...defaultHeaders,
         ...options.headers,
       },
+      // Add timeout for faster failure detection
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     };
 
     // Enable browser caching for GET requests
@@ -103,7 +101,8 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(url, config);
+      // Use auth interceptor for all requests to handle token expiration
+      const response = await authInterceptor.interceptRequest(url, config);
 
       // Handle non-JSON responses
       let data;
@@ -271,8 +270,8 @@ class ApiClient {
     if (response.success && response.data && response.data.data) {
       const authData = response.data.data;
 
-      this.setToken(authData.access_token);
-      localStorage.setItem('refresh_token', authData.refresh_token);
+      // Use auth interceptor to store tokens with proper expiration handling
+      authInterceptor.storeToken(authData.access_token, authData.refresh_token, authData.expires_in);
       localStorage.setItem('user', JSON.stringify(authData.user));
     }
 
@@ -310,8 +309,8 @@ class ApiClient {
         };
       }
 
-      this.setToken(authData.access_token);
-      localStorage.setItem('refresh_token', authData.refresh_token);
+      // Use auth interceptor to store tokens with proper expiration handling
+      authInterceptor.storeToken(authData.access_token, authData.refresh_token, authData.expires_in);
       localStorage.setItem('user', JSON.stringify(authData.user));
 
       // Return flattened structure for consistency
@@ -331,12 +330,12 @@ class ApiClient {
         method: 'POST',
       });
 
-      // Always remove token regardless of API response
-      this.removeToken();
+      // Always clear auth data regardless of API response
+      authInterceptor.clearAuth();
       return response;
     } catch (error) {
       // Even if logout API fails, clear local tokens
-      this.removeToken();
+      authInterceptor.clearAuth();
       console.error('Logout API error:', error);
       return {
         success: true, // Return success since we cleared local tokens
@@ -371,8 +370,8 @@ class ApiClient {
     });
 
     if (response.success && response.data) {
-      this.setToken(response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
+      // Use auth interceptor to store tokens with proper expiration handling
+      authInterceptor.storeToken(response.data.access_token, response.data.refresh_token, response.data.expires_in);
     }
 
     return response;

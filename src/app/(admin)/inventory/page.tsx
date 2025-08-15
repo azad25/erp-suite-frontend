@@ -2,7 +2,7 @@
 
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
+import { LazyComponent, ComponentSkeleton } from "@/components/common/LazyWrapper";
 import { useLoading } from "@/context/LoadingContext";
 import { BoxIcon, PieChartIcon, TimeIcon, UserIcon, DollarLineIcon, PlusIcon, CheckCircleIcon, AlertIcon } from "@/icons";
 

@@ -34,6 +34,16 @@ interface DialogTitleProps {
   className?: string;
 }
 
+interface DialogDescriptionProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface DialogFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
 const Dialog: React.FC<DialogProps> = ({ children, open, onOpenChange }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open !== undefined ? open : internalOpen;
@@ -148,4 +158,20 @@ const DialogTitle: React.FC<DialogTitleProps> = ({ children, className = "" }) =
   );
 };
 
-export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle };
+const DialogDescription: React.FC<DialogDescriptionProps> = ({ children, className = "" }) => {
+  return (
+    <p className={`text-sm text-gray-500 dark:text-gray-400 ${className}`}>
+      {children}
+    </p>
+  );
+};
+
+const DialogFooter: React.FC<DialogFooterProps> = ({ children, className = "" }) => {
+  return (
+    <div className={`flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-0 ${className}`}>
+      {children}
+    </div>
+  );
+};
+
+export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter };

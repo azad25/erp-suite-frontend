@@ -12,6 +12,7 @@ import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import { userManagementService } from "@/services/userManagement";
 import { User } from "@/types/user";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import Image from "next/image";
 
 interface UserDetailsPageProps {
@@ -27,6 +28,8 @@ export default function UserDetailsPage({ params }: UserDetailsPageProps) {
   const [activeTab, setActiveTab] = useState<'permissions' | 'security' | 'activity'>('permissions');
   const [userId, setUserId] = useState<string>('');
   const router = useRouter();
+
+  usePageTitle("User Details", "Manage user information, permissions, and security settings");
 
   useEffect(() => {
     const getParams = async () => {

@@ -54,6 +54,7 @@
     "react-apexcharts": "^1.7.0",
     "react-dom": "^19.1.1",
     "react-dropzone": "^14.3.5",
+    "react-intl": "^7.1.11",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.6.0"
   },
@@ -78,6 +79,10 @@
       "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
     },
     "@react-jvectormap/world": {
+      "react": "^16.8.0 || ^17 || ^18 || ^19",
+      "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
+    },
+    "react-intl": {
       "react": "^16.8.0 || ^17 || ^18 || ^19",
       "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
     }

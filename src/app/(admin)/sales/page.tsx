@@ -2,7 +2,7 @@
 
 import React, { memo, useMemo, lazy, Suspense } from "react";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import { LazyComponent, ComponentSkeleton } from "@/components/performance/FastPageLoader";
+import { LazyComponent, ComponentSkeleton } from "@/components/common/LazyWrapper";
 import { DollarLineIcon, PieChartIcon, BoxIcon, TimeIcon, UserIcon, PlusIcon, CheckCircleIcon } from "@/icons";
 
 // Lazy load heavy components

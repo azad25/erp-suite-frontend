@@ -1,6 +1,43 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Performance optimizations for auth middleware
+const ROUTE_CACHE_SIZE = 100;
+
+// Fast token extraction with fallback
+function getFastToken(request: NextRequest): string | null {
+  // Try cookie first (fastest)
+  const cookieToken = request.cookies.get('access_token')?.value;
+  if (cookieToken && cookieToken !== 'undefined' && cookieToken !== 'null') {
+    return cookieToken;
+  }
+  
+  // Fallback to Authorization header
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  
+  return null;
+}
+
+// Check if token is expired based on token_data cookie
+function isTokenExpired(request: NextRequest): boolean {
+  const tokenDataCookie = request.cookies.get('token_data')?.value;
+  if (!tokenDataCookie) return true;
+
+  try {
+    const tokenData = JSON.parse(tokenDataCookie);
+    const now = Date.now() / 1000; // Current time in seconds
+    const expiresAt = tokenData.issued_at + tokenData.expires_in;
+    const bufferTime = 5 * 60; // 5 minutes buffer
+
+    return (expiresAt - bufferTime) <= now;
+  } catch (error) {
+    return true; // If we can't parse, consider expired
+  }
+}
+
 // Use Sets for O(1) lookup performance instead of arrays
 const protectedRoutes = new Set([
   '/',
@@ -48,6 +85,17 @@ const publicRoutes = new Set([
 
 // Cache for route matching to avoid repeated string operations
 const routeCache = new Map<string, { isProtected: boolean; isPublic: boolean }>();
+
+// LRU cache implementation for route matching
+function addToCache(key: string, value: { isProtected: boolean; isPublic: boolean }) {
+  if (routeCache.size >= ROUTE_CACHE_SIZE) {
+    const firstKey = routeCache.keys().next().value;
+    if (firstKey) {
+      routeCache.delete(firstKey);
+    }
+  }
+  routeCache.set(key, value);
+}
 
 function getRouteType(pathname: string): { isProtected: boolean; isPublic: boolean } {
   // Check cache first
@@ -115,15 +163,24 @@ export function middleware(request: NextRequest) {
   }
 
   // Fast token check - check cookie first as it's faster
-  const token = request.cookies.get('access_token')?.value;
+  const token = getFastToken(request);
 
-  if (isProtected && !token) {
-    const signInUrl = new URL('/signin', request.url);
-    signInUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(signInUrl);
+  if (isProtected) {
+    // Check if token exists and is not expired
+    if (!token || isTokenExpired(request)) {
+      const signInUrl = new URL('/signin', request.url);
+      signInUrl.searchParams.set('redirect', pathname);
+      
+      // Clear expired token cookies
+      const response = NextResponse.redirect(signInUrl);
+      response.cookies.delete('access_token');
+      response.cookies.delete('token_data');
+      
+      return response;
+    }
   }
 
-  if (isPublic && token && (pathname === '/signin' || pathname === '/signup')) {
+  if (isPublic && token && !isTokenExpired(request) && (pathname === '/signin' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

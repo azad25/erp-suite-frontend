@@ -4,29 +4,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useLoading } from '@/context/LoadingContext';
 import { useSidebar } from '@/context/SidebarContext';
-import { useAppPreloader } from '@/hooks/useAppPreloader';
+
 import LoadingLogo from './LoadingLogo';
 
 export default function GlobalLoadingScreen() {
   const pathname = usePathname();
   const { isLoading, loadingMessage } = useLoading();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
-  const { progress, isComplete, startPreloading } = useAppPreloader();
-  const initialPreloadStartedRef = useRef(false);
-
   // State for smooth transitions
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
-
-  // Kick off a single, idle-time preload on first mount to warm caches without blocking navigation
-  useEffect(() => {
-    if (!initialPreloadStartedRef.current) {
-      initialPreloadStartedRef.current = true;
-      // Let the page render first
-      const t = setTimeout(() => startPreloading(), 0);
-      return () => clearTimeout(t);
-    }
-  }, [startPreloading]);
 
   // Handle smooth show/hide transitions
   useEffect(() => {

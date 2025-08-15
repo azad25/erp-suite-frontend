@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/context/SidebarContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import { LoadingProvider } from "@/context/LoadingContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 import dynamic from "next/dynamic";
 
 // Lazy-load non-critical client helpers to reduce hydration and nav overhead
@@ -13,70 +14,37 @@ const GlobalLoadingScreen = dynamic(
   { ssr: false, loading: () => null }
 );
 
-const NavigationPerformanceMonitor = dynamic(
-  () => import("@/components/performance/NavigationPerformanceMonitor").then((m) => ({ default: m.NavigationPerformanceMonitor })),
-  { ssr: false, loading: () => null }
-);
-
-const RoutePreloader = dynamic(
-  () => import("@/components/performance/RoutePreloader").then((m) => ({ default: m.RoutePreloader })),
-  { ssr: false, loading: () => null }
-);
-
-const NavigationOptimizer = dynamic(
-  () => import("@/components/performance/NavigationOptimizer").then((m) => ({ default: m.NavigationOptimizer })),
-  { ssr: false, loading: () => null }
-);
-
-const LinkLoadingIndicator = dynamic(
-  () => import("@/components/performance/LinkLoadingIndicator"),
-  { ssr: false, loading: () => null }
-);
-
-const SitePreloaderWrapper = dynamic(
-  () => import("@/components/performance/SitePreloaderWrapper").then((m) => ({ default: m.SitePreloaderWrapper })),
-  { ssr: false, loading: () => null }
-);
-
-const ProductionPerformanceMonitor = dynamic(
-  () => import("@/components/performance/ProductionPerformanceMonitor").then((m) => ({ default: m.ProductionPerformanceMonitor })),
-  { ssr: false, loading: () => null }
-);
-
-const GlobalRouteLoading = dynamic(
-  () => import("@/components/performance/GlobalRouteLoading"),
-  { ssr: false, loading: () => null }
-);
-
 const NavigationLoadingProvider = dynamic(
   () => import("@/components/navigation/NavigationLoadingProvider"),
   { ssr: false, loading: () => null }
 );
 
+const AuthGuard = dynamic(
+  () => import("@/components/auth/AuthGuard"),
+  { ssr: false, loading: () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    </div>
+  )}
+);
+
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider>
-      <LoadingProvider>
-        <AuthProvider>
-          <SidebarProvider>
-            {children}
-            <GlobalLoadingScreen />
-            <NavigationLoadingProvider />
-            <LinkLoadingIndicator />
-            <GlobalRouteLoading />
-            {/* {process.env.NODE_ENV === "production" && (
-              <>
-                <NavigationPerformanceMonitor />
-                <RoutePreloader />
-                <NavigationOptimizer />
-                <SitePreloaderWrapper />
-                <ProductionPerformanceMonitor />
-              </>
-            )} */}
-          </SidebarProvider>
-        </AuthProvider>
-      </LoadingProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <LoadingProvider>
+          <AuthProvider>
+            <SidebarProvider>
+              <AuthGuard>
+                {children}
+              </AuthGuard>
+              <GlobalLoadingScreen />
+              <NavigationLoadingProvider />
+            </SidebarProvider>
+          </AuthProvider>
+        </LoadingProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }
 

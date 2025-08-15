@@ -5,6 +5,19 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { User, LoginRequest, RegisterRequest } from '@/types/user';
 import { useLoading } from '@/context/LoadingContext';
+import { 
+  preWarmAuthState, 
+  isFastAuthenticated, 
+  getCachedUser, 
+  optimizedLogin, 
+  optimizedLogout,
+  initAuthOptimizations 
+} from '@/lib/auth-optimizations';
+
+// Initialize auth optimizations immediately when module loads
+if (typeof window !== 'undefined') {
+  initAuthOptimizations();
+}
 
 interface AuthContextType {
   user: User | null;
@@ -20,19 +33,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start with false for faster initial render
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const { showLoading, hideLoading } = useLoading();
 
   const initAuth = () => {
     try {
-      // Synchronous check for immediate response
-      if (apiClient.isAuthenticated()) {
-        const storedUser = apiClient.getCurrentUserFromStorage();
-        if (storedUser) {
+      // Initialize auth optimizations first
+      initAuthOptimizations();
+      
+      // Use fast authentication check
+      if (isFastAuthenticated()) {
+        const cachedUser = getCachedUser();
+        if (cachedUser) {
           // Use cached user data immediately - no async operations
-          setUser(storedUser);
+          setUser(cachedUser);
           setLoading(false);
           setInitialized(true);
           return; // Exit early with cached data
@@ -66,24 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (credentials: LoginRequest) => {
     try {
-      showLoading('Signing in to dashboard...');
-      const response = await apiClient.login(credentials);
+      showLoading('Signing in...');
+      const response = await optimizedLogin(credentials);
 
       if (response.success && response.data) {
         setUser(response.data.user);
-
-        // Verify tokens are set with a single check
-        const hasToken = apiClient.isAuthenticated();
-        const storedUser = apiClient.getCurrentUserFromStorage();
-        const cookieExists = document.cookie.includes('access_token=');
-
-        if (!hasToken || !storedUser || !cookieExists) {
-          hideLoading();
-          return {
-            success: false,
-            message: 'Authentication setup failed. Please try again.',
-          };
-        }
+        hideLoading();
 
         // Use replace instead of push to avoid back button issues
         router.replace('/');
@@ -153,14 +157,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       showLoading('Logging out...');
-      await apiClient.logout();
-    } catch (error) {
-      // Logout error - silently handle
-    } finally {
+      // Use optimized logout for immediate cleanup
+      await optimizedLogout();
       setUser(null);
       hideLoading();
 
       // Use Next.js router for navigation
+      router.push('/signin');
+    } catch (error) {
+      // Logout error - silently handle
+      setUser(null);
+      hideLoading();
       router.push('/signin');
     }
   };

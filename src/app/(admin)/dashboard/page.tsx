@@ -4,9 +4,10 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
 import DashboardLayout from "@/components/common/DashboardLayout";
-import { LazyComponent } from "@/components/performance/FastPageLoader";
+import { LazyComponent } from "@/components/common/LazyWrapper";
 import { GridIcon } from "@/icons";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useTranslation } from "@/hooks/useTranslation";
 
 // Lazy load heavy components for faster initial page load
 // EcommerceMetrics is a named export, so we need to destructure it
@@ -63,12 +64,19 @@ const UserManagementDashboard = dynamic(
 );
 
 export default function Dashboard() {
-  usePageTitle("Dashboard", "ERP Dashboard - Monitor your business performance and key metrics");
+  const { t, language } = useTranslation();
+
+  usePageTitle(t('dashboard.title'), t('dashboard.welcome'));
+
+  // Debug logging
+  console.log('Dashboard render - Current language:', language);
+  console.log('Dashboard render - Title translation:', t('dashboard.title'));
+  console.log('Dashboard render - Welcome translation:', t('dashboard.welcome'));
 
   return (
     <DashboardLayout
-      title="Dashboard Overview"
-      description="Welcome to your ERP dashboard - Monitor your business performance"
+      title={t('dashboard.title')}
+      description={t('dashboard.welcome')}
       icon={<GridIcon />}
     >
       {/* Dashboard Content */}
