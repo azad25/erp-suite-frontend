@@ -2,6 +2,7 @@
 
 A high-performance, enterprise-grade frontend application for the UniBASE ERP system, built with Next.js 15, React 19, and TypeScript. This application provides a comprehensive dashboard and management interface with advanced performance optimizations and real-time capabilities.
 
+![UniBASE App Drawer Preview](./preview-2.png)
 ![UniBASE ERP Dashboard Preview](./preview.png)
 
 ## Overview
