@@ -4,7 +4,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useMemo } from 'react';
 
 export const useTranslation = () => {
-  const { language, messages, setLanguage, isRTL } = useLanguage();
+  const { language, messages, setLanguage, isRTL, isChangingLanguage } = useLanguage();
 
   const t = useMemo(() => {
     return (key: string, fallback?: string): string => {
@@ -43,5 +43,6 @@ export const useTranslation = () => {
     setLanguage,
     isRTL,
     messages,
+    isChangingLanguage,
   };
 };

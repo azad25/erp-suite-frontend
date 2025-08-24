@@ -10,6 +10,7 @@ export interface LanguageContextType {
   setLanguage: (lang: Language) => void;
   messages: Record<string, any>;
   isRTL: boolean;
+  isChangingLanguage: boolean;
 }
 
 // Create context
@@ -44,6 +45,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   const [language, setLanguageState] = useState<Language>('en');
   const [messages, setMessages] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
   // Load messages for the current language
   const loadMessages = async (lang: Language) => {
@@ -96,7 +98,9 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
   // Update language and persist to localStorage
   const setLanguage = async (lang: Language) => {
-    setIsLoading(true);
+    if (lang === language) return; // Don't change if same language
+    
+    setIsChangingLanguage(true);
     setLanguageState(lang);
     
     if (typeof window !== 'undefined') {
@@ -104,7 +108,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     }
     
     await loadMessages(lang);
-    setIsLoading(false);
+    setIsChangingLanguage(false);
 
     // Update document direction and language
     if (typeof document !== 'undefined') {
@@ -118,6 +122,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     setLanguage,
     messages,
     isRTL: LANGUAGE_CONFIG[language].isRTL,
+    isChangingLanguage,
   };
 
   if (isLoading) {

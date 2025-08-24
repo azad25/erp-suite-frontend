@@ -3,11 +3,7 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { ChartSkeleton, CardSkeleton } from "@/components/common/PageLoader";
-import DashboardLayout from "@/components/common/DashboardLayout";
-import { LazyComponent } from "@/components/common/LazyWrapper";
-import { GridIcon } from "@/icons";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { useTranslation } from "@/hooks/useTranslation";
+
 
 // Lazy load heavy components for faster initial page load
 // EcommerceMetrics is a named export, so we need to destructure it
@@ -52,7 +48,7 @@ const RecentOrders = dynamic(
 const DemographicCard = dynamic(
   () => import("@/components/ecommerce/DemographicCard"),
   {
-    loading: () => <CardSkeleton className="h-64" />
+    loading: () => <ChartSkeleton className="h-64" />
   }
 );
 
@@ -64,62 +60,47 @@ const UserManagementDashboard = dynamic(
 );
 
 export default function Dashboard() {
-  const { t, language } = useTranslation();
-
-  usePageTitle(t('dashboard.title'), t('dashboard.welcome'));
-
-  // Debug logging
-  console.log('Dashboard render - Current language:', language);
-  console.log('Dashboard render - Title translation:', t('dashboard.title'));
-  console.log('Dashboard render - Welcome translation:', t('dashboard.welcome'));
-
   return (
-    <DashboardLayout
-      title={t('dashboard.title')}
-      description={t('dashboard.welcome')}
-      icon={<GridIcon />}
-    >
+    <>
+      {/* Page Header - Render immediately */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Dashboard
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Welcome to your ERP dashboard
+        </p>
+      </div>
+
       {/* Dashboard Content */}
       <div className="grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12 space-y-6 xl:col-span-7">
-          <LazyComponent fallback={<CardSkeleton className="h-32" />}>
-            <EcommerceMetrics />
-          </LazyComponent>
-          <LazyComponent fallback={<ChartSkeleton className="h-80" />}>
-            <MonthlySalesChart />
-          </LazyComponent>
+          <EcommerceMetrics />
+          <MonthlySalesChart />
         </div>
 
         <div className="col-span-12 xl:col-span-5">
-          <LazyComponent fallback={<ChartSkeleton className="h-64" />}>
-            <MonthlyTarget />
-          </LazyComponent>
+          <MonthlyTarget />
         </div>
 
         <div className="col-span-12">
-          <LazyComponent fallback={<ChartSkeleton className="h-96" />}>
-            <StatisticsChart />
-          </LazyComponent>
+          <StatisticsChart />
         </div>
 
         <div className="col-span-12 xl:col-span-5">
-          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
-            <DemographicCard />
-          </LazyComponent>
+          <DemographicCard />
         </div>
 
         <div className="col-span-12 xl:col-span-7">
-          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
-            <RecentOrders />
-          </LazyComponent>
+          <RecentOrders />
         </div>
 
         <div className="col-span-12">
-          <LazyComponent fallback={<CardSkeleton className="h-64" />}>
-            <UserManagementDashboard />
-          </LazyComponent>
+          <UserManagementDashboard />
         </div>
+
+
       </div>
-    </DashboardLayout>
+    </>
   );
-} 
+}

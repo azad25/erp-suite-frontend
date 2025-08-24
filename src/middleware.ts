@@ -11,13 +11,13 @@ function getFastToken(request: NextRequest): string | null {
   if (cookieToken && cookieToken !== 'undefined' && cookieToken !== 'null') {
     return cookieToken;
   }
-  
+
   // Fallback to Authorization header
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.slice(7);
   }
-  
+
   return null;
 }
 
@@ -41,6 +41,7 @@ function isTokenExpired(request: NextRequest): boolean {
 // Use Sets for O(1) lookup performance instead of arrays
 const protectedRoutes = new Set([
   '/',
+  '/app-drawer',
   '/dashboard',
   '/sales',
   '/purchases',
@@ -133,11 +134,11 @@ function getRouteType(pathname: string): { isProtected: boolean; isPublic: boole
     }
   }
 
-  const result = { 
-    isProtected: isProtectedSubRoute, 
-    isPublic: isPublicSubRoute 
+  const result = {
+    isProtected: isProtectedSubRoute,
+    isPublic: isPublicSubRoute
   };
-  
+
   // Cache the result
   routeCache.set(pathname, result);
   return result;
@@ -145,7 +146,7 @@ function getRouteType(pathname: string): { isProtected: boolean; isPublic: boole
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   // Skip middleware for static assets and API routes for better performance
   if (
     pathname.startsWith('/_next/') ||
@@ -170,12 +171,12 @@ export function middleware(request: NextRequest) {
     if (!token || isTokenExpired(request)) {
       const signInUrl = new URL('/signin', request.url);
       signInUrl.searchParams.set('redirect', pathname);
-      
+
       // Clear expired token cookies
       const response = NextResponse.redirect(signInUrl);
       response.cookies.delete('access_token');
       response.cookies.delete('token_data');
-      
+
       return response;
     }
   }

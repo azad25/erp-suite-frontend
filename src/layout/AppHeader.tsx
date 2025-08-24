@@ -8,15 +8,33 @@ import UserDropdown from "@/components/header/UserDropdown";
 import SearchBar from "@/components/search/SearchBar";
 import MobileSearchBar from "@/components/search/MobileSearchBar";
 import { useSidebar } from "@/context/SidebarContext";
+import { useNavigation } from "@/context/NavigationContext";
+import { AppDrawerIcon } from "@/icons";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState, memo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [isMobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { setAppDrawerOverlayOpen } = useNavigation();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  // Always show app drawer button (no longer conditional)
+  const showAppDrawerButton = true;
+
+  const handleAppDrawerClick = () => {
+    // If we're on the app drawer page, navigate to it
+    if (pathname === '/app-drawer') {
+      return;
+    }
+    // Otherwise, show the overlay
+    setAppDrawerOverlayOpen(true);
+  };
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -147,6 +165,17 @@ const AppHeader: React.FC = () => {
         >
           <div className="flex items-center gap-2 2xsm:gap-3">
 
+            {/* <!-- App Drawer Button --> */}
+            {showAppDrawerButton && (
+              <button
+                onClick={handleAppDrawerClick}
+                className="flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+                title="App Drawer"
+              >
+                <AppDrawerIcon className="w-5 h-5" />
+              </button>
+            )}
+            {/* <!-- App Drawer Button --> */}
 
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />

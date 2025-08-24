@@ -52,6 +52,7 @@ import ChatIcon from "./chat.svg";
 import ChatbotIcon from "./chatbot.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
+import AppDrawerIcon from "./app-drawer.svg";
 
 // Create aliases for missing icons
 const EditIcon = PencilIcon;
@@ -119,6 +120,7 @@ export {
   ChevronUpIcon,
   ChatIcon,
   ChatbotIcon,
+  AppDrawerIcon,
   // Export missing icon aliases
   EditIcon,
   ReceiptIcon,

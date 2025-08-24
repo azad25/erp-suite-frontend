@@ -3,10 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage, Language, LANGUAGE_CONFIG } from '@/context/LanguageContext';
 import { cn } from '@/utils/cn';
-import { CheckCircleIcon, ChevronDownIcon } from '@/icons';
+import { ChevronDownIcon } from '@/icons';
 
 const LanguageToggle: React.FC = () => {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, isChangingLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -25,6 +25,7 @@ const LanguageToggle: React.FC = () => {
   }, []);
 
   const handleLanguageChange = async (newLanguage: Language) => {
+    if (newLanguage === language || isChangingLanguage) return;
     console.log(`Switching language from ${language} to ${newLanguage}`);
     await setLanguage(newLanguage);
     setIsOpen(false);
@@ -62,16 +63,19 @@ const LanguageToggle: React.FC = () => {
         <div className={cn(
           "absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800",
           "border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg",
-          "z-50 py-1 animate-in fade-in-0 zoom-in-95"
+          "z-50 py-1 animate-in fade-in-0 zoom-in-95",
+          isChangingLanguage && "opacity-60 pointer-events-none"
         )}>
           {Object.entries(LANGUAGE_CONFIG).map(([langCode, config]) => (
             <button
               key={langCode}
               onClick={() => handleLanguageChange(langCode as Language)}
+              disabled={isChangingLanguage}
               className={cn(
                 "flex items-center w-full px-4 py-2 text-left",
                 "hover:bg-gray-100 dark:hover:bg-gray-700",
                 "transition-colors duration-200",
+                "disabled:cursor-not-allowed",
                 language === langCode && "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
               )}
             >
@@ -86,8 +90,13 @@ const LanguageToggle: React.FC = () => {
                   {langCode}
                 </span>
               </div>
-              {language === langCode && (
-                <CheckCircleIcon className="ml-auto w-4 h-4 text-blue-600 dark:text-blue-400" />
+              {language === langCode && !isChangingLanguage && (
+                <svg className="ml-auto w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {isChangingLanguage && language === langCode && (
+                <div className="ml-auto w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
               )}
             </button>
           ))}
