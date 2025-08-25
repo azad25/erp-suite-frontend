@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigation } from "@/context/NavigationContext";
+import { useFrequentlyVisited } from "@/hooks/useFrequentlyVisited";
 import {
     GridIcon,
     CalenderIcon,
@@ -50,14 +51,14 @@ import {
     CustomerUIIcon,
     OrgUIIcon,
     DocUIIcon,
-    SettingsUIIcon
+    SettingsUIIcon,
 } from "@/icons";
 
 interface AppItem {
     name: string;
     icon: React.ReactNode;
     path: string;
-    color: string;
+    color?: string;
 }
 
 const appItems: AppItem[] = [
@@ -192,73 +193,96 @@ const appItems: AppItem[] = [
         icon: <SettingsUIIcon />,
         path: "/settings/system",
         color: "bg-blue-500",
-    }
+    },
 ];
 
 export default function AppDrawer() {
     const router = useRouter();
     const { setFromAppDrawer } = useNavigation();
     const [isNavigating, setIsNavigating] = useState(false);
+    const { frequentlyVisited, trackAppUsage } = useFrequentlyVisited(appItems);
 
     usePageTitle("App Drawer", "Choose an application to get started");
 
     const handleAppClick = (path: string, e: React.MouseEvent) => {
         e.preventDefault();
-
-        // Show progress bar briefly for visual feedback
+        trackAppUsage(path);
         setIsNavigating(true);
-
-        // Set navigation state to collapse sidebar on destination page
         setFromAppDrawer(true);
-
-        // Navigate immediately without artificial delay
         router.push(path);
-
-        // Reset navigation state after a short delay
         setTimeout(() => setIsNavigating(false), 300);
     };
 
+    // Debugging: Log frequentlyVisited to check its state
+    useEffect(() => {
+        console.log("AppDrawer frequentlyVisited:", frequentlyVisited);
+    }, [frequentlyVisited]);
+
     return (
         <>
-<div className="h-screen flex flex-col overflow-hidden">
-    {/* Header Section - Fixed height */}
-    <div className="flex-shrink-0">
-        <div className="text-center">
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">
-                Welcome to Unibase ERP
-            </h1>
-            <p className="text-base lg:text-lg text-gray-600 dark:text-gray-400 mt-1">
-                Choose an application to get started with your business operations
-            </p>
-        </div>
-    </div>
+            <div className="h-screen flex flex-col overflow-hidden">
+                {/* Header Section - Fixed height */}
+                <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-2">
+                    <div className="text-center">
+                        <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">
+                            Welcome to Unibase ERP
+                        </h1>
+                        <p className="text-sm lg:text-base text-gray-600 dark:text-gray-400 mt-1">
+                            Choose an application to get started with your business operations
+                        </p>
+                    </div>
 
-    {/* App Grid - Takes remaining space */}
-    <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-4">
-        <div className="w-full max-w-4xl">
-            <div className="grid grid-cols-6 gap-0">
-                {appItems.map((app, index) => (
-                    <button
-                        key={index}
-                        onClick={(e) => handleAppClick(app.path, e)}
-                        className="group flex flex-col items-center justify-center rounded-md hover:bg-blue-50 dark:hover:bg-gray-800/50 transition-all duration-200 border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-600 border aspect-square p-2 m-2"
-                        style={{
-                            animationDelay: `${index * 10}ms`,
-                            animationFillMode: 'both'
-                        }}
-                    >
-                        <div className="flex-shrink-0 mb-1">
-                            {app.icon}
+                    {/* Frequently Visited Section */}
+                    {frequentlyVisited.length > 0 && (
+                        <div className="mt-3">
+                            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 text-center mb-2">
+                                Frequently Visited
+                            </h2>
+                            <div className="flex justify-center gap-3 flex-wrap">
+                                {frequentlyVisited.map((app, index) => (
+                                    <button
+                                        key={`frequent-${index}`}
+                                        onClick={(e) => handleAppClick(app.path, e)}
+                                        className="group flex flex-col items-center justify-center rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 p-2 min-w-16 relative"
+                                    >
+                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                            <span className="text-white text-xs font-bold">★</span>
+                                        </div>
+                                        <div className="flex-shrink-0 mb-1">{app.icon}</div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center leading-tight">
+                                            {app.name}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <span className="text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 text-center leading-tight px-1">
-                            {app.name}
-                        </span>
-                    </button>
-                ))}
+                    )}
+                </div>
+
+                {/* App Grid - Takes remaining space */}
+                <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-2 min-h-0">
+                    <div className="w-full max-w-4xl">
+                        <div className="grid grid-cols-6 gap-0">
+                            {appItems.map((app, index) => (
+                                <button
+                                    key={index}
+                                    onClick={(e) => handleAppClick(app.path, e)}
+                                    className="group flex flex-col items-center justify-center rounded-md hover:bg-blue-50 dark:hover:bg-gray-800/50 transition-all duration-200 border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-600 border aspect-square p-1 m-2"
+                                    style={{
+                                        animationDelay: `${index * 10}ms`,
+                                        animationFillMode: "both",
+                                    }}
+                                >
+                                    <div className="flex-shrink-0">{app.icon}</div>
+                                    <span className="text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 text-center leading-tight px-1 mt-0.5">
+                                        {app.name}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
 
             {/* Progress Bar */}
             {isNavigating && (
