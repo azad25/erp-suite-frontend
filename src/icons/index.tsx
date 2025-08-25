@@ -53,6 +53,28 @@ import ChatbotIcon from "./chatbot.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
 import AppDrawerIcon from "./app-drawer.svg";
+import BarChartIcon from "./bar-chart.svg";
+import CalenderUIIcon from "./calender-ui.svg";
+import ClockUIIcon from "./clock-ui.svg";
+import TodoUIIcon from "./todo-ui.svg";
+import GlobeUIIcon from "./globe-ui.svg";
+import ContactsUIIcon from "./contacts-ui.svg";
+import CrmUIIcon from "./crm-ui.svg";
+import SalesUIIcon from "./sales-ui.svg";
+import BookUIIcon from "./book-ui.svg";
+import InventoryUIIcon from "./inventory-ui.svg";
+import TasksUIIcon from "./tasks-ui.svg";
+import HrmUIIcon from "./hrm-ui.svg";
+import FinanceUIIcon from "./finance-ui.svg";
+import AccountingUIIcon from "./accounting-ui.svg";
+import DocumentUIIcon from "./document-ui.svg";
+import CopilotUIIcon from "./coplilot-ui.svg";
+import ReportUIIcon from "./report-ui.svg";
+import InboxUIIcon from "./inbox-ui.svg";
+import CustomerUIIcon from "./customer-ui.svg";
+import OrgUIIcon from "./org-ui.svg";
+import DocUIIcon from "./document-check-ui.svg";
+import SettingsUIIcon from "./settings-ui.svg";
 
 // Create aliases for missing icons
 const EditIcon = PencilIcon;
@@ -121,7 +143,6 @@ export {
   ChatIcon,
   ChatbotIcon,
   AppDrawerIcon,
-  // Export missing icon aliases
   EditIcon,
   ReceiptIcon,
   TrashIcon,
@@ -131,4 +152,26 @@ export {
   SendIcon,
   CreditCardIcon,
   FileTextIcon,
+  BarChartIcon,
+  CalenderUIIcon,
+  ClockUIIcon,
+  TodoUIIcon,
+  GlobeUIIcon,
+  ContactsUIIcon,
+  CrmUIIcon,
+  SalesUIIcon,
+  BookUIIcon,
+  InventoryUIIcon,
+  TasksUIIcon,
+  HrmUIIcon,
+  FinanceUIIcon,
+  AccountingUIIcon,
+  DocumentUIIcon,
+  CopilotUIIcon,
+  ReportUIIcon,
+  InboxUIIcon,
+  CustomerUIIcon,
+  OrgUIIcon,
+  DocUIIcon,
+  SettingsUIIcon
 };

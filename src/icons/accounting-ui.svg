@@ -1,0 +1,19 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#f9fbfd" stroke="#1e88e5" stroke-width="2.5"/>
+
+  <!-- Ledger / document -->
+  <rect x="22" y="26" width="56" height="46" rx="6" ry="6" fill="#64b5f6"/>
+  <line x1="22" y1="34" x2="78" y2="34" stroke="#bbdefb" stroke-width="2"/>
+  <line x1="22" y1="42" x2="78" y2="42" stroke="#bbdefb" stroke-width="2"/>
+  <line x1="22" y1="50" x2="78" y2="50" stroke="#bbdefb" stroke-width="2"/>
+
+  <!-- Calculator keypad -->
+  <rect x="30" y="58" width="8" height="8" rx="2" fill="#e57373"/> <!-- red -->
+  <rect x="42" y="58" width="8" height="8" rx="2" fill="#81c784"/> <!-- green -->
+  <rect x="54" y="58" width="8" height="8" rx="2" fill="#ffb74d"/> <!-- orange -->
+
+  <!-- Dollar symbol -->
+  <circle cx="72" cy="72" r="9" fill="#1e88e5"/>
+  <text x="72" y="76" font-size="10" text-anchor="middle" fill="#ffffff" font-family="Arial" font-weight="bold">$</text>
+</svg>

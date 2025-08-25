@@ -1,0 +1,23 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#f9fbfd" stroke="#1e88e5" stroke-width="2.5"/>
+
+  <!-- Back document -->
+  <rect x="28" y="22" width="44" height="56" rx="6" ry="6" fill="#bbdefb"/>
+
+  <!-- Middle document -->
+  <rect x="24" y="26" width="44" height="56" rx="6" ry="6" fill="#90caf9"/>
+
+  <!-- Front document -->
+  <rect x="32" y="30" width="44" height="56" rx="6" ry="6" fill="#ffffff" stroke="#1e88e5" stroke-width="2"/>
+
+  <!-- Document lines -->
+  <line x1="38" y1="42" x2="68" y2="42" stroke="#90caf9" stroke-width="2"/>
+  <line x1="38" y1="50" x2="68" y2="50" stroke="#90caf9" stroke-width="2"/>
+  <line x1="38" y1="58" x2="60" y2="58" stroke="#90caf9" stroke-width="2"/>
+
+  <!-- Colored tags (document types) -->
+  <circle cx="44" cy="70" r="4" fill="#e57373"/> <!-- red -->
+  <circle cx="54" cy="70" r="4" fill="#81c784"/> <!-- green -->
+  <circle cx="64" cy="70" r="4" fill="#ffb74d"/> <!-- orange -->
+</svg>

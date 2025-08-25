@@ -1,0 +1,30 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background card -->
+  <rect x="10" y="10" width="80" height="80" rx="16" ry="16" fill="#f5f8ff" stroke="#1e88e5" stroke-width="2.5"/>
+
+  <!-- Chat bubble -->
+  <path d="M28 30 h44 a5 5 0 0 1 5 5 v22 a5 5 0 0 1 -5 5 h-20 l-8 9 v-9 h-16 a5 5 0 0 1 -5 -5 v-22 a5 5 0 0 1 5 -5z"
+        fill="#ffffff" stroke="#1e88e5" stroke-width="2"/>
+
+  <!-- "AI" text in the middle -->
+  <text x="50" y="42" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1e88e5">AI</text>
+
+  <!-- Brain below the AI text -->
+  <g transform="translate(50,58) scale(0.5)">
+    <!-- Left hemisphere -->
+    <path d="M-12,-8 C-14,-8 -16,-6 -16,-3 C-16,0 -14,3 -12,3 C-9,3 -7,0 -7,-3 C-7,-6 -9,-8 -12,-8Z" fill="#42a5f5"/>
+    <!-- Right hemisphere -->
+    <path d="M12,-8 C14,-8 16,-6 16,-3 C16,0 14,3 12,3 C9,3 7,0 7,-3 C7,-6 9,-8 12,-8Z" fill="#42a5f5"/>
+    <!-- Neural connections -->
+    <line x1="-12" y1="-3" x2="12" y2="-3" stroke="#1e88e5" stroke-width="1.2"/>
+    <line x1="-9" y1="0" x2="9" y2="0" stroke="#1e88e5" stroke-width="1.2"/>
+    <circle cx="0" cy="-3" r="1.8" fill="#1e88e5"/>
+    <circle cx="-6" cy="-3" r="1.3" fill="#1e88e5"/>
+    <circle cx="6" cy="-3" r="1.3" fill="#1e88e5"/>
+  </g>
+
+  <!-- Three colored dots under bubble -->
+  <circle cx="38" cy="68" r="3" fill="#e57373"/>
+  <circle cx="50" cy="68" r="3" fill="#81c784"/>
+  <circle cx="62" cy="68" r="3" fill="#ffb74d"/>
+</svg>

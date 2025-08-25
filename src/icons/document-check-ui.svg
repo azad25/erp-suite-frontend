@@ -1,0 +1,17 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background square -->
+  <rect x="10" y="10" width="80" height="80" rx="12" ry="12" fill="#e8f5e9" stroke="#4caf50" stroke-width="3"/>
+
+  <!-- Subscription document/card -->
+  <rect x="25" y="25" width="50" height="50" rx="6" ry="6" fill="#ffffff" stroke="#4caf50" stroke-width="2"/>
+
+  <!-- Horizontal lines representing text -->
+  <rect x="32" y="35" width="36" height="4" fill="#c8e6c9"/>
+  <rect x="32" y="45" width="36" height="4" fill="#c8e6c9"/>
+  <rect x="32" y="55" width="36" height="4" fill="#c8e6c9"/>
+
+  <!-- Circular check for active subscription -->
+  <circle cx="50" cy="65" r="6" fill="#4caf50"/>
+  <path d="M46 65 L49 68 L56 61" stroke="#ffffff" stroke-width="2" fill="none"/>
+
+</svg>

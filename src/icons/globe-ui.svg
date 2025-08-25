@@ -1,0 +1,17 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Circle (Earth) -->
+  <circle cx="50" cy="50" r="45" fill="#2196f3" stroke="#0d47a1" stroke-width="3"/>
+
+  <!-- Continents (stylized abstract land shapes) -->
+  <path d="M35 40 C30 30, 50 25, 55 35 C60 45, 45 50, 40 45 Z" fill="#a5d6a7"/>
+  <path d="M60 55 C65 50, 75 55, 70 65 C65 75, 55 70, 60 55 Z" fill="#a5d6a7"/>
+  <path d="M45 65 C40 70, 35 75, 50 80 C55 75, 55 70, 45 65 Z" fill="#a5d6a7"/>
+
+  <!-- Latitude lines -->
+  <ellipse cx="50" cy="50" rx="35" ry="15" stroke="white" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <ellipse cx="50" cy="50" rx="35" ry="25" stroke="white" stroke-width="1.2" fill="none" opacity="0.6"/>
+
+  <!-- Longitude lines -->
+  <path d="M50 5 Q60 50, 50 95" stroke="white" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <path d="M50 5 Q40 50, 50 95" stroke="white" stroke-width="1.2" fill="none" opacity="0.6"/>
+</svg>

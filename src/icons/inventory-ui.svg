@@ -1,0 +1,19 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#e3f2fd" stroke="#2196f3" stroke-width="3"/>
+
+  <!-- Bottom layer of boxes -->
+  <rect x="20" y="55" width="15" height="12" rx="2" fill="#FFB74D"/> <!-- orange -->
+  <rect x="37" y="55" width="15" height="12" rx="2" fill="#81C784"/> <!-- green -->
+  <rect x="54" y="55" width="15" height="12" rx="2" fill="#64B5F6"/> <!-- blue -->
+  <rect x="71" y="55" width="15" height="12" rx="2" fill="#BA68C8"/> <!-- purple -->
+
+  <!-- Middle layer of boxes -->
+  <rect x="28" y="40" width="15" height="12" rx="2" fill="#4DB6AC"/> <!-- teal -->
+  <rect x="45" y="40" width="15" height="12" rx="2" fill="#FFD54F"/> <!-- yellow -->
+  <rect x="62" y="40" width="15" height="12" rx="2" fill="#FF8A65"/> <!-- red-orange -->
+
+  <!-- Top layer of boxes -->
+  <rect x="37" y="25" width="15" height="12" rx="2" fill="#7986CB"/> <!-- indigo -->
+  <rect x="54" y="25" width="15" height="12" rx="2" fill="#4FC3F7"/> <!-- light blue -->
+</svg>

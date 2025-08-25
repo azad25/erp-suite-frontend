@@ -1,0 +1,24 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer frame -->
+  <rect x="10" y="10" width="80" height="80" rx="12" ry="12" fill="#e3f2fd" stroke="#2196f3" stroke-width="3"/>
+
+  <!-- Bar chart (sales growth), centered with distinct colors -->
+  <rect x="22" y="60" width="8" height="15" fill="#ff6f61"/>
+  <rect x="34" y="50" width="8" height="25" fill="#4fc3f7"/>
+  <rect x="46" y="40" width="8" height="35" fill="#ffd54f"/>
+  <rect x="58" y="30" width="8" height="45" fill="#9575cd"/>
+  <rect x="70" y= "45" width="8" height="30" fill="#4db6ac"/>
+
+  <!-- Upward arrow (growth indicator), light green -->
+  <path d="M30 65 L45 50 L60 55 L80 30" stroke="#90ee90" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- Arrowhead, light green -->
+  <defs>
+    <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#90ee90"/>
+    </marker>
+  </defs>
+
+  <!-- Dollar symbol, light blue -->
+  <text x="15" y="35" font-size="24" font-family="Arial, sans-serif" fill="#90ee90" font-weight="bold">$</text>
+</svg>

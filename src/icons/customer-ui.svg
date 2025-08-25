@@ -1,0 +1,37 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#f9fbfd" stroke="#1e88e5" stroke-width="2.5"/>
+
+  <!-- Back row person -->
+  <g>
+    <circle cx="30" cy="50" r="6" fill="#bbdefb"/>
+    <path d="M24,58 Q30,65 36,58 L36,70 H24 Z" fill="#bbdefb"/>
+  </g>
+
+  <g>
+    <circle cx="70" cy="50" r="6" fill="#bbdefb"/>
+    <path d="M64,58 Q70,65 76,58 L76,70 H64 Z" fill="#bbdefb"/>
+  </g>
+
+  <!-- Middle row person -->
+  <g>
+    <circle cx="40" cy="45" r="8" fill="#90caf9"/>
+    <path d="M32,55 Q40,65 48,55 L48,70 H32 Z" fill="#90caf9"/>
+  </g>
+
+  <g>
+    <circle cx="60" cy="45" r="8" fill="#90caf9"/>
+    <path d="M52,55 Q60,65 68,55 L68,70 H52 Z" fill="#90caf9"/>
+  </g>
+
+  <!-- Front person -->
+  <g>
+    <circle cx="50" cy="35" r="10" fill="#ffffff" stroke="#1e88e5" stroke-width="2"/>
+    <path d="M42,48 Q50,60 58,48 L58,65 H42 Z" fill="#ffffff" stroke="#1e88e5" stroke-width="2"/>
+  </g>
+
+  <!-- Accent dots -->
+  <circle cx="42" cy="75" r="3" fill="#e57373"/>
+  <circle cx="50" cy="75" r="3" fill="#81c784"/>
+  <circle cx="58" cy="75" r="3" fill="#ffb74d"/>
+</svg>

@@ -1,0 +1,19 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#e3f2fd" stroke="#2196f3" stroke-width="3"/>
+
+  <!-- First item -->
+  <circle cx="30" cy="30" r="4" fill="#42A5F5"/> <!-- blue circle -->
+  <path d="M28 30 L30 32 L36 26" stroke="#1976d2" stroke-width="2" fill="none"/> <!-- blue tick -->
+  <line x1="40" y1="30" x2="65" y2="30" stroke="#42A5F5" stroke-width="3" stroke-linecap="round"/> <!-- blue bar -->
+
+  <!-- Second item -->
+  <circle cx="30" cy="50" r="4" fill="#FF7043"/> <!-- red circle -->
+  <path d="M28 50 L30 52 L36 46" stroke="#1976d2" stroke-width="2" fill="none"/> <!-- blue tick -->
+  <line x1="40" y1="50" x2="65" y2="50" stroke="#FF7043" stroke-width="3" stroke-linecap="round"/> <!-- red bar -->
+
+  <!-- Third item -->
+  <circle cx="30" cy="70" r="4" fill="#FFEB3B"/> <!-- yellow circle -->
+  <path d="M28 70 L30 72 L36 66" stroke="#1976d2" stroke-width="2" fill="none"/> <!-- blue tick -->
+  <line x1="40" y1="70" x2="65" y2="70" stroke="#FFEB3B" stroke-width="3" stroke-linecap="round"/> <!-- yellow bar -->
+</svg>

@@ -1,0 +1,17 @@
+<svg width="75" height="75" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded card background -->
+  <rect x="10" y="10" width="80" height="80" rx="14" ry="14" fill="#e3f2fd" stroke="#2196f3" stroke-width="3"/>
+
+  <!-- Credit card -->
+  <rect x="30" y="35" width="40" height="25" rx="4" ry="4" fill="#42a5f5"/>
+  <!-- Card details lines -->
+  <line x1="33" y1="45" x2="67" y2="45" stroke="#90caf9" stroke-width="2"/>
+  <line x1="33" y1="50" x2="55" y2="50" stroke="#90caf9" stroke-width="2"/>
+
+  <!-- Dollar symbol on top -->
+  <text x="50" y="50" font-size="20" text-anchor="middle" fill="#ffffff" font-family="Arial" font-weight="bold">$</text>
+
+  <!-- Red and green indicator dots -->
+  <circle cx="40" cy="65" r="4" fill="#e53935"/> <!-- red -->
+  <circle cx="60" cy="65" r="4" fill="#43a047"/> <!-- green -->
+</svg>
