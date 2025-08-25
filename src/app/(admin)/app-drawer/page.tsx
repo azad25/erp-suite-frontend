@@ -6,30 +6,6 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigation } from "@/context/NavigationContext";
 import { useFrequentlyVisited } from "@/hooks/useFrequentlyVisited";
 import {
-    GridIcon,
-    CalenderIcon,
-    UserIcon,
-    PencilIcon,
-    DocsIcon,
-    UserCircleIcon,
-    DollarLineIcon,
-    PieChartIcon,
-    BoxIcon,
-    ListIcon,
-    TimeIcon,
-    TaskIcon,
-    FileIcon,
-    CopyIcon,
-    GroupIcon,
-    LockIcon,
-    ArrowRightIcon,
-    EnvelopeIcon,
-    CreditCardIcon,
-    ReceiptIcon,
-    TruckIcon,
-    MessageIcon,
-    UpdateIcon,
-    FileTextIcon,
     BarChartIcon,
     CalenderUIIcon,
     ClockUIIcon,
@@ -214,9 +190,9 @@ export default function AppDrawer() {
     };
 
     // Debugging: Log frequentlyVisited to check its state
-    useEffect(() => {
-        console.log("AppDrawer frequentlyVisited:", frequentlyVisited);
-    }, [frequentlyVisited]);
+    // useEffect(() => {
+    //     console.log("AppDrawer frequentlyVisited:", frequentlyVisited);
+    // }, [frequentlyVisited]);
 
     return (
         <>
