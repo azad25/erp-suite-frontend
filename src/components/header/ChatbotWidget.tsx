@@ -1,29 +1,51 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
-import { ChatbotIcon, PaperPlaneIcon } from "@/icons";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { CopilotUIIcon, PaperPlaneIcon } from "@/icons";
 import Link from "next/link";
+import { getWebSocketUrl, getAICopilotUrl } from "@/config/ai-config";
 
 interface ChatMessage {
   id: string;
   text: string;
   sender: 'user' | 'bot';
   timestamp: Date;
+  isStreaming?: boolean;
+}
+
+interface AIChatRequest {
+  message: string;
+  context?: Record<string, string>;
+  session_id?: string;
+}
+
+interface AIChatResponse {
+  response: string;
+  message_id: string;
+  timestamp: number;
+}
+
+interface AIStreamResponse {
+  content: string;
+  is_final: boolean;
+  message_id: string;
 }
 
 const ChatbotWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
-      text: "Hi! 👋 I'm HelpBot, and I'll help you navigate Unibase today.",
+      text: "Hi! 👋 I'm your AI Copilot, ready to help with ERP tasks.",
       sender: 'bot',
       timestamp: new Date(),
     },
     {
       id: "2",
-      text: "What would you like help with?",
+      text: "Ask me anything about user management, sales, invoicing, or system navigation!",
       sender: 'bot',
       timestamp: new Date(),
     }
@@ -31,7 +53,230 @@ const ChatbotWidget: React.FC = () => {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // WebSocket connection management
+  const connectWebSocket = useCallback(() => {
+    try {
+      // Get authentication token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('No access token available for WebSocket connection');
+        return;
+      }
+
+      const wsUrl = `${getWebSocketUrl()}?token=${encodeURIComponent(token)}`;
+      const socket = new WebSocket(wsUrl);
+      
+      socket.onopen = () => {
+        console.log('WebSocket connected to AI Copilot');
+        setIsConnected(true);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          console.log('WebSocket message received:', event.data);
+          const data = JSON.parse(event.data);
+          handleWebSocketMessage(data);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error, event.data);
+        }
+      };
+
+      socket.onclose = (event) => {
+        console.log('WebSocket disconnected from AI Copilot', { code: event.code, reason: event.reason });
+        setIsConnected(false);
+        setIsTyping(false);
+        
+        // Show connection error message if not a clean close
+        if (event.code !== 1000) {
+          const errorMessage: ChatMessage = {
+            id: Date.now().toString(),
+            text: "Connection lost. Please check your internet connection and try again.",
+            sender: 'bot',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setIsConnected(false);
+        setIsTyping(false);
+        
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: "Connection error. Please try again later.",
+          sender: 'bot',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      };
+
+      setWs(socket);
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (ws) {
+      ws.close();
+      setWs(null);
+      setIsConnected(false);
+    }
+  }, [ws]);
+
+  // Handle WebSocket messages
+  const handleWebSocketMessage = useCallback((data: any) => {
+    console.log('Handling WebSocket message:', data);
+    switch (data.type) {
+      case 'ai_chat':
+      case 'chat_response':
+        handleAIChatResponse(data.data || data as AIChatResponse);
+        break;
+      case 'ai_stream':
+      case 'stream_response':
+        handleAIStreamResponse(data.data || data as AIStreamResponse);
+        break;
+      case 'ai_status':
+      case 'status':
+        handleAIStatusResponse(data.data || data);
+        break;
+      case 'error':
+        console.error('WebSocket error message:', data);
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: data.message || data.data?.message || "An error occurred",
+          sender: 'bot',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setIsTyping(false);
+        break;
+      default:
+        console.log('Unknown message type:', data.type, data);
+    }
+  }, []);
+
+  // Handle AI chat response
+  const handleAIChatResponse = useCallback((response: AIChatResponse) => {
+    const botMessage: ChatMessage = {
+      id: response.message_id || Date.now().toString(),
+      text: response.response,
+      sender: 'bot',
+      timestamp: new Date(response.timestamp),
+    };
+    setMessages(prev => [...prev, botMessage]);
+    setIsTyping(false);
+  }, []);
+
+  // Handle AI stream response
+  const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
+    if (response.is_final) {
+      // Final message, update the streaming message
+      setMessages(prev => prev.map(msg => 
+        msg.isStreaming ? { ...msg, text: response.content, isStreaming: false } : msg
+      ));
+      setIsTyping(false);
+    } else {
+      // Streaming content, update or create streaming message
+      setMessages(prev => {
+        const existingStreaming = prev.find(msg => msg.isStreaming);
+        if (existingStreaming) {
+          return prev.map(msg => 
+            msg.isStreaming ? { ...msg, text: response.content } : msg
+          );
+        } else {
+          const streamingMessage: ChatMessage = {
+            id: response.message_id || Date.now().toString(),
+            text: response.content,
+            sender: 'bot',
+            timestamp: new Date(),
+            isStreaming: true,
+          };
+          return [...prev, streamingMessage];
+        }
+      });
+    }
+  }, []);
+
+  // Handle AI status response
+  const handleAIStatusResponse = useCallback((status: any) => {
+    if (status.status === 'processing') {
+      setIsTyping(true);
+    } else if (status.status === 'completed') {
+      setIsTyping(false);
+    }
+  }, []);
+
+  // Send message via WebSocket
+  const sendWebSocketMessage = useCallback((messageData: AIChatRequest) => {
+    if (ws && isConnected) {
+      const wsMessage = {
+        type: 'chat_message',
+        data: messageData,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('Sending WebSocket message:', wsMessage);
+      ws.send(JSON.stringify(wsMessage));
+    } else {
+      console.log('WebSocket not connected, falling back to REST API');
+      // Fallback to REST API if WebSocket not available
+      sendRESTMessage(messageData);
+    }
+  }, [ws, isConnected]);
+
+  // Fallback REST API call via API Gateway
+  const sendRESTMessage = async (messageData: AIChatRequest) => {
+    try {
+      const aiUrl = getAICopilotUrl();
+      const response = await fetch(`${aiUrl}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messageData),
+      });
+
+      if (response.ok) {
+        const data: AIChatResponse = await response.json();
+        handleAIChatResponse(data);
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to send message via REST:', error);
+      // Show error message
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: "Sorry, I'm having trouble connecting right now. Please try again later.",
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setIsTyping(false);
+    }
+  };
+
+  // Connect WebSocket when component mounts and widget is opened
+  useEffect(() => {
+    if (isOpen) {
+      connectWebSocket();
+    } else {
+      disconnectWebSocket();
+    }
+    return () => disconnectWebSocket();
+  }, [isOpen, connectWebSocket, disconnectWebSocket]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Click outside to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -43,6 +288,7 @@ const ChatbotWidget: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Focus input when opened
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -71,17 +317,17 @@ const ChatbotWidget: React.FC = () => {
     setMessage("");
     setIsTyping(true);
 
-    // Simulate bot response
-    setTimeout(() => {
-      const botMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: "I understand you need help with that. Let me assist you with the best solution for your needs.",
-        sender: 'bot',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, botMessage]);
-      setIsTyping(false);
-    }, 1500);
+    // Send message via WebSocket or REST
+    const messageData: AIChatRequest = {
+      message: message.trim(),
+      context: {
+        user_id: 'current_user', // This should come from auth context
+        department: 'general',
+      },
+      session_id: `session_${Date.now()}`,
+    };
+
+    sendWebSocketMessage(messageData);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -99,13 +345,25 @@ const ChatbotWidget: React.FC = () => {
     });
   };
 
+  // Enhanced Typing Indicator with Dot Animation
   const TypingIndicator = () => (
     <div className="flex items-center space-x-1 p-3">
       <div className="flex space-x-1">
-        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
+        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
       </div>
+      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">AI is thinking...</span>
+    </div>
+  );
+
+  // Connection Status Indicator
+  const ConnectionStatus = () => (
+    <div className="flex items-center space-x-2 text-xs">
+      <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+      <span className={isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+        {isConnected ? 'Connected' : 'Disconnected'}
+      </span>
     </div>
   );
 
@@ -115,9 +373,9 @@ const ChatbotWidget: React.FC = () => {
       <button
         onClick={toggleChatbot}
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        aria-label="Open Chatbot"
+        aria-label="Open AI Copilot"
       >
-        <ChatbotIcon width="20" height="20" />
+        <CopilotUIIcon width="20" height="20" />
         <span className="absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-green-400">
           <span className="absolute inline-flex w-full h-full bg-green-400 rounded-full opacity-75 animate-ping"></span>
         </span>
@@ -128,28 +386,34 @@ const ChatbotWidget: React.FC = () => {
         <div className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
-            <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-              HelpBot from Unibase
-            </h5>
-            <button
-              onClick={toggleChatbot}
-              className="text-gray-500 transition dropdown-toggle dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <svg
-                className="fill-current"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
+            <div className="flex items-center space-x-2">
+              <CopilotUIIcon width="24" height="24" className="text-brand-500" />
+              <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                AI Copilot
+              </h5>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ConnectionStatus />
+              <button
+                onClick={toggleChatbot}
+                className="text-gray-500 transition dropdown-toggle dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="fill-current"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Chat Messages */}
@@ -161,7 +425,7 @@ const ChatbotWidget: React.FC = () => {
                     {msg.sender === 'bot' && (
                       <span className="relative block w-full h-10 rounded-full z-1 max-w-10">
                         <div className="w-full h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white text-xs font-semibold overflow-hidden">
-                          <ChatbotIcon className="w-4 h-4 text-white" />
+                          <CopilotUIIcon className="w-4 h-4 text-white" />
                         </div>
                         <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-green-400 dark:border-gray-900"></span>
                       </span>
@@ -171,9 +435,12 @@ const ChatbotWidget: React.FC = () => {
                       <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'user'
                         ? 'bg-brand-500 text-white rounded-br-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
-                        }`}>
+                        } ${msg.isStreaming ? 'border-l-2 border-brand-500' : ''}`}>
                         <span className="block text-theme-sm">
                           {msg.text}
+                          {msg.isStreaming && (
+                            <span className="inline-block w-2 h-4 ml-1 bg-brand-500 animate-pulse"></span>
+                          )}
                         </span>
                       </div>
 
@@ -200,16 +467,13 @@ const ChatbotWidget: React.FC = () => {
                         };
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
-                        setTimeout(() => {
-                          const botMessage: ChatMessage = {
-                            id: (Date.now() + 1).toString(),
-                            text: "I'd be happy to help you with user management! What specific area would you like assistance with?",
-                            sender: 'bot',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, botMessage]);
-                          setIsTyping(false);
-                        }, 1500);
+                        
+                        const messageData: AIChatRequest = {
+                          message: "Help with user management and permissions",
+                          context: { user_id: 'current_user', department: 'admin' },
+                          session_id: `session_${Date.now()}`,
+                        };
+                        sendWebSocketMessage(messageData);
                       }}
                       className="w-full text-left p-3 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-sm text-brand-600 dark:text-brand-400"
                     >
@@ -225,16 +489,13 @@ const ChatbotWidget: React.FC = () => {
                         };
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
-                        setTimeout(() => {
-                          const botMessage: ChatMessage = {
-                            id: (Date.now() + 1).toString(),
-                            text: "I can help you with sales processes, invoicing, and payment tracking. What would you like to know?",
-                            sender: 'bot',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, botMessage]);
-                          setIsTyping(false);
-                        }, 1500);
+                        
+                        const messageData: AIChatRequest = {
+                          message: "Questions about sales and invoicing",
+                          context: { user_id: 'current_user', department: 'sales' },
+                          session_id: `session_${Date.now()}`,
+                        };
+                        sendWebSocketMessage(messageData);
                       }}
                       className="w-full text-left p-3 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-sm text-brand-600 dark:text-brand-400"
                     >
@@ -250,16 +511,13 @@ const ChatbotWidget: React.FC = () => {
                         };
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
-                        setTimeout(() => {
-                          const botMessage: ChatMessage = {
-                            id: (Date.now() + 1).toString(),
-                            text: "I can guide you through the system navigation and help you find what you're looking for. Where would you like to go?",
-                            sender: 'bot',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, botMessage]);
-                          setIsTyping(false);
-                        }, 1500);
+                        
+                        const messageData: AIChatRequest = {
+                          message: "General system navigation help",
+                          context: { user_id: 'current_user', department: 'general' },
+                          session_id: `session_${Date.now()}`,
+                        };
+                        sendWebSocketMessage(messageData);
                       }}
                       className="w-full text-left p-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm"
                     >
@@ -274,6 +532,8 @@ const ChatbotWidget: React.FC = () => {
                   <TypingIndicator />
                 </li>
               )}
+              
+              <div ref={messagesEndRef} />
             </ul>
           </div>
 
@@ -287,18 +547,24 @@ const ChatbotWidget: React.FC = () => {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type your message..."
+                  placeholder="Ask me anything about ERP..."
                   className="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+                  disabled={!isConnected}
                 />
                 <button
                   onClick={handleSendMessage}
-                  disabled={!message.trim()}
+                  disabled={!message.trim() || !isConnected}
                   className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
                 >
                   <PaperPlaneIcon className="w-4 h-4" />
                 </button>
               </div>
             </div>
+            {!isConnected && (
+              <p className="text-xs text-red-500 mt-2 text-center">
+                Connecting to AI service...
+              </p>
+            )}
           </div>
 
           {/* Footer */}

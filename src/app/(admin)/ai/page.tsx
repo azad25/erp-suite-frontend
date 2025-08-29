@@ -202,7 +202,12 @@ const AIDashboardPage = () => {
         {/* Quick Actions */}
         <LazyComponentCard title="Quick Actions" desc="Frequently used AI actions and configurations">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <LazyButton variant="primary" className="justify-start" startIcon={<ChatIcon />}>
+            <LazyButton 
+              variant="primary" 
+              className="justify-start" 
+              startIcon={<ChatIcon />}
+              onClick={() => window.location.href = '/ai/chat'}
+            >
               Start AI Chat
             </LazyButton>
             <LazyButton variant="outline" className="justify-start" startIcon={<BoltIcon />}>
