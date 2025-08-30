@@ -1,13 +1,17 @@
 // AI Service Configuration
 export const AI_CONFIG = {
-  // WebSocket endpoint for real-time AI chat (via nginx proxy to API Gateway)
-  WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost/ws/chat',
+  // WebSocket endpoint for real-time AI chat (via API Gateway)
+  // Note: The API Gateway WebSocket endpoint is /ws/chat
+  WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || 
+                'ws://localhost/ws',
   
-  // REST API endpoint for AI chat (via nginx proxy to API Gateway)
-  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || 'http://localhost/api/v1/ai',
+  // REST API endpoint for AI chat (via API Gateway)
+  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || 
+                 'ws://localhost/ws/chat',
   
-  // API Gateway URL (via nginx proxy)
-  API_GATEWAY_URL: process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'http://localhost',
+  // API Gateway base URL
+  API_GATEWAY_URL: process.env.NEXT_PUBLIC_API_GATEWAY_URL || 
+                  'http://localhost',
   
   // Default context for AI requests
   DEFAULT_CONTEXT: {

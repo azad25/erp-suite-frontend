@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { CopilotUIIcon, PaperPlaneIcon } from "@/icons";
 import Link from "next/link";
-import { getWebSocketUrl, getAICopilotUrl } from "@/config/ai-config";
+import { websocketService, AIChatMessage, AIChatRequest } from "@/services/websocket";
 
 interface ChatMessage {
   id: string;
@@ -10,29 +10,12 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   timestamp: Date;
   isStreaming?: boolean;
-}
-
-interface AIChatRequest {
-  message: string;
-  context?: Record<string, string>;
-  session_id?: string;
-}
-
-interface AIChatResponse {
-  response: string;
-  message_id: string;
-  timestamp: number;
-}
-
-interface AIStreamResponse {
-  content: string;
-  is_final: boolean;
-  message_id: string;
+  messageId?: string;
+  isFinal?: boolean;
 }
 
 const ChatbotWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [ws, setWs] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [message, setMessage] = useState("");
@@ -54,238 +37,357 @@ const ChatbotWidget: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const currentMessageRef = useRef<ChatMessage | null>(null);
 
-  // WebSocket connection management
-  const connectWebSocket = useCallback(() => {
-    try {
-      // Get authentication token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        console.warn('No access token available for WebSocket connection');
+  // Handle incoming WebSocket messages
+  const handleIncomingMessage = useCallback((message: AIChatMessage) => {
+    console.log('=== CHATBOT WIDGET: Received AI message ===', message);
+    
+    if (!message) {
+      console.error('Received null or undefined message');
+      return;
+    }
+
+    if (message.type === 'ai_chat' || message.type === 'ai_stream') {
+      console.log('Processing AI message with data:', message.data);
+      
+      if (!message.data) {
+        console.error('Message data is missing', { message });
         return;
       }
-
-      const wsUrl = `${getWebSocketUrl()}?token=${encodeURIComponent(token)}`;
-      const socket = new WebSocket(wsUrl);
       
-      socket.onopen = () => {
-        console.log('WebSocket connected to AI Copilot');
-        setIsConnected(true);
-      };
-
-      socket.onmessage = (event) => {
+      const { content = '', isFinal = false, messageId = `msg-${Date.now()}` } = message.data;
+      const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
+      
+      console.log(`Processing message (isFinal: ${isFinal}):`, messageContent);
+      
+      setMessages(prevMessages => {
         try {
-          console.log('WebSocket message received:', event.data);
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
+          // If this is a final message or we don't have a current message
+          if (isFinal || !currentMessageRef.current) {
+            const newMessage = {
+              id: messageId,
+              text: messageContent,
+              sender: 'bot' as const,
+              timestamp: new Date(),
+              isFinal,
+              messageId
+            };
+            console.log('Creating new message:', newMessage);
+            currentMessageRef.current = newMessage;
+            return [...prevMessages, newMessage];
+          } else {
+            // Update existing streaming message
+            const updatedMessages = [...prevMessages];
+            const messageIndex = updatedMessages.findIndex(m => m.id === currentMessageRef.current?.id);
+            
+            if (messageIndex !== -1) {
+              updatedMessages[messageIndex] = {
+                ...updatedMessages[messageIndex],
+                text: messageContent,
+                isFinal,
+                timestamp: new Date()
+              };
+              console.log('Updating existing message:', updatedMessages[messageIndex]);
+              currentMessageRef.current = updatedMessages[messageIndex];
+              return updatedMessages;
+            } else {
+              // Create new message if not found
+              const newMessage = {
+                id: messageId,
+                text: messageContent,
+                sender: 'bot' as const,
+                timestamp: new Date(),
+                isFinal,
+                messageId
+              };
+              console.log('Creating new message (not found in state):', newMessage);
+              currentMessageRef.current = newMessage;
+              return [...prevMessages, newMessage];
+            }
+          }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error, event.data);
+          console.error('Error processing incoming message:', error);
+          return prevMessages || [];
         }
-      };
-
-      socket.onclose = (event) => {
-        console.log('WebSocket disconnected from AI Copilot', { code: event.code, reason: event.reason });
-        setIsConnected(false);
+      });
+      
+      if (isFinal) {
+        console.log('Final message received, resetting typing state');
         setIsTyping(false);
-        
-        // Show connection error message if not a clean close
-        if (event.code !== 1000) {
-          const errorMessage: ChatMessage = {
-            id: Date.now().toString(),
-            text: "Connection lost. Please check your internet connection and try again.",
-            sender: 'bot',
-            timestamp: new Date(),
-          };
-          setMessages(prev => [...prev, errorMessage]);
-        }
-      };
-
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-        setIsTyping(false);
-        
-        const errorMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: "Connection error. Please try again later.",
-          sender: 'bot',
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      };
-
-      setWs(socket);
-    } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
-      setIsConnected(false);
+        currentMessageRef.current = null;
+      } else {
+        console.log('Streaming message received, setting typing state to true');
+        setIsTyping(true);
+      }
     }
   }, []);
 
-  const disconnectWebSocket = useCallback(() => {
-    if (ws) {
-      ws.close();
-      setWs(null);
-      setIsConnected(false);
-    }
-  }, [ws]);
+  const handleQuickReply = (reply: string) => {
+    setMessage(reply);
+    // Send the message after a short delay to allow the input to update
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const submitEvent = new Event('submit', { cancelable: true });
+        form.dispatchEvent(submitEvent);
+      }
+    }, 100);
+  };
 
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    console.log('Handling WebSocket message:', data);
-    switch (data.type) {
-      case 'ai_chat':
-      case 'chat_response':
-        handleAIChatResponse(data.data || data as AIChatResponse);
-        break;
-      case 'ai_stream':
-      case 'stream_response':
-        handleAIStreamResponse(data.data || data as AIStreamResponse);
-        break;
-      case 'ai_status':
-      case 'status':
-        handleAIStatusResponse(data.data || data);
-        break;
-      case 'error':
-        console.error('WebSocket error message:', data);
-        const errorMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: data.message || data.data?.message || "An error occurred",
-          sender: 'bot',
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setIsTyping(false);
-        break;
-      default:
-        console.log('Unknown message type:', data.type, data);
+  // Handle WebSocket connection status changes
+  const handleConnectionChange = useCallback(({ isConnected }: { isConnected: boolean }) => {
+    setIsConnected(isConnected);
+    if (!isConnected) {
+      setIsTyping(false);
     }
   }, []);
 
-  // Handle AI chat response
-  const handleAIChatResponse = useCallback((response: AIChatResponse) => {
-    const botMessage: ChatMessage = {
-      id: response.message_id || Date.now().toString(),
-      text: response.response,
-      sender: 'bot',
-      timestamp: new Date(response.timestamp),
-    };
-    setMessages(prev => [...prev, botMessage]);
+  const handleError = useCallback((error: any) => {
+    console.error('WebSocket error:', error);
+    setMessages(prev => [...prev, {
+      id: `error-${Date.now()}`,
+      text: 'An error occurred with the AI service. Please try again later.',
+      sender: 'bot' as const,
+      timestamp: new Date(),
+    }]);
     setIsTyping(false);
   }, []);
 
-  // Handle AI stream response
-  const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
-    if (response.is_final) {
-      // Final message, update the streaming message
-      setMessages(prev => prev.map(msg => 
-        msg.isStreaming ? { ...msg, text: response.content, isStreaming: false } : msg
-      ));
-      setIsTyping(false);
-    } else {
-      // Streaming content, update or create streaming message
-      setMessages(prev => {
-        const existingStreaming = prev.find(msg => msg.isStreaming);
-        if (existingStreaming) {
-          return prev.map(msg => 
-            msg.isStreaming ? { ...msg, text: response.content } : msg
-          );
-        } else {
-          const streamingMessage: ChatMessage = {
-            id: response.message_id || Date.now().toString(),
-            text: response.content,
-            sender: 'bot',
-            timestamp: new Date(),
-            isStreaming: true,
-          };
-          return [...prev, streamingMessage];
-        }
-      });
-    }
-  }, []);
-
-  // Handle AI status response
-  const handleAIStatusResponse = useCallback((status: any) => {
-    if (status.status === 'processing') {
-      setIsTyping(true);
-    } else if (status.status === 'completed') {
-      setIsTyping(false);
-    }
-  }, []);
-
-  // Send message via WebSocket
-  const sendWebSocketMessage = useCallback((messageData: AIChatRequest) => {
-    if (ws && isConnected) {
-      const wsMessage = {
-        type: 'chat_message',
-        data: messageData,
-        timestamp: new Date().toISOString(),
-      };
-      console.log('Sending WebSocket message:', wsMessage);
-      ws.send(JSON.stringify(wsMessage));
-    } else {
-      console.log('WebSocket not connected, falling back to REST API');
-      // Fallback to REST API if WebSocket not available
-      sendRESTMessage(messageData);
-    }
-  }, [ws, isConnected]);
-
-  // Fallback REST API call via API Gateway
-  const sendRESTMessage = async (messageData: AIChatRequest) => {
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!message.trim() || isTyping) return;
+    
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      text: message,
+      sender: 'user',
+      timestamp: new Date(),
+    };
+    
+    // Add user message to chat
+    setMessages(prev => [...prev, userMessage]);
+    setMessage('');
+    
     try {
-      const aiUrl = getAICopilotUrl();
-      const response = await fetch(`${aiUrl}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messageData),
+      setIsTyping(true);
+      
+      // The WebSocket service will handle reconnection if needed
+      const messageId = await websocketService.sendChatMessage(message, undefined, {
+        user_id: 'current_user',
+        department: 'general'
       });
-
-      if (response.ok) {
-        const data: AIChatResponse = await response.json();
-        handleAIChatResponse(data);
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      
+      console.log('Message sent with ID:', messageId);
     } catch (error) {
-      console.error('Failed to send message via REST:', error);
-      // Show error message
+      console.error('Error sending message:', error);
+      
       const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text: "Sorry, I'm having trouble connecting right now. Please try again later.",
-        sender: 'bot',
+        id: `error-${Date.now()}`,
+        text: 'Failed to send message. Please try again.',
+        sender: 'bot' as const,
         timestamp: new Date(),
       };
+      
       setMessages(prev => [...prev, errorMessage]);
       setIsTyping(false);
     }
   };
 
-  // Connect WebSocket when component mounts and widget is opened
+  // Set up WebSocket connection and event listeners
   useEffect(() => {
-    if (isOpen) {
-      connectWebSocket();
-    } else {
-      disconnectWebSocket();
+    console.log('=== CHATBOT WIDGET: Setting up WebSocket listeners ===');
+    
+    // Check if user is authenticated
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    
+    if (!token) {
+      console.warn('No access token found. User must be authenticated to use the chat.');
+      return;
     }
-    return () => disconnectWebSocket();
-  }, [isOpen, connectWebSocket, disconnectWebSocket]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Click outside to close
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    // Set up WebSocket listeners
+    const messageListener = (message: AIChatMessage) => {
+      console.log('=== CHATBOT WIDGET: Received AI message ===', message);
+      handleIncomingMessage(message);
+    };
+    
+    const connectListener = () => {
+      console.log('=== CHATBOT WIDGET: WebSocket connected, subscribing to ai_chat ===');
+      setIsConnected(true);
+      setIsTyping(false);
+      // Subscribe to AI chat channel when connected
+      websocketService.subscribe('ai_chat');
+    };
+    
+    const disconnectListener = () => {
+      console.log('=== CHATBOT WIDGET: WebSocket disconnected ===');
+      setIsConnected(false);
+      setIsTyping(false);
+      
+      // Show connection status to user
+      setMessages(prev => [...prev, {
+        id: `status-${Date.now()}`,
+        text: 'Disconnected from server. Reconnecting...',
+        sender: 'bot',
+        timestamp: new Date()
+      }]);
+    };
+    
+    const ackListener = (ack: any) => {
+      console.log('=== CHATBOT WIDGET: Received acknowledgment ===', ack);
+      // Handle acknowledgment if needed
+    };
+    
+    const errorListener = (error: any) => {
+      console.error('=== CHATBOT WIDGET: WebSocket error ===', error);
+      
+      // Handle different error formats
+      let errorMessage = 'An error occurred with the WebSocket connection';
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error?.error) {
+        errorMessage = error.error;
+      }
+      
+      // Don't show duplicate error messages
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage?.text.includes(errorMessage)) {
+          return prev;
+        }
+        return [...prev, {
+          id: `error-${Date.now()}`,
+          text: `Error: ${errorMessage}`,
+          sender: 'bot' as const,
+          timestamp: new Date()
+        }];
+      });
+      
+      setIsTyping(false);
+      
+      // If it's an authentication error, suggest re-login
+      if (errorMessage.toLowerCase().includes('auth') || 
+          errorMessage.toLowerCase().includes('token') ||
+          errorMessage.toLowerCase().includes('unauthorized')) {
+        setMessages(prev => [...prev, {
+          id: `suggestion-${Date.now()}`,
+          text: 'Please try logging out and back in to refresh your session.',
+          sender: 'bot' as const,
+          timestamp: new Date()
+        }]);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    // Initialize WebSocket connection
+    const initWebSocket = async () => {
+      try {
+        console.log('=== CHATBOT WIDGET: Initializing WebSocket connection ===');
+        
+        // Initialize the WebSocket connection first
+        await websocketService.initializeConnection();
+        
+        console.log('=== CHATBOT WIDGET: Adding WebSocket event listeners ===');
+        
+        // Set up all event listeners
+        websocketService.on('ai_message', messageListener);
+        websocketService.on('acknowledgment', ackListener);
+        websocketService.on('connected', connectListener);
+        websocketService.on('disconnected', disconnectListener);
+        websocketService.on('error', errorListener);
+        
+        // Ensure connection is established
+        websocketService.ensureConnection();
+        
+        // Also listen for raw messages for debugging
+        websocketService.on('message', (msg: any) => {
+          console.log('=== CHATBOT WIDGET: Raw WebSocket message ===', msg);
+        });
+        
+        // Initialize connection if not already connected
+        if (!websocketService.isConnected()) {
+          console.log('=== CHATBOT WIDGET: Initializing WebSocket connection ===');
+          websocketService.shouldConnect = true;
+          await websocketService.initializeConnection();
+          
+          // Check connection status after initialization
+          const connected = websocketService.isConnected();
+          console.log('WebSocket connection status after initialization:', connected);
+          setIsConnected(connected);
+          
+          if (connected) {
+            console.log('WebSocket connected, subscribing to AI chat channel...');
+            websocketService.subscribe('ai_chat');
+          }
+        } else {
+          console.log('WebSocket already connected, subscribing to AI chat channel...');
+          websocketService.subscribe('ai_chat');
+          setIsConnected(true);
+        }
+      } catch (error) {
+        const errorMsg = 'Failed to initialize WebSocket connection';
+        console.error(errorMsg, error);
+        handleError(new Error(errorMsg));
+      }
+    };
+
+    // Initialize WebSocket connection
+    initWebSocket();
+    
+    // Clean up event listeners on unmount
+    return () => {
+      console.log('=== CHATBOT WIDGET: Cleaning up WebSocket listeners ===');
+      
+      // Remove all listeners
+      websocketService.off('ai_message', messageListener);
+      websocketService.off('acknowledgment', ackListener);
+      websocketService.off('connected', connectListener);
+      websocketService.off('disconnected', disconnectListener);
+      websocketService.off('error', errorListener);
+      websocketService.off('message');
+      
+      // Unsubscribe from the AI chat channel if connected
+      if (websocketService.isConnected()) {
+        console.log('Unsubscribing from ai_chat channel');
+        websocketService.unsubscribe('ai_chat');
+      }
+      
+      // Reset states
+      setIsConnected(false);
+      setIsTyping(false);
+      currentMessageRef.current = null;
+      
+      console.log('=== CHATBOT WIDGET: WebSocket cleanup complete ===');
+    };
+  }, [handleIncomingMessage, handleConnectionChange, handleError]);
+
+  // Auto-scroll to bottom of messages when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   // Focus input when opened
@@ -303,37 +405,54 @@ const ChatbotWidget: React.FC = () => {
     setIsOpen(false);
   };
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
-
+  // Handle sending messages
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    
+    if (!message.trim() || isTyping) return;
+    
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}`,
       text: message,
       sender: 'user',
       timestamp: new Date(),
     };
-
+    
     setMessages(prev => [...prev, userMessage]);
     setMessage("");
     setIsTyping(true);
-
-    // Send message via WebSocket or REST
-    const messageData: AIChatRequest = {
-      message: message.trim(),
-      context: {
-        user_id: 'current_user', // This should come from auth context
-        department: 'general',
-      },
-      session_id: `session_${Date.now()}`,
-    };
-
-    sendWebSocketMessage(messageData);
+    
+    try {
+      // Use the WebSocket service to send the message
+      await websocketService.sendChatMessage(
+        message,
+        `session_${Date.now()}`,
+        { 
+          user_id: 'current_user', // This should be replaced with actual user ID
+          department: 'general' 
+        }
+      );
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsTyping(false);
+      
+      // Add error message to chat
+      setMessages(prev => [
+        ...prev, 
+        {
+          id: `error-${Date.now()}`,
+          text: 'Failed to send message. Please try again.',
+          sender: 'bot',
+          timestamp: new Date()
+        }
+      ]);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSendMessage(e);
     }
   };
 
@@ -458,29 +577,38 @@ const ChatbotWidget: React.FC = () => {
                 <li>
                   <div className="space-y-2 mt-4">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        const messageText = "Help with user management and permissions";
                         const userMessage: ChatMessage = {
-                          id: Date.now().toString(),
-                          text: "Help with user management and permissions",
-                          sender: 'user',
+                          id: `user-${Date.now()}`,
+                          text: messageText,
+                          sender: 'user' as const,
                           timestamp: new Date(),
                         };
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
                         
-                        const messageData: AIChatRequest = {
-                          message: "Help with user management and permissions",
-                          context: { user_id: 'current_user', department: 'admin' },
-                          session_id: `session_${Date.now()}`,
-                        };
-                        sendWebSocketMessage(messageData);
+                        try {
+                          await websocketService.sendChatMessage(
+                            messageText,
+                            `session_${Date.now()}`,
+                            { 
+                              user_id: 'current_user', 
+                              department: 'admin' 
+                            }
+                          );
+                        } catch (error) {
+                          console.error('Error sending message:', error);
+                          setIsTyping(false);
+                        }
                       }}
                       className="w-full text-left p-3 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-sm text-brand-600 dark:text-brand-400"
                     >
                       Help with user management and permissions
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        const messageText = "Questions about sales and invoicing";
                         const userMessage: ChatMessage = {
                           id: Date.now().toString(),
                           text: "Questions about sales and invoicing",
@@ -490,12 +618,18 @@ const ChatbotWidget: React.FC = () => {
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
                         
-                        const messageData: AIChatRequest = {
-                          message: "Questions about sales and invoicing",
-                          context: { user_id: 'current_user', department: 'sales' },
-                          session_id: `session_${Date.now()}`,
-                        };
-                        sendWebSocketMessage(messageData);
+                        (async () => {
+                          try {
+                            await websocketService.sendChatMessage(
+                              "Questions about sales and invoicing",
+                              `session_${Date.now()}`,
+                              { user_id: 'current_user', department: 'sales' }
+                            );
+                          } catch (error: unknown) {
+                            console.error('Error sending message:', error);
+                            setIsTyping(false);
+                          }
+                        })();
                       }}
                       className="w-full text-left p-3 border border-brand-200 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-sm text-brand-600 dark:text-brand-400"
                     >
@@ -512,12 +646,18 @@ const ChatbotWidget: React.FC = () => {
                         setMessages(prev => [...prev, userMessage]);
                         setIsTyping(true);
                         
-                        const messageData: AIChatRequest = {
-                          message: "General system navigation help",
-                          context: { user_id: 'current_user', department: 'general' },
-                          session_id: `session_${Date.now()}`,
-                        };
-                        sendWebSocketMessage(messageData);
+                        (async () => {
+                          try {
+                            await websocketService.sendChatMessage(
+                              "General system navigation help",
+                              `session_${Date.now()}`,
+                              { user_id: 'current_user', department: 'general' }
+                            );
+                          } catch (error: unknown) {
+                            console.error('Error sending message:', error);
+                            setIsTyping(false);
+                          }
+                        })();
                       }}
                       className="w-full text-left p-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm"
                     >
