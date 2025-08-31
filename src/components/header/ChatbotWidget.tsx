@@ -38,6 +38,11 @@ const ChatbotWidget: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentMessageRef = useRef<ChatMessage | null>(null);
+  const idCounter = useRef(0);
+  const genId = (prefix = 'id') => {
+    idCounter.current += 1;
+    return `${prefix}-${Date.now()}-${idCounter.current}-${Math.random().toString(36).slice(2,8)}`;
+  };
 
   // Handle incoming WebSocket messages
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
@@ -56,7 +61,7 @@ const ChatbotWidget: React.FC = () => {
         return;
       }
       
-      const { content = '', isFinal = false, messageId = `msg-${Date.now()}` } = message.data;
+  const { content = '', isFinal = false, messageId = `msg-${genId('msg')}` } = message.data;
       const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
       
       console.log(`Processing message (isFinal: ${isFinal}):`, messageContent);
@@ -146,7 +151,7 @@ const ChatbotWidget: React.FC = () => {
   const handleError = useCallback((error: any) => {
     console.error('WebSocket error:', error);
     setMessages(prev => [...prev, {
-      id: `error-${Date.now()}`,
+      id: `error-${genId('error')}`,
       text: 'An error occurred with the AI service. Please try again later.',
       sender: 'bot' as const,
       timestamp: new Date(),
@@ -160,7 +165,7 @@ const ChatbotWidget: React.FC = () => {
     if (!message.trim() || isTyping) return;
     
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${genId('user')}`,
       text: message,
       sender: 'user',
       timestamp: new Date(),
@@ -184,7 +189,7 @@ const ChatbotWidget: React.FC = () => {
       console.error('Error sending message:', error);
       
       const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
+  id: `error-${genId('error')}`,
         text: 'Failed to send message. Please try again.',
         sender: 'bot' as const,
         timestamp: new Date(),
@@ -228,7 +233,7 @@ const ChatbotWidget: React.FC = () => {
       
       // Show connection status to user
       setMessages(prev => [...prev, {
-        id: `status-${Date.now()}`,
+  id: `status-${genId('status')}`,
         text: 'Disconnected from server. Reconnecting...',
         sender: 'bot',
         timestamp: new Date()
@@ -265,7 +270,7 @@ const ChatbotWidget: React.FC = () => {
           return prev;
         }
         return [...prev, {
-          id: `error-${Date.now()}`,
+    id: `error-${genId('error')}`,
           text: `Error: ${errorMessage}`,
           sender: 'bot' as const,
           timestamp: new Date()
@@ -279,7 +284,7 @@ const ChatbotWidget: React.FC = () => {
           errorMessage.toLowerCase().includes('token') ||
           errorMessage.toLowerCase().includes('unauthorized')) {
         setMessages(prev => [...prev, {
-          id: `suggestion-${Date.now()}`,
+    id: `suggestion-${genId('suggestion')}`,
           text: 'Please try logging out and back in to refresh your session.',
           sender: 'bot' as const,
           timestamp: new Date()
@@ -412,7 +417,7 @@ const ChatbotWidget: React.FC = () => {
     if (!message.trim() || isTyping) return;
     
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${genId('user')}`,
       text: message,
       sender: 'user',
       timestamp: new Date(),
@@ -426,7 +431,7 @@ const ChatbotWidget: React.FC = () => {
       // Use the WebSocket service to send the message
       await websocketService.sendChatMessage(
         message,
-        `session_${Date.now()}`,
+                            `session_${genId('session')}`,
         { 
           user_id: 'current_user', // This should be replaced with actual user ID
           department: 'general' 
@@ -440,7 +445,7 @@ const ChatbotWidget: React.FC = () => {
       setMessages(prev => [
         ...prev, 
         {
-          id: `error-${Date.now()}`,
+    id: `error-${genId('error')}`,
           text: 'Failed to send message. Please try again.',
           sender: 'bot',
           timestamp: new Date()
@@ -580,7 +585,7 @@ const ChatbotWidget: React.FC = () => {
                       onClick={async () => {
                         const messageText = "Help with user management and permissions";
                         const userMessage: ChatMessage = {
-                          id: `user-${Date.now()}`,
+                          id: `user-${genId('user')}`,
                           text: messageText,
                           sender: 'user' as const,
                           timestamp: new Date(),
@@ -591,7 +596,7 @@ const ChatbotWidget: React.FC = () => {
                         try {
                           await websocketService.sendChatMessage(
                             messageText,
-                            `session_${Date.now()}`,
+                            `session_${genId('session')}`,
                             { 
                               user_id: 'current_user', 
                               department: 'admin' 
@@ -610,7 +615,7 @@ const ChatbotWidget: React.FC = () => {
                       onClick={async () => {
                         const messageText = "Questions about sales and invoicing";
                         const userMessage: ChatMessage = {
-                          id: Date.now().toString(),
+                          id: genId('user'),
                           text: "Questions about sales and invoicing",
                           sender: 'user',
                           timestamp: new Date(),
@@ -622,7 +627,7 @@ const ChatbotWidget: React.FC = () => {
                           try {
                             await websocketService.sendChatMessage(
                               "Questions about sales and invoicing",
-                              `session_${Date.now()}`,
+                              `session_${genId('session')}`,
                               { user_id: 'current_user', department: 'sales' }
                             );
                           } catch (error: unknown) {
@@ -638,7 +643,7 @@ const ChatbotWidget: React.FC = () => {
                     <button
                       onClick={() => {
                         const userMessage: ChatMessage = {
-                          id: Date.now().toString(),
+                          id: genId('user'),
                           text: "General system navigation help",
                           sender: 'user',
                           timestamp: new Date(),
@@ -650,7 +655,7 @@ const ChatbotWidget: React.FC = () => {
                           try {
                             await websocketService.sendChatMessage(
                               "General system navigation help",
-                              `session_${Date.now()}`,
+                              `session_${genId('session')}`,
                               { user_id: 'current_user', department: 'general' }
                             );
                           } catch (error: unknown) {

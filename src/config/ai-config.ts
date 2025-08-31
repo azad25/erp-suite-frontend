@@ -1,17 +1,27 @@
 // AI Service Configuration
+export const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'http://localhost:8000';
+
+// Compute a sane default WebSocket URL from the API gateway URL
+const computeDefaultWebSocketUrl = (): string => {
+  try {
+    const base = new URL(API_GATEWAY_URL);
+    const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${base.host}/ws/chat`;
+  } catch (e) {
+    return 'ws://localhost:8000/ws/chat';
+  }
+};
+
 export const AI_CONFIG = {
   // WebSocket endpoint for real-time AI chat (via API Gateway)
   // Note: The API Gateway WebSocket endpoint is /ws/chat
-  WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || 
-                'ws://localhost/ws',
-  
-  // REST API endpoint for AI chat (via API Gateway)
-  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || 
-                 'ws://localhost/ws/chat',
-  
+  WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || computeDefaultWebSocketUrl(),
+
+  // REST API endpoint for AI chat (via API Gateway) - use HTTP(S)
+  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || `${API_GATEWAY_URL.replace(/\/$/, '')}/ws/chat`,
+
   // API Gateway base URL
-  API_GATEWAY_URL: process.env.NEXT_PUBLIC_API_GATEWAY_URL || 
-                  'http://localhost',
+  API_GATEWAY_URL: API_GATEWAY_URL,
   
   // Default context for AI requests
   DEFAULT_CONTEXT: {
