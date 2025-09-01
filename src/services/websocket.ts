@@ -19,7 +19,7 @@ export interface WebSocketMessage<T = any> {
 
 // AI Chat specific message types
 export interface AIChatMessage extends WebSocketMessage {
-  type: 'ai_chat' | 'ai_stream' | 'ai_status';
+  type: 'chat_message' | 'ai_stream' | 'ai_status';
   data: {
     content: string;
     isFinal?: boolean;
@@ -31,7 +31,7 @@ export interface AIChatMessage extends WebSocketMessage {
 
 // AI Chat request message
 export interface AIChatRequest extends WebSocketMessage {
-  type: 'ai_chat';
+  type: 'chat_message';
   data: {
     message: string;
     conversationId?: string;
@@ -176,16 +176,10 @@ class WebSocketService {
       this.startHeartbeat();
 
       // Process queued subscriptions
-      console.log(`Processing ${this.queuedSubscriptions.size} queued subscriptions`);
+      console.log('Processing queued subscriptions after connection');
       this.queuedSubscriptions.forEach(channel => {
-        console.log(`Subscribing to channel: ${channel}`);
-        this.sendMessage({
-          type: 'subscribe',
-          data: { channel },
-          timestamp: new Date().toISOString()
-        });
+        this.subscribe(channel);
       });
-      this.queuedSubscriptions.clear();
 
       const socketUrl = this.socket ? this.socket.url : 'unknown';
       console.log('Emitting connected event');
@@ -209,7 +203,8 @@ class WebSocketService {
       console.log('Stopping WebSocket heartbeat');
       this.stopHeartbeat();
 
-      // Emit disconnected event
+      // Reset connection state on disconnect
+      this.subscribedChannels.clear();
       const disconnectEvent = {
         code: event.code,
         reason: event.reason,
@@ -253,12 +248,7 @@ class WebSocketService {
           throw new Error('Invalid message format: expected an object');
         }
         
-        console.log('=== WEBSOCKET SERVICE: Parsed message ===', message);
-        
-        // First emit the raw message for any generic listeners
-        this.emit('message', message);
-        
-        // Then handle specific message types
+        // Handle specific message types directly (no double emission)
         this.handleMessage(message);
       } catch (error) {
         const errorMsg = `Error processing WebSocket message: ${error instanceof Error ? error.message : String(error)}`;
@@ -273,43 +263,20 @@ class WebSocketService {
     };
   }
 
-  private handleIncomingMessage(event: MessageEvent): void {
-    try {
-      console.log('=== WEBSOCKET SERVICE: Received raw message data ===', event.data);
-      
-      // Handle both string and already-parsed messages
-      const message = typeof event.data === 'string' 
-        ? JSON.parse(event.data) 
-        : event.data;
-      
-      if (!message || typeof message !== 'object') {
-        throw new Error('Invalid message format: expected an object');
-      }
-      
-      console.log('=== WEBSOCKET SERVICE: Parsed message ===', message);
-      this.handleMessage(message as WebSocketMessage);
-    } catch (error) {
-      const errorMsg = `Error processing WebSocket message: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(errorMsg, { rawData: event.data, error });
-      this.emit('error', { 
-        type: 'websocket_error',
-        error: errorMsg,
-        rawData: event.data,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
 
   // AI Chat specific methods
   public sendChatMessage(message: string, conversationId?: string, context?: Record<string, any>): string {
     const messageId = `msg_${Date.now()}`;
+    // Generate conversation ID if not provided
+    const finalConversationId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const chatMessage: AIChatRequest = {
-      type: 'ai_chat',
+      type: 'chat_message',
       messageId,
       timestamp: new Date().toISOString(),
       data: {
         message,
-        conversationId,
+        conversationId: finalConversationId,
         context: {
           ...context,
           ...AI_CONFIG.DEFAULT_CONTEXT,
@@ -686,37 +653,22 @@ class WebSocketService {
       }
       
       const listeners = this.eventListeners.get(event);
-      console.log(`=== WEBSOCKET SERVICE: Emitting event '${event}' ===`);
-      console.log(`Found ${listeners?.size || 0} listeners for event: ${event}`);
       
-      // Process specific event listeners
       if (listeners && listeners.size > 0) {
-        let listenerCount = 0;
-        listeners.forEach((listener) => {
+        listeners.forEach(listener => {
           try {
-            listenerCount++;
-            console.log(`Calling listener #${listenerCount} for event: ${event}`);
             listener(data);
           } catch (error) {
-            console.error(`Error in event listener for '${event}':`, error);
+            console.error(`Error in event listener for ${event}:`, error);
           }
         });
       }
-      
-      // Always emit to wildcard listeners, but avoid infinite loops
-      if (event !== '*') {
-        const wildcardListeners = this.eventListeners.get('*');
-        if (wildcardListeners && wildcardListeners.size > 0) {
-          console.log(`Emitting to ${wildcardListeners.size} wildcard listeners`);
-          this.emit('*', { event, data });
-        } else {
-          console.log('No wildcard listeners registered');
-        }
-      }
     } catch (error) {
-      console.error('Error in emit method:', error);
+      console.error('Error emitting event:', error);
     }
   }
+
+  private subscribedChannels = new Set<string>();
 
   public subscribe(channel: string): void {
     if (!channel) {
@@ -724,8 +676,13 @@ class WebSocketService {
       return;
     }
     
+    // Prevent duplicate subscriptions
+    if (this.subscribedChannels.has(channel)) {
+      return;
+    }
+    
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      console.log(`Subscribing to channel: ${channel}`);
+      this.subscribedChannels.add(channel);
       this.sendMessage({
         type: 'subscribe',
         data: { channel },
@@ -733,7 +690,6 @@ class WebSocketService {
       } as WebSocketMessage);
       this.queuedSubscriptions.delete(channel);
     } else {
-      console.log(`Queueing subscription to channel: ${channel}`);
       this.queuedSubscriptions.add(channel);
       this.ensureConnection();
     }
@@ -745,10 +701,10 @@ class WebSocketService {
       return;
     }
 
+    this.subscribedChannels.delete(channel);
     this.queuedSubscriptions.delete(channel);
     
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      console.log(`Unsubscribing from channel: ${channel}`);
       this.sendMessage({
         type: 'unsubscribe',
         data: { channel },
@@ -836,54 +792,49 @@ class WebSocketService {
   }
 
   private handleMessage(message: any): void {
-    console.log('=== WEBSOCKET SERVICE: Processing message ===', message);
-    
     // Handle different message types
     if (message && typeof message === 'object') {
       switch (message.type) {
         case 'ack':
-          console.log('=== WEBSOCKET SERVICE: Received ACK ===', message);
           this.emit('acknowledgment', message);
           break;
           
         case 'error':
-          console.error('=== WEBSOCKET SERVICE: Received error ===', message);
           this.emit('error', message.data || { error: 'Unknown error occurred' });
           break;
           
         case 'user_activity':
-          console.log('=== WEBSOCKET SERVICE: Emitting user_activity event ===');
           this.emit('user_activity', message as unknown as UserActivityMessage);
           break;
           
         case 'user_status':
-          console.log('=== WEBSOCKET SERVICE: Emitting user_status event ===');
           this.emit('user_status', message as unknown as UserStatusMessage);
           break;
           
         case 'security_alert':
-          console.log('=== WEBSOCKET SERVICE: Emitting security_alert event ===');
           this.emit('security_alert', message as unknown as SecurityAlertMessage);
           break;
           
         case 'system_notification':
-          console.log('=== WEBSOCKET SERVICE: Emitting system_notification event ===');
-          this.emit('system_notification', message as unknown as SystemNotificationMessage);
+          this.emit('system_notification', message);
           break;
           
+        case 'chat_message':
+        case 'chat_response':
         case 'ai_chat':
         case 'ai_stream':
         case 'ai_status':
-          console.log('=== WEBSOCKET SERVICE: Emitting ai_message event ===', message);
-          this.emit('ai_message', message as unknown as AIChatMessage);
+          this.emit('ai_message', message);
+          break;
+          
+        case 'notification':
+          this.emit('notification', message);
           break;
           
         default:
-          console.warn('=== WEBSOCKET SERVICE: Unknown message type ===', message.type);
           this.emit('*', message);
       }
     } else {
-      console.warn('=== WEBSOCKET SERVICE: Received non-object message ===', message);
       this.emit('*', message);
     }
   }

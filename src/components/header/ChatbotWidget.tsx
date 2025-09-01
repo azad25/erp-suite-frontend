@@ -18,16 +18,18 @@ const ChatbotWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: "1",
-      text: "Hi! 👋 I'm your AI Copilot, ready to help with ERP tasks.",
+      id: 'welcome-1',
+      text: "👋 Hi! I'm your AI assistant for the ERP Suite.",
       sender: 'bot',
       timestamp: new Date(),
     },
     {
-      id: "2",
+      id: 'welcome-2',
       text: "Ask me anything about user management, sales, invoicing, or system navigation!",
       sender: 'bot',
       timestamp: new Date(),
@@ -38,95 +40,108 @@ const ChatbotWidget: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentMessageRef = useRef<ChatMessage | null>(null);
+  const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const idCounter = useRef(0);
+  
   const genId = (prefix = 'id') => {
     idCounter.current += 1;
     return `${prefix}-${Date.now()}-${idCounter.current}-${Math.random().toString(36).slice(2,8)}`;
   };
 
+  // Typewriter effect for AI responses
+  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 30) => {
+    setTypingMessageId(messageId);
+    let index = 0;
+    
+    const typeNextChar = () => {
+      if (index < fullText.length) {
+        const currentText = fullText.substring(0, index + 1);
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, text: currentText }
+            : msg
+        ));
+        
+        index++;
+        typewriterTimeoutRef.current = setTimeout(typeNextChar, speed);
+      } else {
+        setTypingMessageId(null);
+        setIsTyping(false);
+      }
+    };
+    
+    typeNextChar();
+  }, []);
+
+  // Cleanup typewriter effect
+  useEffect(() => {
+    return () => {
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Handle incoming WebSocket messages
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
-    console.log('=== CHATBOT WIDGET: Received AI message ===', message);
+    if (!message) return;
+
+    // Extract message ID first for deduplication
+    const messageId = (message as any).message_id || (message.data as any)?.message_id || `msg-${genId('msg')}`;
     
-    if (!message) {
-      console.error('Received null or undefined message');
+    // Check if we've already processed this message
+    if (processedMessageIds.has(messageId)) {
       return;
     }
+    
+    // Mark message as processed IMMEDIATELY to prevent race conditions
+    setProcessedMessageIds(prev => new Set([...prev, messageId]));
 
-    if (message.type === 'ai_chat' || message.type === 'ai_stream') {
-      console.log('Processing AI message with data:', message.data);
-      
-      if (!message.data) {
-        console.error('Message data is missing', { message });
-        return;
-      }
-      
-  const { content = '', isFinal = false, messageId = `msg-${genId('msg')}` } = message.data;
-      const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
-      
-      console.log(`Processing message (isFinal: ${isFinal}):`, messageContent);
-      
-      setMessages(prevMessages => {
-        try {
-          // If this is a final message or we don't have a current message
-          if (isFinal || !currentMessageRef.current) {
-            const newMessage = {
-              id: messageId,
-              text: messageContent,
-              sender: 'bot' as const,
-              timestamp: new Date(),
-              isFinal,
-              messageId
-            };
-            console.log('Creating new message:', newMessage);
-            currentMessageRef.current = newMessage;
-            return [...prevMessages, newMessage];
-          } else {
-            // Update existing streaming message
-            const updatedMessages = [...prevMessages];
-            const messageIndex = updatedMessages.findIndex(m => m.id === currentMessageRef.current?.id);
-            
-            if (messageIndex !== -1) {
-              updatedMessages[messageIndex] = {
-                ...updatedMessages[messageIndex],
-                text: messageContent,
-                isFinal,
-                timestamp: new Date()
-              };
-              console.log('Updating existing message:', updatedMessages[messageIndex]);
-              currentMessageRef.current = updatedMessages[messageIndex];
-              return updatedMessages;
-            } else {
-              // Create new message if not found
-              const newMessage = {
-                id: messageId,
-                text: messageContent,
-                sender: 'bot' as const,
-                timestamp: new Date(),
-                isFinal,
-                messageId
-              };
-              console.log('Creating new message (not found in state):', newMessage);
-              currentMessageRef.current = newMessage;
-              return [...prevMessages, newMessage];
-            }
-          }
-        } catch (error) {
-          console.error('Error processing incoming message:', error);
-          return prevMessages || [];
-        }
-      });
-      
-      if (isFinal) {
-        console.log('Final message received, resetting typing state');
-        setIsTyping(false);
-        currentMessageRef.current = null;
-      } else {
-        console.log('Streaming message received, setting typing state to true');
-        setIsTyping(true);
-      }
+    // Handle different message types and formats
+    const messageData = message.data || message;
+    
+    // Try to extract content from various possible locations
+    let content = messageData.content || (messageData as any).message || (messageData as any).text || (messageData as any).response;
+    
+    // If messageData is empty (0 keys), try the root message object directly
+    if (!content && Object.keys(messageData).length === 0) {
+      content = (message as any).content || (message as any).message || (message as any).text || (message as any).response;
     }
-  }, []);
+    
+    // Special handling for chat_response type messages
+    if (!content && (message as any).type === 'chat_response') {
+      content = (message as any).response || (message as any).data?.response;
+    }
+    
+    if (!content) {
+      return;
+    }
+    
+    const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
+    
+    // Clear any existing typewriter effect
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+    }
+    
+    // Add the message with empty text first
+    const newMessage = {
+      id: messageId,
+      text: '', // Start with empty text
+      sender: 'bot' as const,
+      timestamp: new Date(),
+      messageId
+    };
+    
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+    setIsTyping(false); // Stop the "thinking" indicator
+    
+    // Start typewriter effect
+    typewriterEffect(messageContent, messageId);
+    
+    currentMessageRef.current = null;
+  }, [typewriterEffect, processedMessageIds]);
 
   const handleQuickReply = (reply: string) => {
     setMessage(reply);
@@ -214,12 +229,10 @@ const ChatbotWidget: React.FC = () => {
 
     // Set up WebSocket listeners
     const messageListener = (message: AIChatMessage) => {
-      console.log('=== CHATBOT WIDGET: Received AI message ===', message);
       handleIncomingMessage(message);
     };
     
     const connectListener = () => {
-      console.log('=== CHATBOT WIDGET: WebSocket connected, subscribing to ai_chat ===');
       setIsConnected(true);
       setIsTyping(false);
       // Subscribe to AI chat channel when connected
@@ -227,7 +240,6 @@ const ChatbotWidget: React.FC = () => {
     };
     
     const disconnectListener = () => {
-      console.log('=== CHATBOT WIDGET: WebSocket disconnected ===');
       setIsConnected(false);
       setIsTyping(false);
       
@@ -241,7 +253,6 @@ const ChatbotWidget: React.FC = () => {
     };
     
     const ackListener = (ack: any) => {
-      console.log('=== CHATBOT WIDGET: Received acknowledgment ===', ack);
       // Handle acknowledgment if needed
     };
     
@@ -295,12 +306,12 @@ const ChatbotWidget: React.FC = () => {
     // Initialize WebSocket connection
     const initWebSocket = async () => {
       try {
-        console.log('=== CHATBOT WIDGET: Initializing WebSocket connection ===');
-        
-        // Initialize the WebSocket connection first
-        await websocketService.initializeConnection();
-        
-        console.log('=== CHATBOT WIDGET: Adding WebSocket event listeners ===');
+        // Remove any existing listeners first to prevent duplicates
+        websocketService.off('ai_message', messageListener);
+        websocketService.off('acknowledgment', ackListener);
+        websocketService.off('connected', connectListener);
+        websocketService.off('disconnected', disconnectListener);
+        websocketService.off('error', errorListener);
         
         // Set up all event listeners
         websocketService.on('ai_message', messageListener);
@@ -312,30 +323,25 @@ const ChatbotWidget: React.FC = () => {
         // Ensure connection is established
         websocketService.ensureConnection();
         
-        // Also listen for raw messages for debugging
-        websocketService.on('message', (msg: any) => {
-          console.log('=== CHATBOT WIDGET: Raw WebSocket message ===', msg);
-        });
-        
         // Initialize connection if not already connected
         if (!websocketService.isConnected()) {
-          console.log('=== CHATBOT WIDGET: Initializing WebSocket connection ===');
           websocketService.shouldConnect = true;
           await websocketService.initializeConnection();
           
           // Check connection status after initialization
           const connected = websocketService.isConnected();
-          console.log('WebSocket connection status after initialization:', connected);
           setIsConnected(connected);
           
-          if (connected) {
-            console.log('WebSocket connected, subscribing to AI chat channel...');
+          // Only subscribe if we're not on the AI chat page
+          if (connected && !window.location.pathname.includes('/ai/chat')) {
             websocketService.subscribe('ai_chat');
           }
         } else {
-          console.log('WebSocket already connected, subscribing to AI chat channel...');
-          websocketService.subscribe('ai_chat');
           setIsConnected(true);
+          // Only subscribe if we're not on the AI chat page
+          if (!window.location.pathname.includes('/ai/chat')) {
+            websocketService.subscribe('ai_chat');
+          }
         }
       } catch (error) {
         const errorMsg = 'Failed to initialize WebSocket connection';
@@ -349,7 +355,6 @@ const ChatbotWidget: React.FC = () => {
     
     // Clean up event listeners on unmount
     return () => {
-      console.log('=== CHATBOT WIDGET: Cleaning up WebSocket listeners ===');
       
       // Remove all listeners
       websocketService.off('ai_message', messageListener);
@@ -359,10 +364,9 @@ const ChatbotWidget: React.FC = () => {
       websocketService.off('error', errorListener);
       websocketService.off('message');
       
-      // Unsubscribe from the AI chat channel if connected
-      if (websocketService.isConnected()) {
-        console.log('Unsubscribing from ai_chat channel');
-        websocketService.unsubscribe('ai_chat');
+      // Unsubscribe from the AI chat channel if connected and we subscribed
+      if (websocketService.isConnected() && !window.location.pathname.includes('/ai/chat')) {
+          websocketService.unsubscribe('ai_chat');
       }
       
       // Reset states
@@ -370,9 +374,8 @@ const ChatbotWidget: React.FC = () => {
       setIsTyping(false);
       currentMessageRef.current = null;
       
-      console.log('=== CHATBOT WIDGET: WebSocket cleanup complete ===');
     };
-  }, [handleIncomingMessage, handleConnectionChange, handleError]);
+  }, []);
 
   // Auto-scroll to bottom of messages when new messages arrive
   useEffect(() => {
@@ -469,15 +472,38 @@ const ChatbotWidget: React.FC = () => {
     });
   };
 
-  // Enhanced Typing Indicator with Dot Animation
+  // Enhanced Typing Indicator with Smooth Dot Animation
   const TypingIndicator = () => (
-    <div className="flex items-center space-x-1 p-3">
+    <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
       <div className="flex space-x-1">
-        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
-        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+        <div 
+          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          style={{ 
+            animationDelay: '0ms',
+            animationDuration: '1.4s',
+            animationIterationCount: 'infinite'
+          }}
+        ></div>
+        <div 
+          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          style={{ 
+            animationDelay: '0.2s',
+            animationDuration: '1.4s',
+            animationIterationCount: 'infinite'
+          }}
+        ></div>
+        <div 
+          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          style={{ 
+            animationDelay: '0.4s',
+            animationDuration: '1.4s',
+            animationIterationCount: 'infinite'
+          }}
+        ></div>
       </div>
-      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">AI is thinking...</span>
+      <span className="ml-2 text-sm text-brand-600 dark:text-brand-400 font-medium">
+        AI is thinking...
+      </span>
     </div>
   );
 
@@ -543,8 +569,8 @@ const ChatbotWidget: React.FC = () => {
           {/* Chat Messages */}
           <div className="flex flex-col h-auto overflow-y-auto custom-scrollbar flex-1">
             <ul className="flex flex-col space-y-3 p-2">
-              {messages.map((msg) => (
-                <li key={msg.id}>
+              {messages.map((msg, index) => (
+                <li key={`${msg.id}-${index}`}>
                   <div className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.sender === 'bot' && (
                       <span className="relative block w-full h-10 rounded-full z-1 max-w-10">
