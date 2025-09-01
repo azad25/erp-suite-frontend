@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
-import { CopilotUIIcon, PaperPlaneIcon } from "@/icons";
+import { CopilotUIIcon } from "@/icons";
 import { getWebSocketUrl, getAICopilotUrl } from "@/config/ai-config";
 import { websocketService } from "@/services/websocket";
 
@@ -35,13 +35,13 @@ interface AIStreamResponse {
 const AIChatPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: "1",
+      id: "welcome-1",
       text: "Hello! I'm your ERP AI assistant. How can I help you today?",
       sender: 'bot',
       timestamp: new Date(),
     },
     {
-      id: "2",
+      id: "welcome-2",
       text: "I can help you with:\n• Sales reports and analytics\n• Inventory management\n• Financial insights\n• User management\n• Process automation\n\nWhat would you like to know?",
       sender: 'bot',
       timestamp: new Date(),
@@ -52,15 +52,23 @@ const AIChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
-  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+  const [processedMessageIds] = useState<Set<string>>(new Set(['welcome-1', 'welcome-2']));
+  const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitializingRef = useRef(false);
 
   // Typewriter effect for AI responses
   const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 30) => {
     if (!fullText || typeof fullText !== 'string') {
       return;
+    }
+    
+    // Clear any existing typewriter effect
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
     }
     
     setTypingMessageId(messageId);
@@ -72,7 +80,7 @@ const AIChatPage = () => {
         
         setMessages(prev => prev.map(msg => 
           msg.id === messageId 
-            ? { ...msg, text: currentText }
+            ? { ...msg, text: currentText, isStreaming: false }
             : msg
         ));
         
@@ -81,6 +89,7 @@ const AIChatPage = () => {
       } else {
         setTypingMessageId(null);
         setIsTyping(false);
+        setCurrentStreamingId(null);
       }
     };
     
@@ -96,28 +105,192 @@ const AIChatPage = () => {
     };
   }, []);
 
-  // WebSocket connection management using the shared service
-  const initializeWebSocket = useCallback(async () => {
-    try {
+  // Handle WebSocket messages with improved deduplication
+  const handleWebSocketMessage = useCallback((data: any) => {
+    console.log('AI Chat Page: Received WebSocket message:', data);
+    
+    // Extract message ID for deduplication
+    const messageId = data.message_id || data.data?.message_id;
+    
+    // Skip if we've already processed this message
+    if (messageId && processedMessageIds.has(messageId)) {
+      console.log('AI Chat Page: Duplicate message detected, skipping:', messageId);
+      return;
+    }
+
+    // Handle different message types
+    if (data.type === 'ai_chat' || data.type === 'chat_response') {
+      const response: AIChatResponse = data.type === 'chat_response' 
+        ? { response: data.content, message_id: data.message_id, timestamp: data.timestamp }
+        : data.data as AIChatResponse;
       
+      if (messageId) {
+        processedMessageIds.add(messageId);
+      }
+      handleAIChatResponse(response);
+      
+    } else if (data.type === 'ai_stream') {
+      handleAIStreamResponse(data.data as AIStreamResponse);
+      
+    } else if (data.type === 'ai_status') {
+      handleAIStatusResponse(data.data || data);
+    }
+  }, []);
+
+  // Handle AI chat response with better validation
+  const handleAIChatResponse = useCallback((response: AIChatResponse) => {
+    console.log('AI Chat Page: Processing chat response:', response);
+    
+    // Validate response content
+    if (!response.response || typeof response.response !== 'string' || response.response.trim() === '') {
+      console.log('AI Chat Page: Invalid response content, skipping');
+      return;
+    }
+    
+    const messageId = response.message_id || `bot-${Date.now()}`;
+    
+    // Check for existing message with same ID
+    const existingMessage = messages.find(msg => msg.id === messageId);
+    if (existingMessage) {
+      console.log('AI Chat Page: Message with ID already exists, skipping:', messageId);
+      return;
+    }
+    
+    // Clear typing and streaming state
+    setIsTyping(false);
+    setCurrentStreamingId(null);
+    
+    // Clear any existing typewriter effect
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+    }
+    
+    // Remove any existing streaming messages
+    setMessages(prev => prev.filter(msg => !msg.isStreaming));
+    
+    // Create new bot message
+    const botMessage: ChatMessage = {
+      id: messageId,
+      text: '', // Start with empty text for typewriter effect
+      sender: 'bot',
+      timestamp: new Date(response.timestamp || Date.now()),
+      isStreaming: false,
+    };
+    
+    setMessages(prev => [...prev, botMessage]);
+    
+    // Start typewriter effect
+    typewriterEffect(response.response, messageId);
+  }, [messages, typewriterEffect]);
+
+  // Handle AI stream response with better state management
+  const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
+    const messageId = response.message_id || `stream-${Date.now()}`;
+    
+    if (response.is_final) {
+      // Check if we've already processed this final message
+      if (processedMessageIds.has(messageId)) {
+        console.log('AI Chat Page: Final stream message already processed, skipping:', messageId);
+        return;
+      }
+      
+      processedMessageIds.add(messageId);
+      setIsTyping(false);
+      setCurrentStreamingId(null);
+      
+      // Clear any existing typewriter effect
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+      }
+      
+      // Replace streaming message with final message using typewriter effect
+      setMessages(prev => {
+        const withoutStreaming = prev.filter(msg => !msg.isStreaming);
+        const finalMessage: ChatMessage = {
+          id: messageId,
+          text: '',
+          sender: 'bot',
+          timestamp: new Date(),
+          isStreaming: false,
+        };
+        return [...withoutStreaming, finalMessage];
+      });
+      
+      typewriterEffect(response.content, messageId);
+    } else {
+      // Streaming content - only create/update if not already streaming with same ID
+      if (currentStreamingId !== messageId) {
+        setCurrentStreamingId(messageId);
+        
+        // Remove any existing streaming messages and create new one
+        setMessages(prev => {
+          const withoutStreaming = prev.filter(msg => !msg.isStreaming);
+          const streamingMessage: ChatMessage = {
+            id: messageId,
+            text: response.content,
+            sender: 'bot',
+            timestamp: new Date(),
+            isStreaming: true,
+          };
+          return [...withoutStreaming, streamingMessage];
+        });
+      } else {
+        // Update existing streaming message
+        setMessages(prev => prev.map(msg => 
+          msg.isStreaming && msg.id === messageId
+            ? { ...msg, text: response.content }
+            : msg
+        ));
+      }
+    }
+  }, [currentStreamingId, typewriterEffect]);
+
+  // Handle AI status response
+  const handleAIStatusResponse = useCallback((status: any) => {
+    if (status.status === 'processing') {
+      setIsTyping(true);
+    } else if (status.status === 'completed') {
+      setIsTyping(false);
+    }
+  }, []);
+
+  // WebSocket connection management
+  const initializeWebSocket = useCallback(async () => {
+    if (isInitializingRef.current) {
+      console.log('WebSocket already initializing, skipping...');
+      return;
+    }
+    
+    isInitializingRef.current = true;
+    
+    try {
       // Set up event listeners
       const messageListener = (data: any) => {
         handleWebSocketMessage(data);
       };
       
       const connectListener = () => {
+        console.log('WebSocket connected');
         setIsConnected(true);
       };
       
       const disconnectListener = () => {
+        console.log('WebSocket disconnected');
         setIsConnected(false);
       };
       
       const errorListener = (error: any) => {
+        console.error('WebSocket error:', error);
         setIsConnected(false);
       };
       
-      // Add event listeners (only ai_message to avoid duplicates)
+      // Remove any existing listeners first
+      websocketService.off('ai_message', messageListener);
+      websocketService.off('connected', connectListener);
+      websocketService.off('disconnected', disconnectListener);
+      websocketService.off('error', errorListener);
+      
+      // Add new event listeners
       websocketService.on('ai_message', messageListener);
       websocketService.on('connected', connectListener);
       websocketService.on('disconnected', disconnectListener);
@@ -131,7 +304,6 @@ const AIChatPage = () => {
       setIsConnected(connected);
       
       if (connected) {
-        // Force subscription for AI chat page
         websocketService.subscribe('ai_chat');
       }
       
@@ -149,178 +321,26 @@ const AIChatPage = () => {
     } catch (error) {
       console.error('Failed to initialize WebSocket:', error);
       setIsConnected(false);
+    } finally {
+      isInitializingRef.current = false;
     }
-  }, []);
+  }, [handleWebSocketMessage]);
 
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    console.log('AI Chat Page: Received WebSocket message:', data);
-    
-    // Clear typing indicator for any incoming message
-    setIsTyping(false);
-    
-    // Handle different message formats
-    if (data.type === 'ai_chat' || data.type === 'ai_stream' || data.type === 'chat_response') {
-      // Prioritize data wrapper format to avoid double processing
-      if (data.data) {
-        // Message with data wrapper
-        switch (data.type) {
-          case 'ai_chat':
-          case 'chat_response':
-            handleAIChatResponse(data.data as AIChatResponse);
-            break;
-          case 'ai_stream':
-            handleAIStreamResponse(data.data as AIStreamResponse);
-            break;
-        }
-      } else if (!data.data) {
-        // Only process direct format if no data wrapper exists
-        let responseText = data.content || data.response || data.message || data.text;
-        
-        if (responseText && typeof responseText === 'string' && responseText.trim() !== '') {
-          const response: AIChatResponse = {
-            response: responseText,
-            message_id: data.message_id || data.id || Date.now().toString(),
-            timestamp: data.timestamp || Date.now()
-          };
-          handleAIChatResponse(response);
-        }
-      }
-    } else if (data.type === 'ai_status') {
-      handleAIStatusResponse(data.data || data);
-    }
-  }, []);
-
-  // Handle AI chat response
-  const handleAIChatResponse = useCallback((response: AIChatResponse) => {
-    console.log('AI Chat Page: Processing chat response:', response);
-    const messageId = response.message_id || Date.now().toString();
-    
-    // Check if we've already processed this message
-    if (processedMessageIds.has(messageId)) {
-      console.log('AI Chat Page: Message already processed, skipping:', messageId);
-      return;
-    }
-    
-    // Validate response content
-    if (!response.response || typeof response.response !== 'string' || response.response.trim() === '') {
-      console.log('AI Chat Page: Invalid response content, skipping:', response);
-      return; // Don't create empty messages
-    }
-    
-    console.log('AI Chat Page: Creating bot message with ID:', messageId);
-    
-    // Mark message as processed IMMEDIATELY
-    setProcessedMessageIds(prev => new Set([...prev, messageId]));
-    
-    // Clear any existing typewriter effect
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
-    }
-    
-    const botMessage: ChatMessage = {
-      id: messageId,
-      text: '', // Start with empty text
-      sender: 'bot',
-      timestamp: new Date(response.timestamp || Date.now()),
-    };
-    
-    setMessages(prev => [...prev, botMessage]);
-    setIsTyping(false); // Stop the "thinking" indicator
-    
-    // Start typewriter effect
-    typewriterEffect(response.response, messageId);
-  }, [typewriterEffect, processedMessageIds]);
-
-  // Handle AI stream response
-  const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
-    const messageId = response.message_id || Date.now().toString();
-    
-    if (response.is_final) {
-      // Check if we've already processed this final message
-      if (processedMessageIds.has(messageId)) {
-        console.log('AI Chat Page: Final stream message already processed, skipping:', messageId);
-        return;
-      }
-      
-      // Mark message as processed
-      setProcessedMessageIds(prev => new Set([...prev, messageId]));
-      
-      // Clear any existing typewriter effect
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
-      }
-      
-      // Final message, use typewriter effect
-      const existingStreaming = messages.find(msg => msg.isStreaming);
-      
-      if (existingStreaming) {
-        // Update existing streaming message with typewriter effect
-        setMessages(prev => prev.map(msg => 
-          msg.isStreaming ? { ...msg, text: '', isStreaming: false, id: messageId } : msg
-        ));
-        typewriterEffect(response.content, messageId);
-      } else {
-        // Create new message with typewriter effect
-        const finalMessage: ChatMessage = {
-          id: messageId,
-          text: '',
-          sender: 'bot',
-          timestamp: new Date(),
-          isStreaming: false,
-        };
-        setMessages(prev => [...prev, finalMessage]);
-        typewriterEffect(response.content, messageId);
-      }
-      setIsTyping(false);
-    } else {
-      // Streaming content, update or create streaming message (no typewriter for streaming)
-      // Don't use deduplication for streaming messages as they update continuously
-      setMessages(prev => {
-        const existingStreaming = prev.find(msg => msg.isStreaming);
-        if (existingStreaming) {
-          return prev.map(msg => 
-            msg.isStreaming ? { ...msg, text: response.content } : msg
-          );
-        } else {
-          const streamingMessage: ChatMessage = {
-            id: messageId,
-            text: response.content,
-            sender: 'bot',
-            timestamp: new Date(),
-            isStreaming: true,
-          };
-          return [...prev, streamingMessage];
-        }
-      });
-    }
-  }, [messages, typewriterEffect, processedMessageIds]);
-
-  // Handle AI status response
-  const handleAIStatusResponse = useCallback((status: any) => {
-    if (status.status === 'processing') {
-      setIsTyping(true);
-    } else if (status.status === 'completed') {
-      setIsTyping(false);
-    }
-  }, []);
-
-  // Send message via WebSocket using the shared service
+  // Send message via WebSocket
   const sendWebSocketMessage = useCallback((messageData: AIChatRequest) => {
     if (websocketService.isConnected()) {
-      // Use the WebSocket service's sendChatMessage method for consistency
-      const messageId = websocketService.sendChatMessage(
+      websocketService.sendChatMessage(
         messageData.message,
         messageData.session_id,
         messageData.context
       );
     } else {
-      // Fallback to REST API if WebSocket not available
+      // Fallback to REST API
       sendRESTMessage(messageData);
     }
   }, [isConnected]);
 
-  // Fallback REST API call via API Gateway
+  // Fallback REST API call
   const sendRESTMessage = async (messageData: AIChatRequest) => {
     try {
       const aiUrl = getAICopilotUrl();
@@ -340,15 +360,15 @@ const AIChatPage = () => {
       }
     } catch (error) {
       console.error('Failed to send message via REST:', error);
-      // Show error message
+      setIsTyping(false);
+      
       const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
+        id: `error-${Date.now()}`,
         text: "Sorry, I'm having trouble connecting right now. Please try again later.",
         sender: 'bot',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
-      setIsTyping(false);
     }
   };
 
@@ -366,8 +386,9 @@ const AIChatPage = () => {
       if (cleanup) {
         cleanup();
       }
+      isInitializingRef.current = false;
     };
-  }, [initializeWebSocket]);
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -381,17 +402,15 @@ const AIChatPage = () => {
     }
   }, []);
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+  const handleSendMessage = useCallback(() => {
+    if (!inputMessage.trim() || isTyping) return;
     
-    // Check if WebSocket is connected, if not try to send via REST
-    if (!isConnected && !websocketService.isConnected()) {
-      console.log('WebSocket not connected, using REST API fallback');
-    }
+    const messageText = inputMessage.trim();
+    const userMessageId = `user-${Date.now()}`;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: inputMessage,
+      id: userMessageId,
+      text: messageText,
       sender: 'user',
       timestamp: new Date(),
     };
@@ -400,11 +419,11 @@ const AIChatPage = () => {
     setInputMessage("");
     setIsTyping(true);
 
-    // Send message via WebSocket or REST
+    // Send message
     const messageData: AIChatRequest = {
-      message: inputMessage.trim(),
+      message: messageText,
       context: {
-        user_id: 'current_user', // This should come from auth context
+        user_id: 'current_user',
         department: 'admin',
         page: 'ai_chat',
       },
@@ -412,34 +431,69 @@ const AIChatPage = () => {
     };
 
     sendWebSocketMessage(messageData);
-  };
+  }, [inputMessage, isTyping, sendWebSocketMessage]);
 
-  const handleQuickAction = (action: string) => {
+  const handleQuickAction = useCallback((action: string) => {
+    if (isTyping) return;
+    
     setInputMessage(action);
-    // Auto-send quick actions
+    // Auto-send quick actions after a short delay
     setTimeout(() => {
-      if (action === inputMessage) {
-        handleSendMessage();
-      }
-    }, 100);
-  };
+      const userMessageId = `user-${Date.now()}`;
+      const userMessage: ChatMessage = {
+        id: userMessageId,
+        text: action,
+        sender: 'user',
+        timestamp: new Date(),
+      };
 
-  const clearChat = () => {
+      setMessages(prev => [...prev, userMessage]);
+      setInputMessage("");
+      setIsTyping(true);
+
+      const messageData: AIChatRequest = {
+        message: action,
+        context: {
+          user_id: 'current_user',
+          department: 'admin',
+          page: 'ai_chat',
+        },
+        session_id: `session_${Date.now()}`,
+      };
+
+      sendWebSocketMessage(messageData);
+    }, 100);
+  }, [isTyping, sendWebSocketMessage]);
+
+  const clearChat = useCallback(() => {
+    // Clear typewriter effect
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+    }
+    
+    // Reset all state
+    setIsTyping(false);
+    setTypingMessageId(null);
+    setCurrentStreamingId(null);
+    processedMessageIds.clear();
+    processedMessageIds.add('welcome-1');
+    processedMessageIds.add('welcome-2');
+    
     setMessages([
       {
-        id: "1",
+        id: "welcome-1",
         text: "Hello! I'm your ERP AI assistant. How can I help you today?",
         sender: 'bot',
         timestamp: new Date(),
       },
       {
-        id: "2",
+        id: "welcome-2",
         text: "I can help you with:\n• Sales reports and analytics\n• Inventory management\n• Financial insights\n• User management\n• Process automation\n\nWhat would you like to know?",
         sender: 'bot',
         timestamp: new Date(),
       }
     ]);
-  };
+  }, []);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -449,12 +503,9 @@ const AIChatPage = () => {
     });
   };
 
-  // Enhanced Typing Indicator with Smooth Dot Animation
+  // Typing Indicator - just the dots without chat head
   const TypingIndicator = () => (
     <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg max-w-xs">
-      <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-1">
-        <CopilotUIIcon className="w-4 h-4 text-white" />
-      </div>
       <div className="flex space-x-1">
         <div 
           className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
@@ -526,11 +577,11 @@ const AIChatPage = () => {
         <div className="flex-1 overflow-y-auto mb-4 space-y-4">
           {messages.map((message, index) => (
             <div
-              key={`${message.id}-${index}`}
+              key={message.id}
               className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.sender === 'bot' && (
-                <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
                   <CopilotUIIcon className="w-4 h-4 text-white" />
                 </div>
               )}
@@ -555,9 +606,10 @@ const AIChatPage = () => {
             </div>
           ))}
 
-          {isTyping && (
+          {/* Typing indicator as a separate message when AI is thinking */}
+          {isTyping && !currentStreamingId && (
             <div className="flex justify-start">
-              <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
                 <CopilotUIIcon className="w-4 h-4 text-white" />
               </div>
               <TypingIndicator />
@@ -575,7 +627,8 @@ const AIChatPage = () => {
               <button
                 key={index}
                 onClick={() => handleQuickAction(action)}
-                className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                disabled={isTyping}
+                className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {action}
               </button>
@@ -591,22 +644,32 @@ const AIChatPage = () => {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
               placeholder="Ask me anything about your business..."
               className="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-              disabled={!isConnected}
+              disabled={!isConnected || isTyping}
             />
             <button
               onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || !isConnected}
+              disabled={!inputMessage.trim() || !isConnected || isTyping}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
             >
-              <PaperPlaneIcon className="w-4 h-4" />
+              <svg 
+                width="18" 
+                height="18" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="rotate-45"
+              >
+                <path d="m3 3 3 9-3 9 19-9Z"/>
+                <path d="m6 12 13 0"/>
+              </svg>
             </button>
           </div>
-          <Button onClick={handleSendMessage} disabled={!inputMessage.trim() || !isConnected}>
-            Send
-          </Button>
         </div>
 
         {!isConnected && (
