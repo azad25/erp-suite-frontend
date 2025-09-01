@@ -49,7 +49,7 @@ const ChatbotWidget: React.FC = () => {
   };
 
   // Typewriter effect for AI responses
-  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 30) => {
+  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 10) => {
     setTypingMessageId(messageId);
     let index = 0;
     

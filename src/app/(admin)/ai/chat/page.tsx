@@ -81,7 +81,7 @@ const AIChatPage = () => {
   };
 
   // Typewriter effect for AI responses
-  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 30) => {
+  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 10) => {
     if (!fullText || typeof fullText !== 'string') {
       return;
     }
@@ -557,14 +557,14 @@ const AIChatPage = () => {
 
   return (
     <div className="p-6">
-      <PageBreadcrumb pageTitle="AI Chat Assistant" />
+      <PageBreadcrumb pageTitle="AI Copilot" />
       
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 h-[calc(100vh-200px)] flex flex-col">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <CopilotUIIcon className="w-6 h-6 text-brand-500" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              AI Assistant
+              AI Copilot
             </h3>
             <ConnectionStatus />
           </div>
@@ -675,7 +675,7 @@ const AIChatPage = () => {
 
         {errorMessage && (
           <p id="input-error" className="text-xs text-red-500 mt-2 text-center" role="alert">
-            {errorMessage}
+            {errorMessage}-
           </p>
         )}
         {!isConnected && !errorMessage && (
