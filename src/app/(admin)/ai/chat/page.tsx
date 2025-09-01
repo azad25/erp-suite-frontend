@@ -36,29 +36,49 @@ const AIChatPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-1",
-      text: "Hello! I'm your ERP AI assistant. How can I help you today?",
+      text: "# Welcome to Your ERP Query Assistant\n\nHello! I'm your **ERP Query Assistant**, here to streamline your interaction with your enterprise resource planning (ERP) system. I can retrieve, analyze, and present data to help you make informed decisions.\n\n## 📋 What I Can Do\n- **🔍 Data Retrieval**: Translate your questions into database queries to extract data from ERP modules.\n- **📊 Data Analysis**: Identify trends, patterns, and KPIs.\n- **📈 Report Generation**: Create clear reports with visualizations (tables, charts).\n- **💡 Insight Generation**: Provide actionable insights and recommendations.",
       sender: 'bot',
       timestamp: new Date(),
     },
     {
       id: "welcome-2",
-      text: "I can help you with:\n• Sales reports and analytics\n• Inventory management\n• Financial insights\n• User management\n• Process automation\n\nWhat would you like to know?",
+      text: "## 🛠️ Specific Tasks I Can Help With\n\n### 📦 Inventory\n- Check stock levels for products or categories.\n- Track product movements (inbound/outbound).\n- Identify slow-moving or obsolete inventory.\n- Generate reorder alerts.\n- Provide supplier performance metrics.\n\n### 💰 Sales\n- Retrieve order history by customer or time period.\n- Analyze sales trends by product, region, or representative.\n- Calculate revenue, profit margins, and growth.\n- Identify top products and customers.\n- Provide customer segmentation.\n\n### 📒 Finance\n- Retrieve transactions and account balances.\n- Generate financial statements (P&L, balance sheets, cash flow).\n- Compare budget vs. actual performance.\n- Track expenses and identify savings.\n- Provide financial KPIs.\n\n### 👥 HR\n- Access employee data (contact info, job titles, departments).\n- Analyze payroll and generate reports.\n- Track attendance and time off.\n- Monitor performance metrics.\n- Identify training needs.\n\n### 🏭 Production\n- Retrieve manufacturing schedules and orders.\n- Track resource utilization.\n- Monitor quality control metrics.\n- Analyze production costs.\n- Provide efficiency insights.\n\n## 🌟 Example Queries\n- \"What are the current stock levels for all iPhone 14 models?\"\n- \"Show sales trends for Q3 by region.\"\n- \"What were our marketing expenses last fiscal year?\"\n- \"Which employees have performance reviews due next month?\"\n- \"What is the production schedule for product X?\"\n\n**How to Ask**: Use natural language and be specific (e.g., \"Total sales for July in North America\" rather than \"What are our sales?\").",
       sender: 'bot',
       timestamp: new Date(),
     }
   ]);
-  
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [processedMessageIds] = useState<Set<string>>(new Set(['welcome-1', 'welcome-2']));
   const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
-  
+  const [sessionId] = useState<string>(`session_${crypto.randomUUID()}`);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializingRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectDelay = 2000;
+
+  // Validate input message
+  const validateMessage = (text: string): boolean => {
+    const maxLength = 500;
+    const invalidChars = /[<>{}]/;
+    if (text.length > maxLength) {
+      setErrorMessage(`Message is too long (max ${maxLength} characters).`);
+      return false;
+    }
+    if (invalidChars.test(text)) {
+      setErrorMessage("Message contains invalid characters (<, >, {, }).");
+      return false;
+    }
+    setErrorMessage(null);
+    return true;
+  };
 
   // Typewriter effect for AI responses
   const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 30) => {
@@ -66,7 +86,6 @@ const AIChatPage = () => {
       return;
     }
     
-    // Clear any existing typewriter effect
     if (typewriterTimeoutRef.current) {
       clearTimeout(typewriterTimeoutRef.current);
     }
@@ -105,20 +124,15 @@ const AIChatPage = () => {
     };
   }, []);
 
-  // Handle WebSocket messages with improved deduplication
+  // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((data: any) => {
-    console.log('AI Chat Page: Received WebSocket message:', data);
-    
-    // Extract message ID for deduplication
     const messageId = data.message_id || data.data?.message_id;
     
-    // Skip if we've already processed this message
     if (messageId && processedMessageIds.has(messageId)) {
       console.log('AI Chat Page: Duplicate message detected, skipping:', messageId);
       return;
     }
 
-    // Handle different message types
     if (data.type === 'ai_chat' || data.type === 'chat_response') {
       const response: AIChatResponse = data.type === 'chat_response' 
         ? { response: data.content, message_id: data.message_id, timestamp: data.timestamp }
@@ -137,41 +151,33 @@ const AIChatPage = () => {
     }
   }, []);
 
-  // Handle AI chat response with better validation
+  // Handle AI chat response
   const handleAIChatResponse = useCallback((response: AIChatResponse) => {
-    console.log('AI Chat Page: Processing chat response:', response);
-    
-    // Validate response content
     if (!response.response || typeof response.response !== 'string' || response.response.trim() === '') {
       console.log('AI Chat Page: Invalid response content, skipping');
       return;
     }
     
-    const messageId = response.message_id || `bot-${Date.now()}`;
+    const messageId = response.message_id || `bot-${crypto.randomUUID()}`;
     
-    // Check for existing message with same ID
     const existingMessage = messages.find(msg => msg.id === messageId);
     if (existingMessage) {
       console.log('AI Chat Page: Message with ID already exists, skipping:', messageId);
       return;
     }
     
-    // Clear typing and streaming state
     setIsTyping(false);
     setCurrentStreamingId(null);
     
-    // Clear any existing typewriter effect
     if (typewriterTimeoutRef.current) {
       clearTimeout(typewriterTimeoutRef.current);
     }
     
-    // Remove any existing streaming messages
     setMessages(prev => prev.filter(msg => !msg.isStreaming));
     
-    // Create new bot message
     const botMessage: ChatMessage = {
       id: messageId,
-      text: '', // Start with empty text for typewriter effect
+      text: '',
       sender: 'bot',
       timestamp: new Date(response.timestamp || Date.now()),
       isStreaming: false,
@@ -179,16 +185,14 @@ const AIChatPage = () => {
     
     setMessages(prev => [...prev, botMessage]);
     
-    // Start typewriter effect
     typewriterEffect(response.response, messageId);
   }, [messages, typewriterEffect]);
 
-  // Handle AI stream response with better state management
+  // Handle AI stream response
   const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
-    const messageId = response.message_id || `stream-${Date.now()}`;
+    const messageId = response.message_id || `stream-${crypto.randomUUID()}`;
     
     if (response.is_final) {
-      // Check if we've already processed this final message
       if (processedMessageIds.has(messageId)) {
         console.log('AI Chat Page: Final stream message already processed, skipping:', messageId);
         return;
@@ -198,12 +202,10 @@ const AIChatPage = () => {
       setIsTyping(false);
       setCurrentStreamingId(null);
       
-      // Clear any existing typewriter effect
       if (typewriterTimeoutRef.current) {
         clearTimeout(typewriterTimeoutRef.current);
       }
       
-      // Replace streaming message with final message using typewriter effect
       setMessages(prev => {
         const withoutStreaming = prev.filter(msg => !msg.isStreaming);
         const finalMessage: ChatMessage = {
@@ -218,11 +220,9 @@ const AIChatPage = () => {
       
       typewriterEffect(response.content, messageId);
     } else {
-      // Streaming content - only create/update if not already streaming with same ID
       if (currentStreamingId !== messageId) {
         setCurrentStreamingId(messageId);
         
-        // Remove any existing streaming messages and create new one
         setMessages(prev => {
           const withoutStreaming = prev.filter(msg => !msg.isStreaming);
           const streamingMessage: ChatMessage = {
@@ -235,10 +235,9 @@ const AIChatPage = () => {
           return [...withoutStreaming, streamingMessage];
         });
       } else {
-        // Update existing streaming message
         setMessages(prev => prev.map(msg => 
           msg.isStreaming && msg.id === messageId
-            ? { ...msg, text: response.content }
+            ? { ...msg, text: msg.text + response.content }
             : msg
         ));
       }
@@ -254,7 +253,7 @@ const AIChatPage = () => {
     }
   }, []);
 
-  // WebSocket connection management
+  // WebSocket connection management with reconnection
   const initializeWebSocket = useCallback(async () => {
     if (isInitializingRef.current) {
       console.log('WebSocket already initializing, skipping...');
@@ -263,67 +262,83 @@ const AIChatPage = () => {
     
     isInitializingRef.current = true;
     
-    try {
-      // Set up event listeners
-      const messageListener = (data: any) => {
-        handleWebSocketMessage(data);
-      };
-      
-      const connectListener = () => {
-        console.log('WebSocket connected');
-        setIsConnected(true);
-      };
-      
-      const disconnectListener = () => {
-        console.log('WebSocket disconnected');
-        setIsConnected(false);
-      };
-      
-      const errorListener = (error: any) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-      };
-      
-      // Remove any existing listeners first
-      websocketService.off('ai_message', messageListener);
-      websocketService.off('connected', connectListener);
-      websocketService.off('disconnected', disconnectListener);
-      websocketService.off('error', errorListener);
-      
-      // Add new event listeners
-      websocketService.on('ai_message', messageListener);
-      websocketService.on('connected', connectListener);
-      websocketService.on('disconnected', disconnectListener);
-      websocketService.on('error', errorListener);
-      
-      // Initialize connection
-      await websocketService.initializeConnection();
-      
-      // Check connection status
-      const connected = websocketService.isConnected();
-      setIsConnected(connected);
-      
-      if (connected) {
-        websocketService.subscribe('ai_chat');
-      }
-      
-      return () => {
-        // Cleanup listeners
+    const tryConnect = async () => {
+      try {
+        const messageListener = (data: any) => {
+          handleWebSocketMessage(data);
+        };
+        
+        const connectListener = () => {
+          console.log('WebSocket connected');
+          setIsConnected(true);
+          reconnectAttemptsRef.current = 0;
+          websocketService.subscribe('ai_chat');
+        };
+        
+        const disconnectListener = async () => {
+          console.log('WebSocket disconnected');
+          setIsConnected(false);
+          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+            const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+            console.log(`Attempting to reconnect in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            reconnectAttemptsRef.current++;
+            await tryConnect();
+          } else {
+            console.error('Max reconnection attempts reached');
+            setErrorMessage('Unable to connect to AI service. Please try again later.');
+          }
+        };
+        
+        const errorListener = (error: any) => {
+          console.error('WebSocket error:', error);
+          setIsConnected(false);
+        };
+        
         websocketService.off('ai_message', messageListener);
         websocketService.off('connected', connectListener);
         websocketService.off('disconnected', disconnectListener);
         websocketService.off('error', errorListener);
         
-        if (websocketService.isConnected()) {
-          websocketService.unsubscribe('ai_chat');
+        websocketService.on('ai_message', messageListener);
+        websocketService.on('connected', connectListener);
+        websocketService.on('disconnected', disconnectListener);
+        websocketService.on('error', errorListener);
+        
+        await websocketService.initializeConnection();
+        
+        const connected = websocketService.isConnected();
+        setIsConnected(connected);
+        
+        return () => {
+          websocketService.off('ai_message', messageListener);
+          websocketService.off('connected', connectListener);
+          websocketService.off('disconnected', disconnectListener);
+          websocketService.off('error', errorListener);
+          
+          if (websocketService.isConnected()) {
+            websocketService.unsubscribe('ai_chat');
+          }
+        };
+      } catch (error) {
+        console.error('Failed to initialize WebSocket:', error);
+        setIsConnected(false);
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+          console.log(`Attempting to reconnect in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          reconnectAttemptsRef.current++;
+          await tryConnect();
+        } else {
+          console.error('Max reconnection attempts reached');
+          setErrorMessage('Unable to connect to AI service. Please try again later.');
         }
-      };
-    } catch (error) {
-      console.error('Failed to initialize WebSocket:', error);
-      setIsConnected(false);
-    } finally {
-      isInitializingRef.current = false;
-    }
+      } finally {
+        isInitializingRef.current = false;
+      }
+    };
+    
+    return tryConnect();
   }, [handleWebSocketMessage]);
 
   // Send message via WebSocket
@@ -335,7 +350,6 @@ const AIChatPage = () => {
         messageData.context
       );
     } else {
-      // Fallback to REST API
       sendRESTMessage(messageData);
     }
   }, [isConnected]);
@@ -356,19 +370,20 @@ const AIChatPage = () => {
         const data: AIChatResponse = await response.json();
         handleAIChatResponse(data);
       } else {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
       console.error('Failed to send message via REST:', error);
       setIsTyping(false);
+      setErrorMessage('Failed to send message. Please check your connection and try again.');
       
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        text: "Sorry, I'm having trouble connecting right now. Please try again later.",
+      const errorMessageObj: ChatMessage = {
+        id: `error-${crypto.randomUUID()}`,
+        text: errorMessage || "Sorry, I'm having trouble connecting right now. Please try again later.",
         sender: 'bot',
         timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errorMessageObj]);
     }
   };
 
@@ -403,10 +418,10 @@ const AIChatPage = () => {
   }, []);
 
   const handleSendMessage = useCallback(() => {
-    if (!inputMessage.trim() || isTyping) return;
+    if (!inputMessage.trim() || isTyping || !validateMessage(inputMessage)) return;
     
     const messageText = inputMessage.trim();
-    const userMessageId = `user-${Date.now()}`;
+    const userMessageId = `user-${crypto.randomUUID()}`;
 
     const userMessage: ChatMessage = {
       id: userMessageId,
@@ -419,7 +434,6 @@ const AIChatPage = () => {
     setInputMessage("");
     setIsTyping(true);
 
-    // Send message
     const messageData: AIChatRequest = {
       message: messageText,
       context: {
@@ -427,19 +441,18 @@ const AIChatPage = () => {
         department: 'admin',
         page: 'ai_chat',
       },
-      session_id: `session_${Date.now()}`,
+      session_id: sessionId,
     };
 
     sendWebSocketMessage(messageData);
-  }, [inputMessage, isTyping, sendWebSocketMessage]);
+  }, [inputMessage, isTyping, sendWebSocketMessage, sessionId]);
 
   const handleQuickAction = useCallback((action: string) => {
-    if (isTyping) return;
+    if (isTyping || !validateMessage(action)) return;
     
     setInputMessage(action);
-    // Auto-send quick actions after a short delay
     setTimeout(() => {
-      const userMessageId = `user-${Date.now()}`;
+      const userMessageId = `user-${crypto.randomUUID()}`;
       const userMessage: ChatMessage = {
         id: userMessageId,
         text: action,
@@ -458,23 +471,22 @@ const AIChatPage = () => {
           department: 'admin',
           page: 'ai_chat',
         },
-        session_id: `session_${Date.now()}`,
+        session_id: sessionId,
       };
 
       sendWebSocketMessage(messageData);
     }, 100);
-  }, [isTyping, sendWebSocketMessage]);
+  }, [isTyping, sendWebSocketMessage, sessionId]);
 
   const clearChat = useCallback(() => {
-    // Clear typewriter effect
     if (typewriterTimeoutRef.current) {
       clearTimeout(typewriterTimeoutRef.current);
     }
     
-    // Reset all state
     setIsTyping(false);
     setTypingMessageId(null);
     setCurrentStreamingId(null);
+    setErrorMessage(null);
     processedMessageIds.clear();
     processedMessageIds.add('welcome-1');
     processedMessageIds.add('welcome-2');
@@ -482,13 +494,13 @@ const AIChatPage = () => {
     setMessages([
       {
         id: "welcome-1",
-        text: "Hello! I'm your ERP AI assistant. How can I help you today?",
+        text: "# Welcome to Your ERP Query Assistant\n\nHello! I'm your **ERP Query Assistant**, here to streamline your interaction with your enterprise resource planning (ERP) system. I can retrieve, analyze, and present data to help you make informed decisions.\n\n## 📋 What I Can Do\n- **🔍 Data Retrieval**: Translate your questions into database queries to extract data from ERP modules.\n- **📊 Data Analysis**: Identify trends, patterns, and KPIs.\n- **📈 Report Generation**: Create clear reports with visualizations (tables, charts).\n- **💡 Insight Generation**: Provide actionable insights and recommendations.",
         sender: 'bot',
         timestamp: new Date(),
       },
       {
         id: "welcome-2",
-        text: "I can help you with:\n• Sales reports and analytics\n• Inventory management\n• Financial insights\n• User management\n• Process automation\n\nWhat would you like to know?",
+        text: "## 🛠️ Specific Tasks I Can Help With\n\n### 📦 Inventory\n- Check stock levels for products or categories.\n- Track product movements (inbound/outbound).\n- Identify slow-moving or obsolete inventory.\n- Generate reorder alerts.\n- Provide supplier performance metrics.\n\n### 💰 Sales\n- Retrieve order history by customer or time period.\n- Analyze sales trends by product, region, or representative.\n- Calculate revenue, profit margins, and growth.\n- Identify top products and customers.\n- Provide customer segmentation.\n\n### 📒 Finance\n- Retrieve transactions and account balances.\n- Generate financial statements (P&L, balance sheets, cash flow).\n- Compare budget vs. actual performance.\n- Track expenses and identify savings.\n- Provide financial KPIs.\n\n### 👥 HR\n- Access employee data (contact info, job titles, departments).\n- Analyze payroll and generate reports.\n- Track attendance and time off.\n- Monitor performance metrics.\n- Identify training needs.\n\n### 🏭 Production\n- Retrieve manufacturing schedules and orders.\n- Track resource utilization.\n- Monitor quality control metrics.\n- Analyze production costs.\n- Provide efficiency insights.\n\n## 🌟 Example Queries\n- \"What are the current stock levels for all iPhone 14 models?\"\n- \"Show sales trends for Q3 by region.\"\n- \"What were our marketing expenses last fiscal year?\"\n- \"Which employees have performance reviews due next month?\"\n- \"What is the production schedule for product X?\"\n\n**How to Ask**: Use natural language and be specific (e.g., \"Total sales for July in North America\" rather than \"What are our sales?\").",
         sender: 'bot',
         timestamp: new Date(),
       }
@@ -503,33 +515,20 @@ const AIChatPage = () => {
     });
   };
 
-  // Typing Indicator - just the dots without chat head
   const TypingIndicator = () => (
     <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg max-w-xs">
       <div className="flex space-x-1">
         <div 
           className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ 
-            animationDelay: '0ms',
-            animationDuration: '1.4s',
-            animationIterationCount: 'infinite'
-          }}
+          style={{ animationDelay: '0ms', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
         ></div>
         <div 
           className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ 
-            animationDelay: '0.2s',
-            animationDuration: '1.4s',
-            animationIterationCount: 'infinite'
-          }}
+          style={{ animationDelay: '0.2s', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
         ></div>
         <div 
           className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ 
-            animationDelay: '0.4s',
-            animationDuration: '1.4s',
-            animationIterationCount: 'infinite'
-          }}
+          style={{ animationDelay: '0.4s', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
         ></div>
       </div>
       <span className="ml-2 text-sm text-brand-600 dark:text-brand-400 font-medium">
@@ -538,9 +537,8 @@ const AIChatPage = () => {
     </div>
   );
 
-  // Connection Status Indicator
   const ConnectionStatus = () => (
-    <div className="flex items-center space-x-2 text-xs">
+    <div className="flex items-center space-x-2 text-xs" aria-live="polite">
       <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
       <span className={isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
         {isConnected ? 'Connected' : 'Disconnected'}
@@ -570,11 +568,10 @@ const AIChatPage = () => {
             </h3>
             <ConnectionStatus />
           </div>
-          <Button variant="outline" onClick={clearChat}>Clear Chat</Button>
+          <Button variant="outline" onClick={clearChat} aria-label="Clear chat history">Clear Chat</Button>
         </div>
 
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+        <div className="flex-1 overflow-y-auto mb-4 space-y-4" aria-live="polite">
           {messages.map((message, index) => (
             <div
               key={message.id}
@@ -592,6 +589,8 @@ const AIChatPage = () => {
                     ? 'bg-brand-500 text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                 } ${message.isStreaming ? 'border-l-2 border-brand-500' : ''}`}
+                role="log"
+                aria-label={`${message.sender === 'user' ? 'User' : 'AI'} message: ${message.text}`}
               >
                 <p className="whitespace-pre-line">{message.text}</p>
                 {message.isStreaming && (
@@ -606,7 +605,6 @@ const AIChatPage = () => {
             </div>
           ))}
 
-          {/* Typing indicator as a separate message when AI is thinking */}
           {isTyping && !currentStreamingId && (
             <div className="flex justify-start">
               <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
@@ -619,7 +617,6 @@ const AIChatPage = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Actions */}
         <div className="mb-4">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Quick Actions:</p>
           <div className="flex flex-wrap gap-2">
@@ -629,6 +626,7 @@ const AIChatPage = () => {
                 onClick={() => handleQuickAction(action)}
                 disabled={isTyping}
                 className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={`Quick action: ${action}`}
               >
                 {action}
               </button>
@@ -636,7 +634,6 @@ const AIChatPage = () => {
           </div>
         </div>
 
-        {/* Message Input */}
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <input
@@ -648,11 +645,15 @@ const AIChatPage = () => {
               placeholder="Ask me anything about your business..."
               className="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
               disabled={!isConnected || isTyping}
+              aria-label="Chat input"
+              aria-invalid={!!errorMessage}
+              aria-describedby={errorMessage ? "input-error" : undefined}
             />
             <button
               onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || !isConnected || isTyping}
+              disabled={!inputMessage.trim() || !isConnected || isTyping || !!errorMessage}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
+              aria-label="Send message"
             >
               <svg 
                 width="18" 
@@ -672,8 +673,13 @@ const AIChatPage = () => {
           </div>
         </div>
 
-        {!isConnected && (
-          <p className="text-xs text-red-500 mt-2 text-center">
+        {errorMessage && (
+          <p id="input-error" className="text-xs text-red-500 mt-2 text-center" role="alert">
+            {errorMessage}
+          </p>
+        )}
+        {!isConnected && !errorMessage && (
+          <p className="text-xs text-red-500 mt-2 text-center" role="alert">
             Connecting to AI service...
           </p>
         )}

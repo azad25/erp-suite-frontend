@@ -56,7 +56,8 @@
     "react-dropzone": "^14.3.5",
     "react-intl": "^7.1.11",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@svgr/webpack": "^8.1.0",
