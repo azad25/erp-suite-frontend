@@ -1,8 +1,33 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { CopilotUIIcon, PaperPlaneIcon } from "@/icons";
+import { 
+  CopilotUIIcon, 
+  BoltIcon, 
+  InfoIcon, 
+  CheckCircleIcon, 
+  AlertIcon, 
+  TimeIcon, 
+  ChatIcon, 
+  DocsIcon, 
+  TaskIcon,
+  BellIcon,
+  ErrorIcon,
+  PaperPlaneIcon 
+} from "@/icons";
 import Link from "next/link";
 import { websocketService, AIChatMessage, AIChatRequest } from "@/services/websocket";
+
+interface ReasoningStep {
+  step_number: number;
+  step_type: string;
+  title: string;
+  description: string;
+  source: string;
+  status: 'processing' | 'completed' | 'failed';
+  icon: string;
+  timestamp: string;
+  processing_time?: number;
+}
 
 interface ChatMessage {
   id: string;
@@ -12,6 +37,8 @@ interface ChatMessage {
   isStreaming?: boolean;
   messageId?: string;
   isFinal?: boolean;
+  reasoningSteps?: ReasoningStep[];
+  isReasoningComplete?: boolean;
 }
 
 const ChatbotWidget: React.FC = () => {
@@ -30,11 +57,13 @@ const ChatbotWidget: React.FC = () => {
     },
     {
       id: 'welcome-2',
-      text: "Ask me anything about user management, sales, invoicing, or system navigation!",
+      text: "Ask me anything about user management, sales, invoicing, or system navigation! I'll show you my step-by-step reasoning process.",
       sender: 'bot',
       timestamp: new Date(),
     }
   ]);
+
+  const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +112,7 @@ const ChatbotWidget: React.FC = () => {
     };
   }, []);
 
-  // Handle incoming WebSocket messages
+  // Handle incoming WebSocket messages with reasoning steps support
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
     if (!message) return;
 
@@ -98,10 +127,89 @@ const ChatbotWidget: React.FC = () => {
     // Mark message as processed IMMEDIATELY to prevent race conditions
     setProcessedMessageIds(prev => new Set([...prev, messageId]));
 
-    // Handle different message types and formats
-    const messageData = message.data || message;
+    // Handle different message types
+    const messageType = (message as any).type;
     
-    // Try to extract content from various possible locations
+    if (messageType === 'reasoning_step') {
+      // Handle reasoning step
+      const stepData = (message as any).metadata || message.data || message;
+      const conversationId = (message as any).conversation_id || 'current';
+      
+      const reasoningStep: ReasoningStep = {
+        step_number: (stepData as any).step_number || 0,
+        step_type: (stepData as any).step_type || 'thinking',
+        title: (stepData as any).title || 'Processing...',
+        description: (stepData as any).description || '',
+        source: (stepData as any).source || 'AI System',
+        status: (stepData as any).status || 'processing',
+        icon: (stepData as any).icon || '🤔',
+        timestamp: (stepData as any).timestamp || new Date().toISOString(),
+        processing_time: (stepData as any).processing_time || 0
+      };
+      
+      // Update reasoning steps for the current conversation
+      setCurrentReasoningSteps(prev => {
+        const steps = prev.get(conversationId) || [];
+        const updatedSteps = [...steps];
+        
+        // Find existing step or add new one
+        const existingIndex = updatedSteps.findIndex(s => s.step_number === reasoningStep.step_number);
+        if (existingIndex >= 0) {
+          updatedSteps[existingIndex] = reasoningStep;
+        } else {
+          updatedSteps.push(reasoningStep);
+        }
+        
+        const newMap = new Map(prev);
+        newMap.set(conversationId, updatedSteps.sort((a, b) => a.step_number - b.step_number));
+        return newMap;
+      });
+      
+      return;
+    }
+    
+    if (messageType === 'final_response') {
+      // Handle final response
+      const content = (message as any).content || '';
+      const conversationId = (message as any).conversation_id || 'current';
+      
+      // Clear any existing typewriter effect
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+      }
+      
+      // Get reasoning steps for this conversation
+      const reasoningSteps = currentReasoningSteps.get(conversationId) || [];
+      
+      // Add the message with reasoning steps
+      const newMessage: ChatMessage = {
+        id: messageId,
+        text: '', // Start with empty text
+        sender: 'bot' as const,
+        timestamp: new Date(),
+        messageId,
+        reasoningSteps: reasoningSteps,
+        isReasoningComplete: true
+      };
+      
+      setMessages(prevMessages => [...prevMessages, newMessage]);
+      setIsTyping(false); // Stop the "thinking" indicator
+      
+      // Start typewriter effect for final content
+      typewriterEffect(content, messageId);
+      
+      // Clear reasoning steps for this conversation
+      setCurrentReasoningSteps(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(conversationId);
+        return newMap;
+      });
+      
+      return;
+    }
+    
+    // Handle regular messages (fallback)
+    const messageData = message.data || message;
     let content = messageData.content || (messageData as any).message || (messageData as any).text || (messageData as any).response;
     
     // If messageData is empty (0 keys), try the root message object directly
@@ -126,7 +234,7 @@ const ChatbotWidget: React.FC = () => {
     }
     
     // Add the message with empty text first
-    const newMessage = {
+    const newMessage: ChatMessage = {
       id: messageId,
       text: '', // Start with empty text
       sender: 'bot' as const,
@@ -141,7 +249,7 @@ const ChatbotWidget: React.FC = () => {
     typewriterEffect(messageContent, messageId);
     
     currentMessageRef.current = null;
-  }, [typewriterEffect, processedMessageIds]);
+  }, [typewriterEffect, processedMessageIds, currentReasoningSteps]);
 
   const handleQuickReply = (reply: string) => {
     setMessage(reply);
@@ -472,6 +580,81 @@ const ChatbotWidget: React.FC = () => {
     });
   };
 
+  // Get appropriate SVG icon for reasoning step type
+  const getStepIcon = (stepType: string, status: string) => {
+    const iconProps = { className: "w-3 h-3" };
+    
+    switch (stepType) {
+      case 'thinking':
+      case 'analysis':
+        return <BoltIcon {...iconProps} />;
+      case 'search':
+      case 'retrieval':
+        return <DocsIcon {...iconProps} />;
+      case 'processing':
+      case 'computation':
+        return <TaskIcon {...iconProps} />;
+      case 'validation':
+      case 'verification':
+        return status === 'completed' ? <CheckCircleIcon {...iconProps} /> : <InfoIcon {...iconProps} />;
+      case 'error':
+      case 'failure':
+        return <ErrorIcon {...iconProps} />;
+      case 'notification':
+        return <BellIcon {...iconProps} />;
+      case 'communication':
+        return <ChatIcon {...iconProps} />;
+      default:
+        return <InfoIcon {...iconProps} />;
+    }
+  };
+
+  // Reasoning Steps Display Component
+  const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
+    <div className="space-y-2 mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+      <div className="flex items-center space-x-2 mb-2">
+        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">AI Reasoning Process</span>
+      </div>
+      {steps.map((step, index) => (
+        <div key={`step-${step.step_number}`} className="flex items-start space-x-3 py-1">
+          <div className="flex-shrink-0 mt-0.5">
+            {getStepIcon(step.step_type, step.status)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                {step.step_number}. {step.title}
+              </span>
+              {step.status === 'processing' && (
+                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
+              )}
+              {step.status === 'completed' && (
+                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+              )}
+              {step.status === 'failed' && (
+                <div className="w-1 h-1 bg-red-500 rounded-full"></div>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+              {step.description}
+            </p>
+            <div className="flex items-center space-x-2 mt-1">
+              <span className="text-xs text-gray-500 dark:text-gray-500">
+                📍 {step.source}
+              </span>
+              {step.processing_time && step.processing_time > 0 && (
+                <span className="text-xs text-gray-500 dark:text-gray-500">
+                  ⏱️ {step.processing_time.toFixed(2)}s
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   // Enhanced Typing Indicator with Smooth Dot Animation
   const TypingIndicator = () => (
     <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -506,6 +689,19 @@ const ChatbotWidget: React.FC = () => {
       </span>
     </div>
   );
+
+  // Live Reasoning Steps Indicator
+  const LiveReasoningIndicator = ({ conversationId }: { conversationId: string }) => {
+    const steps = currentReasoningSteps.get(conversationId) || [];
+    
+    if (steps.length === 0) return null;
+    
+    return (
+      <div className="mb-3">
+        <ReasoningStepsDisplay steps={steps} />
+      </div>
+    );
+  };
 
   // Connection Status Indicator
   const ConnectionStatus = () => (
@@ -582,6 +778,13 @@ const ChatbotWidget: React.FC = () => {
                     )}
 
                     <span className={`block max-w-[80%] ${msg.sender === 'user' ? 'order-first' : ''}`}>
+                      {/* Show reasoning steps if available */}
+                      {msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
+                        <div className="mb-2">
+                          <ReasoningStepsDisplay steps={msg.reasoningSteps} />
+                        </div>
+                      )}
+                      
                       <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'user'
                         ? 'bg-brand-500 text-white rounded-br-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
@@ -597,6 +800,9 @@ const ChatbotWidget: React.FC = () => {
                       <span className={`flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400 mt-1 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
                         }`}>
                         <span>{formatTime(msg.timestamp)}</span>
+                        {msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
+                          <span className="text-blue-500">🧠 {msg.reasoningSteps.length} steps</span>
+                        )}
                       </span>
                     </span>
                   </div>
@@ -697,6 +903,9 @@ const ChatbotWidget: React.FC = () => {
                   </div>
                 </li>
               )}
+
+              {/* Show live reasoning steps */}
+              <LiveReasoningIndicator conversationId="current" />
 
               {isTyping && (
                 <li>

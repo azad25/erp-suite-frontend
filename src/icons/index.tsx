@@ -86,6 +86,8 @@ const MessageIcon = ChatIcon;
 const SendIcon = PaperPlaneIcon;
 const CreditCardIcon = DollarLineIcon;
 const FileTextIcon = DocsIcon;
+const ArchiveIcon = BoxIcon;
+const SearchIcon = InfoIcon;
 
 export {
   DownloadIcon,
@@ -152,6 +154,8 @@ export {
   SendIcon,
   CreditCardIcon,
   FileTextIcon,
+  ArchiveIcon,
+  SearchIcon,
   BarChartIcon,
   CalenderUIIcon,
   ClockUIIcon,

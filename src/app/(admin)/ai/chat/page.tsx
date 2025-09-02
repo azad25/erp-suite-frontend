@@ -2,9 +2,35 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
-import { CopilotUIIcon } from "@/icons";
+import ConversationSidebar from "@/components/ai/ConversationSidebar";
+import { 
+  CopilotUIIcon, 
+  BoltIcon, 
+  InfoIcon, 
+  CheckCircleIcon, 
+  AlertIcon, 
+  TimeIcon, 
+  ChatIcon, 
+  DocsIcon, 
+  TaskIcon,
+  BellIcon,
+  ErrorIcon
+} from "@/icons";
 import { getWebSocketUrl, getAICopilotUrl } from "@/config/ai-config";
 import { websocketService } from "@/services/websocket";
+import { conversationService, ConversationSession } from "@/services/conversationService";
+
+interface ReasoningStep {
+  step_number: number;
+  step_type: string;
+  title: string;
+  description: string;
+  source: string;
+  status: 'processing' | 'completed' | 'failed';
+  icon: string;
+  timestamp: string;
+  processing_time: number;
+}
 
 interface ChatMessage {
   id: string;
@@ -12,6 +38,8 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   timestamp: Date;
   isStreaming?: boolean;
+  reasoningSteps?: ReasoningStep[];
+  reasoningComplete?: boolean;
 }
 
 interface AIChatRequest {
@@ -33,28 +61,22 @@ interface AIStreamResponse {
 }
 
 const AIChatPage = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome-1",
-      text: "# Welcome to Your ERP Query Assistant\n\nHello! I'm your **ERP Query Assistant**, here to streamline your interaction with your enterprise resource planning (ERP) system. I can retrieve, analyze, and present data to help you make informed decisions.\n\n## 📋 What I Can Do\n- **🔍 Data Retrieval**: Translate your questions into database queries to extract data from ERP modules.\n- **📊 Data Analysis**: Identify trends, patterns, and KPIs.\n- **📈 Report Generation**: Create clear reports with visualizations (tables, charts).\n- **💡 Insight Generation**: Provide actionable insights and recommendations.",
-      sender: 'bot',
-      timestamp: new Date(),
-    },
-    {
-      id: "welcome-2",
-      text: "## 🛠️ Specific Tasks I Can Help With\n\n### 📦 Inventory\n- Check stock levels for products or categories.\n- Track product movements (inbound/outbound).\n- Identify slow-moving or obsolete inventory.\n- Generate reorder alerts.\n- Provide supplier performance metrics.\n\n### 💰 Sales\n- Retrieve order history by customer or time period.\n- Analyze sales trends by product, region, or representative.\n- Calculate revenue, profit margins, and growth.\n- Identify top products and customers.\n- Provide customer segmentation.\n\n### 📒 Finance\n- Retrieve transactions and account balances.\n- Generate financial statements (P&L, balance sheets, cash flow).\n- Compare budget vs. actual performance.\n- Track expenses and identify savings.\n- Provide financial KPIs.\n\n### 👥 HR\n- Access employee data (contact info, job titles, departments).\n- Analyze payroll and generate reports.\n- Track attendance and time off.\n- Monitor performance metrics.\n- Identify training needs.\n\n### 🏭 Production\n- Retrieve manufacturing schedules and orders.\n- Track resource utilization.\n- Monitor quality control metrics.\n- Analyze production costs.\n- Provide efficiency insights.\n\n## 🌟 Example Queries\n- \"What are the current stock levels for all iPhone 14 models?\"\n- \"Show sales trends for Q3 by region.\"\n- \"What were our marketing expenses last fiscal year?\"\n- \"Which employees have performance reviews due next month?\"\n- \"What is the production schedule for product X?\"\n\n**How to Ask**: Use natural language and be specific (e.g., \"Total sales for July in North America\" rather than \"What are our sales?\").",
-      sender: 'bot',
-      timestamp: new Date(),
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
+  const [reasoning, setReasoning] = useState<ReasoningStep[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentStep, setCurrentStep] = useState<ReasoningStep | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
-  const [processedMessageIds] = useState<Set<string>>(new Set(['welcome-1', 'welcome-2']));
+  const [processedMessageIds] = useState<Set<string>>(new Set());
   const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
-  const [sessionId] = useState<string>(`session_${crypto.randomUUID()}`);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
+  const [currentConversation, setCurrentConversation] = useState<ConversationSession | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -124,32 +146,118 @@ const AIChatPage = () => {
     };
   }, []);
 
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    const messageId = data.message_id || data.data?.message_id;
+  // Handle incoming WebSocket messages with reasoning steps support
+  const handleIncomingMessage = useCallback((message: any) => {
+    if (!message) return;
     
-    if (messageId && processedMessageIds.has(messageId)) {
-      console.log('AI Chat Page: Duplicate message detected, skipping:', messageId);
+    const messageId = message.message_id || message.data?.message_id || `msg-${Date.now()}`;
+    
+    if (processedMessageIds.has(messageId)) {
       return;
     }
+    
+    // Mark message as processed IMMEDIATELY to prevent race conditions
+    processedMessageIds.add(messageId);
 
-    if (data.type === 'ai_chat' || data.type === 'chat_response') {
-      const response: AIChatResponse = data.type === 'chat_response' 
-        ? { response: data.content, message_id: data.message_id, timestamp: data.timestamp }
-        : data.data as AIChatResponse;
+    // Handle different message types
+    const messageType = (message as any).type;
+    
+    if (messageType === 'reasoning_step') {
+      const step = message.step as ReasoningStep;
+      setReasoning(prev => [...prev, step]);
+      setCurrentStep(step);
+      setIsTyping(step.status === 'processing');
+    } else if (messageType === 'connection') {
+      setIsConnected(message.status === 'connected');
+    } else if (messageType === 'chat_complete') {
+      setIsTyping(false);
+      setCurrentStep(null);
+    } else if (messageType === 'ai_response') {
+      const conversationId = message.conversation_id || 'current';
       
-      if (messageId) {
-        processedMessageIds.add(messageId);
+      const reasoningStep: ReasoningStep = {
+        step_number: message.step_number || 0,
+        step_type: message.step_type || 'thinking',
+        title: message.title || 'Processing...',
+        description: message.description || '',
+        source: message.source || 'AI System',
+        status: message.status || 'processing',
+        icon: message.icon || '🤔',
+        timestamp: message.timestamp || new Date().toISOString(),
+        processing_time: message.processing_time || 0
+      };
+      
+      // Update reasoning steps for the current conversation
+      setCurrentReasoningSteps(prev => {
+        const steps = prev.get(conversationId) || [];
+        const updatedSteps = [...steps];
+        
+        // Find existing step or add new one
+        const existingIndex = updatedSteps.findIndex(s => s.step_number === reasoningStep.step_number);
+        if (existingIndex >= 0) {
+          updatedSteps[existingIndex] = reasoningStep;
+        } else {
+          updatedSteps.push(reasoningStep);
+          updatedSteps.sort((a, b) => a.step_number - b.step_number);
+        }
+        
+        const newMap = new Map(prev);
+        newMap.set(conversationId, updatedSteps);
+        return newMap;
+      });
+      
+    } else if (messageType === 'final_response') {
+      // Handle final response with reasoning steps
+      const conversationId = (message as any).conversation_id || 'current';
+      const steps = currentReasoningSteps.get(conversationId) || [];
+      
+      const finalMessage: ChatMessage = {
+        id: messageId,
+        text: '',
+        sender: 'bot',
+        timestamp: new Date(),
+        reasoningSteps: steps.length > 0 ? [...steps] : undefined,
+        reasoningComplete: true
+      };
+      
+      setMessages(prev => [...prev, finalMessage]);
+      setIsTyping(false);
+      
+      // Clear reasoning steps for this conversation
+      setCurrentReasoningSteps(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(conversationId);
+        return newMap;
+      });
+      
+      // Start typewriter effect for the final response
+      const responseContent = (message as any).content || message.data?.response || '';
+      if (responseContent) {
+        typewriterEffect(responseContent, messageId);
       }
-      handleAIChatResponse(response);
       
-    } else if (data.type === 'ai_stream') {
-      handleAIStreamResponse(data.data as AIStreamResponse);
-      
-    } else if (data.type === 'ai_status') {
-      handleAIStatusResponse(data.data || data);
+    } else {
+      // Handle regular messages (fallback)
+      if (message.type === 'ai_chat' || message.type === 'chat_response') {
+        const response: AIChatResponse = message.type === 'chat_response' 
+          ? { response: message.content, message_id: message.message_id, timestamp: message.timestamp }
+          : message.data as AIChatResponse;
+        
+        handleAIChatResponse(response);
+        
+      } else if (message.type === 'ai_stream') {
+        handleAIStreamResponse(message.data as AIStreamResponse);
+        
+      } else if (message.type === 'ai_status') {
+        handleAIStatusResponse(message.data || message);
+      }
     }
-  }, []);
+  }, [typewriterEffect, processedMessageIds, currentReasoningSteps]);
+
+  // Handle WebSocket messages
+  const handleWebSocketMessage = useCallback((data: any) => {
+    handleIncomingMessage(data);
+  }, [handleIncomingMessage]);
 
   // Handle AI chat response
   const handleAIChatResponse = useCallback((response: AIChatResponse) => {
@@ -441,7 +549,7 @@ const AIChatPage = () => {
         department: 'admin',
         page: 'ai_chat',
       },
-      session_id: sessionId,
+      session_id: sessionId || undefined,
     };
 
     sendWebSocketMessage(messageData);
@@ -471,41 +579,82 @@ const AIChatPage = () => {
           department: 'admin',
           page: 'ai_chat',
         },
-        session_id: sessionId,
+        session_id: sessionId || undefined,
       };
 
       sendWebSocketMessage(messageData);
     }, 100);
   }, [isTyping, sendWebSocketMessage, sessionId]);
 
-  const clearChat = useCallback(() => {
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
+  // Create new conversation
+  const createNewConversation = useCallback(async () => {
+    try {
+      setIsLoadingConversation(true);
+      const newConversation = await conversationService.createConversation({
+        title: `New Chat - ${new Date().toLocaleDateString()}`,
+        context: {
+          user_id: 'current_user',
+          department: 'admin',
+          page: 'ai_chat'
+        }
+      });
+      
+      setCurrentConversation(newConversation);
+      setSessionId(newConversation.conversation_id);
+      setMessages([]);
+      processedMessageIds.clear();
+      setCurrentReasoningSteps(new Map());
+      
+      // Add welcome message for new conversation
+      const welcomeMessage: ChatMessage = {
+        id: "welcome-new",
+        text: "Hello! I'm your ERP AI Assistant. How can I help you today?",
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages([welcomeMessage]);
+      processedMessageIds.add("welcome-new");
+      
+    } catch (error) {
+      console.error('Failed to create new conversation:', error);
+      setErrorMessage('Failed to create new conversation. Please try again.');
+    } finally {
+      setIsLoadingConversation(false);
     }
-    
-    setIsTyping(false);
-    setTypingMessageId(null);
-    setCurrentStreamingId(null);
-    setErrorMessage(null);
-    processedMessageIds.clear();
-    processedMessageIds.add('welcome-1');
-    processedMessageIds.add('welcome-2');
-    
-    setMessages([
-      {
-        id: "welcome-1",
-        text: "# Welcome to Your ERP Query Assistant\n\nHello! I'm your **ERP Query Assistant**, here to streamline your interaction with your enterprise resource planning (ERP) system. I can retrieve, analyze, and present data to help you make informed decisions.\n\n## 📋 What I Can Do\n- **🔍 Data Retrieval**: Translate your questions into database queries to extract data from ERP modules.\n- **📊 Data Analysis**: Identify trends, patterns, and KPIs.\n- **📈 Report Generation**: Create clear reports with visualizations (tables, charts).\n- **💡 Insight Generation**: Provide actionable insights and recommendations.",
-        sender: 'bot',
-        timestamp: new Date(),
-      },
-      {
-        id: "welcome-2",
-        text: "## 🛠️ Specific Tasks I Can Help With\n\n### 📦 Inventory\n- Check stock levels for products or categories.\n- Track product movements (inbound/outbound).\n- Identify slow-moving or obsolete inventory.\n- Generate reorder alerts.\n- Provide supplier performance metrics.\n\n### 💰 Sales\n- Retrieve order history by customer or time period.\n- Analyze sales trends by product, region, or representative.\n- Calculate revenue, profit margins, and growth.\n- Identify top products and customers.\n- Provide customer segmentation.\n\n### 📒 Finance\n- Retrieve transactions and account balances.\n- Generate financial statements (P&L, balance sheets, cash flow).\n- Compare budget vs. actual performance.\n- Track expenses and identify savings.\n- Provide financial KPIs.\n\n### 👥 HR\n- Access employee data (contact info, job titles, departments).\n- Analyze payroll and generate reports.\n- Track attendance and time off.\n- Monitor performance metrics.\n- Identify training needs.\n\n### 🏭 Production\n- Retrieve manufacturing schedules and orders.\n- Track resource utilization.\n- Monitor quality control metrics.\n- Analyze production costs.\n- Provide efficiency insights.\n\n## 🌟 Example Queries\n- \"What are the current stock levels for all iPhone 14 models?\"\n- \"Show sales trends for Q3 by region.\"\n- \"What were our marketing expenses last fiscal year?\"\n- \"Which employees have performance reviews due next month?\"\n- \"What is the production schedule for product X?\"\n\n**How to Ask**: Use natural language and be specific (e.g., \"Total sales for July in North America\" rather than \"What are our sales?\").",
-        sender: 'bot',
-        timestamp: new Date(),
-      }
-    ]);
   }, []);
+
+  // Load existing conversation
+  const loadConversation = useCallback(async (conversationId: string) => {
+    if (conversationId === sessionId) return; // Already loaded
+    
+    try {
+      setIsLoadingConversation(true);
+      const { conversation, messages: conversationMessages } = await conversationService.loadConversation(conversationId);
+      
+      setCurrentConversation(conversation);
+      setSessionId(conversation.conversation_id);
+      
+      // Convert conversation messages to chat messages
+      const chatMessages = conversationMessages.map(msg => 
+        conversationService.convertTochatMessage(msg)
+      );
+      
+      setMessages(chatMessages);
+      processedMessageIds.clear();
+      chatMessages.forEach(msg => processedMessageIds.add(msg.id));
+      setCurrentReasoningSteps(new Map());
+      
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+      setErrorMessage('Failed to load conversation. Please try again.');
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  }, [sessionId]);
+
+  const clearChat = useCallback(() => {
+    createNewConversation();
+  }, [createNewConversation]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -513,6 +662,99 @@ const AIChatPage = () => {
       minute: '2-digit',
       hour12: true
     });
+  };
+
+  // Get appropriate SVG icon for reasoning step type
+  const getStepIcon = (stepType: string, status: string) => {
+    const iconProps = { className: "w-3 h-3" };
+    
+    switch (stepType) {
+      case 'thinking':
+      case 'analysis':
+        return <BoltIcon {...iconProps} />;
+      case 'search':
+      case 'retrieval':
+        return <DocsIcon {...iconProps} />;
+      case 'processing':
+      case 'computation':
+        return <TaskIcon {...iconProps} />;
+      case 'validation':
+      case 'verification':
+        return status === 'completed' ? <CheckCircleIcon {...iconProps} /> : <InfoIcon {...iconProps} />;
+      case 'error':
+      case 'failure':
+        return <ErrorIcon {...iconProps} />;
+      case 'notification':
+        return <BellIcon {...iconProps} />;
+      case 'communication':
+        return <ChatIcon {...iconProps} />;
+      default:
+        return <InfoIcon {...iconProps} />;
+    }
+  };
+
+  // Reasoning Steps Display Component
+  const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
+    <div className="space-y-2 mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+      <div className="flex items-center space-x-2 mb-2">
+        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">AI Reasoning Process</span>
+      </div>
+      {steps.map((step, index) => (
+        <div key={`step-${step.step_number}`} className="flex items-start space-x-3 py-1">
+          <div className="flex-shrink-0 mt-0.5">
+            {getStepIcon(step.step_type, step.status)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                {step.step_number}. {step.title}
+              </span>
+              {step.status === 'processing' && (
+                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
+              )}
+              {step.status === 'completed' && (
+                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+              )}
+              {step.status === 'failed' && (
+                <div className="w-1 h-1 bg-red-500 rounded-full"></div>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+              {step.description}
+            </p>
+            <div className="flex items-center space-x-2 mt-1">
+              <span className="text-xs text-gray-500 dark:text-gray-500">
+                📍 {step.source}
+              </span>
+              {step.processing_time && step.processing_time > 0 && (
+                <span className="text-xs text-gray-500 dark:text-gray-500">
+                  ⏱️ {step.processing_time.toFixed(2)}s
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Live Reasoning Steps Indicator
+  const LiveReasoningIndicator = ({ conversationId }: { conversationId: string }) => {
+    const steps = currentReasoningSteps.get(conversationId) || [];
+    
+    if (steps.length === 0) return null;
+    
+    return (
+      <div className="flex justify-start mb-4">
+        <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+          <CopilotUIIcon className="w-4 h-4 text-white" />
+        </div>
+        <div className="max-w-xs lg:max-w-md">
+          <ReasoningStepsDisplay steps={steps} />
+        </div>
+      </div>
+    );
   };
 
   const TypingIndicator = () => (
@@ -555,23 +797,58 @@ const AIChatPage = () => {
     "Schedule meeting"
   ];
 
+  // Initialize with new conversation on mount
+  useEffect(() => {
+    if (!sessionId) {
+      createNewConversation();
+    }
+  }, [sessionId, createNewConversation]);
+
   return (
-    <div className="p-6">
-      <PageBreadcrumb pageTitle="AI Copilot" />
+    <div className="flex h-screen">
+      <ConversationSidebar
+        currentConversationId={sessionId}
+        onConversationSelect={loadConversation}
+        onNewConversation={createNewConversation}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
       
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 h-[calc(100vh-200px)] flex flex-col">
+      <div className="flex-1 flex flex-col">
+        <div className="p-6">
+          <PageBreadcrumb pageTitle="AI Copilot" />
+        </div>
+        
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm mx-6 mb-6 p-6 flex flex-col">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <CopilotUIIcon className="w-6 h-6 text-brand-500" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              AI Copilot
-            </h3>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {currentConversation?.title || 'AI Copilot'}
+              </h3>
+              {currentConversation && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {currentConversation.message_count} messages • Created {new Date(currentConversation.created_at).toLocaleDateString()}
+                </p>
+              )}
+            </div>
             <ConnectionStatus />
           </div>
-          <Button variant="outline" onClick={clearChat} aria-label="Clear chat history">Clear Chat</Button>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={clearChat} aria-label="New conversation">New Chat</Button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 space-y-4" aria-live="polite">
+        {isLoadingConversation ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading conversation...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto mb-4 space-y-4" aria-live="polite">
           {messages.map((message, index) => (
             <div
               key={message.id}
@@ -583,27 +860,42 @@ const AIChatPage = () => {
                 </div>
               )}
               
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.sender === 'user'
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                } ${message.isStreaming ? 'border-l-2 border-brand-500' : ''}`}
-                role="log"
-                aria-label={`${message.sender === 'user' ? 'User' : 'AI'} message: ${message.text}`}
-              >
-                <p className="whitespace-pre-line">{message.text}</p>
-                {message.isStreaming && (
-                  <span className="inline-block w-2 h-4 ml-1 bg-brand-500 animate-pulse"></span>
+              <div className="max-w-xs lg:max-w-md">
+                {/* Show reasoning steps if available */}
+                {message.reasoningSteps && message.reasoningSteps.length > 0 && (
+                  <div className="mb-2">
+                    <ReasoningStepsDisplay steps={message.reasoningSteps} />
+                  </div>
                 )}
-                <p className={`text-xs mt-1 ${
-                  message.sender === 'user' ? 'text-brand-100' : 'text-gray-500'
-                }`}>
-                  {formatTime(message.timestamp)}
-                </p>
+                
+                <div
+                  className={`px-4 py-2 rounded-lg ${
+                    message.sender === 'user'
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                  } ${message.isStreaming ? 'border-l-2 border-brand-500' : ''}`}
+                  role="log"
+                  aria-label={`${message.sender === 'user' ? 'User' : 'AI'} message: ${message.text}`}
+                >
+                  <p className="whitespace-pre-line">{message.text}</p>
+                  {message.isStreaming && (
+                    <span className="inline-block w-2 h-4 ml-1 bg-brand-500 animate-pulse"></span>
+                  )}
+                  <div className={`flex items-center justify-between text-xs mt-1 ${
+                    message.sender === 'user' ? 'text-brand-100' : 'text-gray-500'
+                  }`}>
+                    <span>{formatTime(message.timestamp)}</span>
+                    {message.reasoningSteps && message.reasoningSteps.length > 0 && (
+                      <span className="text-blue-500">🧠 {message.reasoningSteps.length} steps</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
+
+          {/* Show live reasoning steps */}
+          <LiveReasoningIndicator conversationId="current" />
 
           {isTyping && !currentStreamingId && (
             <div className="flex justify-start">
@@ -615,7 +907,8 @@ const AIChatPage = () => {
           )}
           
           <div ref={messagesEndRef} />
-        </div>
+          </div>
+        )}
 
         <div className="mb-4">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Quick Actions:</p>
@@ -683,6 +976,7 @@ const AIChatPage = () => {
             Connecting to AI service...
           </p>
         )}
+        </div>
       </div>
     </div>
   );
