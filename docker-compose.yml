@@ -1,0 +1,49 @@
+services:
+  erp-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
+    user: "root"
+    env_file:
+      - ../erp-suit-infrastructure/.env.frontend
+    environment:
+      - NEXT_TELEMETRY_DISABLED=1
+      - NODE_OPTIONS=--max-old-space-size=2048 --max-semi-space-size=128
+      - WATCHPACK_POLLING=false
+      - DOCKER_ENV=true
+      - npm_config_target_platform=linux
+      - npm_config_target_libc=musl
+      - npm_config_cache=/app/.npm
+      - GENERATE_SOURCEMAP=false
+      - DISABLE_ESLINT_PLUGIN=true
+      - NEXT_WEBPACK_USEPOLLING=false
+      - NEXT_DISABLE_TURBOPACK=false
+      - NODE_GC_INTERVAL=100
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./:/app
+      - frontend_next:/app/.next
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      api-gateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "/app/scripts/health-check.js"]
+      interval: 300s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    networks:
+      - erp-network
+    profiles:
+      - full-stack

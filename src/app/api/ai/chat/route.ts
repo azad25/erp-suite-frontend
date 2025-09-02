@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const aiCopilotUrl = process.env.AI_COPILOT_URL || 'http://localhost:8003';
     
     try {
-      const response = await fetch(`${aiCopilotUrl}/chat`, {
+      const response = await fetch(`${aiCopilotUrl}/api/v1/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

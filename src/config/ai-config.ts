@@ -6,19 +6,19 @@ const computeDefaultWebSocketUrl = (): string => {
   try {
     const base = new URL(API_GATEWAY_URL);
     const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${base.host}/ws/chat`;
+    return `${wsProtocol}//${base.host}/api/v1/ws/chat`;
   } catch (e) {
-    return 'ws://localhost:8000/ws/chat';
+    return 'ws://localhost:8000/api/v1/ws/chat';
   }
 };
 
 export const AI_CONFIG = {
   // WebSocket endpoint for real-time AI chat (via API Gateway)
-  // Note: The API Gateway WebSocket endpoint is /ws/chat
+  // Note: The AI Copilot WebSocket endpoint is /api/v1/ws/chat
   WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || computeDefaultWebSocketUrl(),
 
   // REST API endpoint for AI chat (via API Gateway) - use HTTP(S)
-  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || `${API_GATEWAY_URL.replace(/\/$/, '')}/ws/chat`,
+  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || `${API_GATEWAY_URL.replace(/\/$/, '')}/api/v1/ws/chat`,
 
   // API Gateway base URL
   API_GATEWAY_URL: API_GATEWAY_URL,
