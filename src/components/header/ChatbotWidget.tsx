@@ -48,20 +48,9 @@ const ChatbotWidget: React.FC = () => {
   const [message, setMessage] = useState('');
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome-1',
-      text: "👋 Hi! I'm your AI assistant for the ERP Suite.",
-      sender: 'bot',
-      timestamp: new Date(),
-    },
-    {
-      id: 'welcome-2',
-      text: "Ask me anything about user management, sales, invoicing, or system navigation! I'll show you my step-by-step reasoning process.",
-      sender: 'bot',
-      timestamp: new Date(),
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentConversation, setCurrentConversation] = useState<any>(null);
 
   const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
 
@@ -110,6 +99,68 @@ const ChatbotWidget: React.FC = () => {
         clearTimeout(typewriterTimeoutRef.current);
       }
     };
+  }, []);
+
+  // Initialize conversation on mount
+  useEffect(() => {
+    const initializeConversation = async () => {
+      try {
+        const { conversationService } = await import('@/services/conversationService');
+        const newConversation = await conversationService.createConversation({
+          title: `Widget Chat - ${new Date().toLocaleDateString()}`,
+          context: {
+            user_id: 'current_user',
+            department: 'general',
+            widget: true
+          }
+        });
+        
+        setCurrentConversation(newConversation);
+        setSessionId(newConversation.conversation_id);
+        
+        // Add welcome messages
+        const welcomeMessages = [
+          {
+            id: 'welcome-1',
+            text: "👋 Hi! I'm your AI assistant for the ERP Suite.",
+            sender: 'bot' as const,
+            timestamp: new Date(),
+          },
+          {
+            id: 'welcome-2', 
+            text: "Ask me anything about user management, sales, invoicing, or system navigation! I'll show you my step-by-step reasoning process.",
+            sender: 'bot' as const,
+            timestamp: new Date(),
+          }
+        ];
+        
+        setMessages(welcomeMessages);
+        welcomeMessages.forEach(msg => processedMessageIds.add(msg.id));
+        
+      } catch (error) {
+        console.error('Failed to initialize conversation:', error);
+        // Fallback to local messages
+        const fallbackMessages = [
+          {
+            id: 'welcome-1',
+            text: "👋 Hi! I'm your AI assistant for the ERP Suite.",
+            sender: 'bot' as const,
+            timestamp: new Date(),
+          },
+          {
+            id: 'welcome-2',
+            text: "Ask me anything about user management, sales, invoicing, or system navigation! I'll show you my step-by-step reasoning process.",
+            sender: 'bot' as const,
+            timestamp: new Date(),
+          }
+        ];
+        setMessages(fallbackMessages);
+      }
+    };
+    
+    if (messages.length === 0) {
+      initializeConversation();
+    }
   }, []);
 
   // Handle incoming WebSocket messages with reasoning steps support
@@ -302,9 +353,10 @@ const ChatbotWidget: React.FC = () => {
       setIsTyping(true);
       
       // The WebSocket service will handle reconnection if needed
-      const messageId = await websocketService.sendChatMessage(message, undefined, {
+      const messageId = await websocketService.sendChatMessage(message, sessionId || undefined, {
         user_id: 'current_user',
-        department: 'general'
+        department: 'general',
+        conversation_id: sessionId
       });
       
       console.log('Message sent with ID:', messageId);
@@ -542,10 +594,11 @@ const ChatbotWidget: React.FC = () => {
       // Use the WebSocket service to send the message
       await websocketService.sendChatMessage(
         message,
-                            `session_${genId('session')}`,
+        sessionId || `session_${genId('session')}`,
         { 
           user_id: 'current_user', // This should be replaced with actual user ID
-          department: 'general' 
+          department: 'general',
+          conversation_id: sessionId
         }
       );
     } catch (error) {
@@ -828,10 +881,11 @@ const ChatbotWidget: React.FC = () => {
                         try {
                           await websocketService.sendChatMessage(
                             messageText,
-                            `session_${genId('session')}`,
+                            sessionId || `session_${genId('session')}`,
                             { 
                               user_id: 'current_user', 
-                              department: 'admin' 
+                              department: 'admin',
+                              conversation_id: sessionId
                             }
                           );
                         } catch (error) {
@@ -859,8 +913,12 @@ const ChatbotWidget: React.FC = () => {
                           try {
                             await websocketService.sendChatMessage(
                               "Questions about sales and invoicing",
-                              `session_${genId('session')}`,
-                              { user_id: 'current_user', department: 'sales' }
+                              sessionId || `session_${genId('session')}`,
+                              { 
+                                user_id: 'current_user', 
+                                department: 'sales',
+                                conversation_id: sessionId
+                              }
                             );
                           } catch (error: unknown) {
                             console.error('Error sending message:', error);
@@ -887,8 +945,12 @@ const ChatbotWidget: React.FC = () => {
                           try {
                             await websocketService.sendChatMessage(
                               "General system navigation help",
-                              `session_${genId('session')}`,
-                              { user_id: 'current_user', department: 'general' }
+                              sessionId || `session_${genId('session')}`,
+                              { 
+                                user_id: 'current_user', 
+                                department: 'general',
+                                conversation_id: sessionId
+                              }
                             );
                           } catch (error: unknown) {
                             console.error('Error sending message:', error);
@@ -948,12 +1010,54 @@ const ChatbotWidget: React.FC = () => {
           </div>
 
           {/* Footer */}
-          <Link
-            href="/ai/chat"
-            className="block px-4 py-2 mt-3 text-sm font-medium text-center text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-          >
-            Open Full Chat
-          </Link>
+          <div className="flex items-center space-x-2 mt-3">
+            <Link
+              href={sessionId ? `/ai/chat?conversation=${sessionId}` : '/ai/chat'}
+              className="flex-1 block px-4 py-2 text-sm font-medium text-center text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+            >
+              Open Full Chat
+            </Link>
+            <button
+              onClick={async () => {
+                try {
+                  const { conversationService } = await import('@/services/conversationService');
+                  const newConversation = await conversationService.createConversation({
+                    title: `New Widget Chat - ${new Date().toLocaleDateString()}`,
+                    context: {
+                      user_id: 'current_user',
+                      department: 'general',
+                      widget: true
+                    }
+                  });
+                  
+                  setCurrentConversation(newConversation);
+                  setSessionId(newConversation.conversation_id);
+                  setMessages([]);
+                  processedMessageIds.clear();
+                  setCurrentReasoningSteps(new Map());
+                  
+                  // Add welcome message for new conversation
+                  const welcomeMessage = {
+                    id: 'welcome-new',
+                    text: "👋 Hi! I'm your AI assistant. How can I help you today?",
+                    sender: 'bot' as const,
+                    timestamp: new Date(),
+                  };
+                  setMessages([welcomeMessage]);
+                  processedMessageIds.add('welcome-new');
+                  
+                } catch (error) {
+                  console.error('Failed to create new conversation:', error);
+                }
+              }}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="New conversation"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>

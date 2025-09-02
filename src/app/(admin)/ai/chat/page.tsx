@@ -1,8 +1,8 @@
 "use client";
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import Button from "@/components/ui/button/Button";
-import ConversationSidebar from "@/components/ai/ConversationSidebar";
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import ConversationSidebar from '@/components/ai/ConversationSidebar';
 import { 
   CopilotUIIcon, 
   BoltIcon, 
@@ -14,11 +14,12 @@ import {
   DocsIcon, 
   TaskIcon,
   BellIcon,
-  ErrorIcon
+  ErrorIcon,
+  PaperPlaneIcon,
+  PlusIcon 
 } from "@/icons";
-import { getWebSocketUrl, getAICopilotUrl } from "@/config/ai-config";
-import { websocketService } from "@/services/websocket";
-import { conversationService, ConversationSession } from "@/services/conversationService";
+import { websocketService, AIChatMessage } from '@/services/websocket';
+import { conversationService, ConversationSession, ConversationMessage } from '@/services/conversationService';
 
 interface ReasoningStep {
   step_number: number;
@@ -29,7 +30,7 @@ interface ReasoningStep {
   status: 'processing' | 'completed' | 'failed';
   icon: string;
   timestamp: string;
-  processing_time: number;
+  processing_time?: number;
 }
 
 interface ChatMessage {
@@ -38,80 +39,45 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   timestamp: Date;
   isStreaming?: boolean;
+  messageId?: string;
+  isFinal?: boolean;
   reasoningSteps?: ReasoningStep[];
-  reasoningComplete?: boolean;
+  isReasoningComplete?: boolean;
 }
 
-interface AIChatRequest {
-  message: string;
-  context?: Record<string, string>;
-  session_id?: string;
-}
-
-interface AIChatResponse {
-  response: string;
-  message_id: string;
-  timestamp: number;
-}
-
-interface AIStreamResponse {
-  content: string;
-  is_final: boolean;
-  message_id: string;
-}
-
-const AIChatPage = () => {
+const AIChatPage: React.FC = () => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const conversationParam = searchParams.get('conversation');
+  
+  // State management
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationParam);
+  const [currentConversation, setCurrentConversation] = useState<ConversationSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputMessage, setInputMessage] = useState("");
-  const [reasoning, setReasoning] = useState<ReasoningStep[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [currentStep, setCurrentStep] = useState<ReasoningStep | null>(null);
+  const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
+  // WebSocket and reasoning state
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
-  const [processedMessageIds] = useState<Set<string>>(new Set());
-  const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
   const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
-  const [currentConversation, setCurrentConversation] = useState<ConversationSession | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
-
+  
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitializingRef = useRef(false);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 2000;
-
-  // Validate input message
-  const validateMessage = (text: string): boolean => {
-    const maxLength = 500;
-    const invalidChars = /[<>{}]/;
-    if (text.length > maxLength) {
-      setErrorMessage(`Message is too long (max ${maxLength} characters).`);
-      return false;
-    }
-    if (invalidChars.test(text)) {
-      setErrorMessage("Message contains invalid characters (<, >, {, }).");
-      return false;
-    }
-    setErrorMessage(null);
-    return true;
+  const idCounter = useRef(0);
+  
+  const genId = (prefix = 'id') => {
+    idCounter.current += 1;
+    return `${prefix}-${Date.now()}-${idCounter.current}-${Math.random().toString(36).slice(2,8)}`;
   };
 
   // Typewriter effect for AI responses
-  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 10) => {
-    if (!fullText || typeof fullText !== 'string') {
-      return;
-    }
-    
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
-    }
-    
+  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 15) => {
     setTypingMessageId(messageId);
     let index = 0;
     
@@ -121,7 +87,7 @@ const AIChatPage = () => {
         
         setMessages(prev => prev.map(msg => 
           msg.id === messageId 
-            ? { ...msg, text: currentText, isStreaming: false }
+            ? { ...msg, text: currentText }
             : msg
         ));
         
@@ -130,543 +96,342 @@ const AIChatPage = () => {
       } else {
         setTypingMessageId(null);
         setIsTyping(false);
-        setCurrentStreamingId(null);
       }
     };
     
     typeNextChar();
   }, []);
 
-  // Cleanup typewriter effect
-  useEffect(() => {
-    return () => {
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
+  // Load conversation by ID
+  const loadConversation = useCallback(async (conversationId: string) => {
+    if (!conversationId) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await conversationService.loadConversation(conversationId);
+      if (result) {
+        setCurrentConversation(result.conversation);
+        
+        // Convert to ChatMessage format
+        const chatMessages: ChatMessage[] = result.messages.map((msg: ConversationMessage) => ({
+          id: msg.message_id,
+          text: msg.content,
+          sender: msg.role === 'user' ? 'user' : 'bot',
+          timestamp: new Date(msg.created_at),
+          messageId: msg.message_id,
+          reasoningSteps: msg.reasoning_steps || []
+        }));
+        
+        setMessages(chatMessages);
+        
+        // Mark all loaded messages as processed
+        chatMessages.forEach(msg => processedMessageIds.add(msg.id));
       }
-    };
-  }, []);
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [processedMessageIds]);
+
+  // Create new conversation
+  const createNewConversation = useCallback(async () => {
+    try {
+      const newConversation = await conversationService.createConversation({
+        title: `AI Chat - ${new Date().toLocaleDateString()}`,
+        context: {
+          user_id: 'current_user',
+          department: 'general',
+          page: 'ai_chat'
+        }
+      });
+      
+      setCurrentConversation(newConversation);
+      setCurrentConversationId(newConversation.conversation_id);
+      setMessages([]);
+      processedMessageIds.clear();
+      setCurrentReasoningSteps(new Map());
+      
+      // Update URL
+      router.push(`/ai/chat?conversation=${newConversation.conversation_id}`);
+      
+      // Add welcome message
+      const welcomeMessage: ChatMessage = {
+        id: 'welcome-full-chat',
+        text: "👋 Welcome to the AI Chat! I'm your intelligent assistant with step-by-step reasoning capabilities. How can I help you today?",
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      
+      setMessages([welcomeMessage]);
+      processedMessageIds.add('welcome-full-chat');
+      
+    } catch (error) {
+      console.error('Failed to create new conversation:', error);
+    }
+  }, [router, processedMessageIds]);
+
+  // Handle conversation selection
+  const handleConversationSelect = useCallback((conversationId: string) => {
+    setCurrentConversationId(conversationId);
+    router.push(`/ai/chat?conversation=${conversationId}`);
+  }, [router]);
+
+  // Initialize conversation on mount or param change
+  useEffect(() => {
+    if (conversationParam && conversationParam !== currentConversationId) {
+      setCurrentConversationId(conversationParam);
+      loadConversation(conversationParam);
+    } else if (!conversationParam && !currentConversationId) {
+      createNewConversation();
+    }
+  }, [conversationParam, currentConversationId, loadConversation, createNewConversation]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   // Handle incoming WebSocket messages with reasoning steps support
-  const handleIncomingMessage = useCallback((message: any) => {
+  const handleIncomingMessage = useCallback((message: AIChatMessage) => {
     if (!message) return;
+
+    // Extract message ID for deduplication
+    const messageId = (message as any).message_id || (message.data as any)?.message_id || `msg-${genId('msg')}`;
     
-    const messageId = message.message_id || message.data?.message_id || `msg-${Date.now()}`;
-    
+    // Check if already processed
     if (processedMessageIds.has(messageId)) {
       return;
     }
     
-    // Mark message as processed IMMEDIATELY to prevent race conditions
-    processedMessageIds.add(messageId);
+    // Mark as processed immediately
+    setProcessedMessageIds(prev => new Set([...prev, messageId]));
 
     // Handle different message types
     const messageType = (message as any).type;
     
     if (messageType === 'reasoning_step') {
-      const step = message.step as ReasoningStep;
-      setReasoning(prev => [...prev, step]);
-      setCurrentStep(step);
-      setIsTyping(step.status === 'processing');
-    } else if (messageType === 'connection') {
-      setIsConnected(message.status === 'connected');
-    } else if (messageType === 'chat_complete') {
-      setIsTyping(false);
-      setCurrentStep(null);
-    } else if (messageType === 'ai_response') {
-      const conversationId = message.conversation_id || 'current';
+      // Handle reasoning step
+      const stepData = (message as any).metadata || message.data || message;
+      const conversationId = (message as any).conversation_id || currentConversationId || 'current';
       
       const reasoningStep: ReasoningStep = {
-        step_number: message.step_number || 0,
-        step_type: message.step_type || 'thinking',
-        title: message.title || 'Processing...',
-        description: message.description || '',
-        source: message.source || 'AI System',
-        status: message.status || 'processing',
-        icon: message.icon || '🤔',
-        timestamp: message.timestamp || new Date().toISOString(),
-        processing_time: message.processing_time || 0
+        step_number: (stepData as any).step_number || 0,
+        step_type: (stepData as any).step_type || 'thinking',
+        title: (stepData as any).title || 'Processing...',
+        description: (stepData as any).description || '',
+        source: (stepData as any).source || 'AI System',
+        status: (stepData as any).status || 'processing',
+        icon: (stepData as any).icon || '🤔',
+        timestamp: (stepData as any).timestamp || new Date().toISOString(),
+        processing_time: (stepData as any).processing_time || 0
       };
       
-      // Update reasoning steps for the current conversation
+      // Update reasoning steps
       setCurrentReasoningSteps(prev => {
         const steps = prev.get(conversationId) || [];
         const updatedSteps = [...steps];
         
-        // Find existing step or add new one
         const existingIndex = updatedSteps.findIndex(s => s.step_number === reasoningStep.step_number);
         if (existingIndex >= 0) {
           updatedSteps[existingIndex] = reasoningStep;
         } else {
           updatedSteps.push(reasoningStep);
-          updatedSteps.sort((a, b) => a.step_number - b.step_number);
         }
         
         const newMap = new Map(prev);
-        newMap.set(conversationId, updatedSteps);
+        newMap.set(conversationId, updatedSteps.sort((a, b) => a.step_number - b.step_number));
         return newMap;
       });
       
-    } else if (messageType === 'final_response') {
-      // Handle final response with reasoning steps
-      const conversationId = (message as any).conversation_id || 'current';
-      const steps = currentReasoningSteps.get(conversationId) || [];
+      return;
+    }
+    
+    if (messageType === 'final_response') {
+      // Handle final response
+      const content = (message as any).content || '';
+      const conversationId = (message as any).conversation_id || currentConversationId || 'current';
       
-      const finalMessage: ChatMessage = {
+      // Clear typewriter effect
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+      }
+      
+      // Get reasoning steps
+      const reasoningSteps = currentReasoningSteps.get(conversationId) || [];
+      
+      // Add message with reasoning steps
+      const newMessage: ChatMessage = {
         id: messageId,
         text: '',
         sender: 'bot',
         timestamp: new Date(),
-        reasoningSteps: steps.length > 0 ? [...steps] : undefined,
-        reasoningComplete: true
+        messageId,
+        reasoningSteps: reasoningSteps,
+        isReasoningComplete: true
       };
       
-      setMessages(prev => [...prev, finalMessage]);
+      setMessages(prevMessages => [...prevMessages, newMessage]);
       setIsTyping(false);
       
-      // Clear reasoning steps for this conversation
+      // Start typewriter effect
+      typewriterEffect(content, messageId);
+      
+      // Clear reasoning steps
       setCurrentReasoningSteps(prev => {
         const newMap = new Map(prev);
         newMap.delete(conversationId);
         return newMap;
       });
       
-      // Start typewriter effect for the final response
-      const responseContent = (message as any).content || message.data?.response || '';
-      if (responseContent) {
-        typewriterEffect(responseContent, messageId);
-      }
-      
-    } else {
-      // Handle regular messages (fallback)
-      if (message.type === 'ai_chat' || message.type === 'chat_response') {
-        const response: AIChatResponse = message.type === 'chat_response' 
-          ? { response: message.content, message_id: message.message_id, timestamp: message.timestamp }
-          : message.data as AIChatResponse;
-        
-        handleAIChatResponse(response);
-        
-      } else if (message.type === 'ai_stream') {
-        handleAIStreamResponse(message.data as AIStreamResponse);
-        
-      } else if (message.type === 'ai_status') {
-        handleAIStatusResponse(message.data || message);
-      }
-    }
-  }, [typewriterEffect, processedMessageIds, currentReasoningSteps]);
-
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    handleIncomingMessage(data);
-  }, [handleIncomingMessage]);
-
-  // Handle AI chat response
-  const handleAIChatResponse = useCallback((response: AIChatResponse) => {
-    if (!response.response || typeof response.response !== 'string' || response.response.trim() === '') {
-      console.log('AI Chat Page: Invalid response content, skipping');
       return;
     }
     
-    const messageId = response.message_id || `bot-${crypto.randomUUID()}`;
+    // Handle regular messages (fallback)
+    const messageData = message.data || message;
+    let content = messageData.content || (messageData as any).message || (messageData as any).text || (messageData as any).response;
     
-    const existingMessage = messages.find(msg => msg.id === messageId);
-    if (existingMessage) {
-      console.log('AI Chat Page: Message with ID already exists, skipping:', messageId);
-      return;
+    if (!content && Object.keys(messageData).length === 0) {
+      content = (message as any).content || (message as any).message || (message as any).text || (message as any).response;
     }
     
-    setIsTyping(false);
-    setCurrentStreamingId(null);
+    if (!content && (message as any).type === 'chat_response') {
+      content = (message as any).response || (message as any).data?.response;
+    }
     
+    if (!content) return;
+    
+    const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
+    
+    // Clear typewriter effect
     if (typewriterTimeoutRef.current) {
       clearTimeout(typewriterTimeoutRef.current);
     }
     
-    setMessages(prev => prev.filter(msg => !msg.isStreaming));
-    
-    const botMessage: ChatMessage = {
+    // Add message
+    const newMessage: ChatMessage = {
       id: messageId,
       text: '',
       sender: 'bot',
-      timestamp: new Date(response.timestamp || Date.now()),
-      isStreaming: false,
+      timestamp: new Date(),
+      messageId
     };
     
-    setMessages(prev => [...prev, botMessage]);
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+    setIsTyping(false);
     
-    typewriterEffect(response.response, messageId);
-  }, [messages, typewriterEffect]);
+    // Start typewriter effect
+    typewriterEffect(messageContent, messageId);
+  }, [typewriterEffect, processedMessageIds, currentReasoningSteps, currentConversationId]);
 
-  // Handle AI stream response
-  const handleAIStreamResponse = useCallback((response: AIStreamResponse) => {
-    const messageId = response.message_id || `stream-${crypto.randomUUID()}`;
+  // WebSocket connection and event handling
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     
-    if (response.is_final) {
-      if (processedMessageIds.has(messageId)) {
-        console.log('AI Chat Page: Final stream message already processed, skipping:', messageId);
-        return;
-      }
-      
-      processedMessageIds.add(messageId);
-      setIsTyping(false);
-      setCurrentStreamingId(null);
-      
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
-      }
-      
-      setMessages(prev => {
-        const withoutStreaming = prev.filter(msg => !msg.isStreaming);
-        const finalMessage: ChatMessage = {
-          id: messageId,
-          text: '',
-          sender: 'bot',
-          timestamp: new Date(),
-          isStreaming: false,
-        };
-        return [...withoutStreaming, finalMessage];
-      });
-      
-      typewriterEffect(response.content, messageId);
-    } else {
-      if (currentStreamingId !== messageId) {
-        setCurrentStreamingId(messageId);
-        
-        setMessages(prev => {
-          const withoutStreaming = prev.filter(msg => !msg.isStreaming);
-          const streamingMessage: ChatMessage = {
-            id: messageId,
-            text: response.content,
-            sender: 'bot',
-            timestamp: new Date(),
-            isStreaming: true,
-          };
-          return [...withoutStreaming, streamingMessage];
-        });
-      } else {
-        setMessages(prev => prev.map(msg => 
-          msg.isStreaming && msg.id === messageId
-            ? { ...msg, text: msg.text + response.content }
-            : msg
-        ));
-      }
-    }
-  }, [currentStreamingId, typewriterEffect]);
-
-  // Handle AI status response
-  const handleAIStatusResponse = useCallback((status: any) => {
-    if (status.status === 'processing') {
-      setIsTyping(true);
-    } else if (status.status === 'completed') {
-      setIsTyping(false);
-    }
-  }, []);
-
-  // WebSocket connection management with reconnection
-  const initializeWebSocket = useCallback(async () => {
-    if (isInitializingRef.current) {
-      console.log('WebSocket already initializing, skipping...');
+    if (!token) {
+      console.warn('No access token found for WebSocket connection');
       return;
     }
-    
-    isInitializingRef.current = true;
-    
-    const tryConnect = async () => {
-      try {
-        const messageListener = (data: any) => {
-          handleWebSocketMessage(data);
-        };
-        
-        const connectListener = () => {
-          console.log('WebSocket connected');
-          setIsConnected(true);
-          reconnectAttemptsRef.current = 0;
-          websocketService.subscribe('ai_chat');
-        };
-        
-        const disconnectListener = async () => {
-          console.log('WebSocket disconnected');
-          setIsConnected(false);
-          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-            const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
-            console.log(`Attempting to reconnect in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            reconnectAttemptsRef.current++;
-            await tryConnect();
-          } else {
-            console.error('Max reconnection attempts reached');
-            setErrorMessage('Unable to connect to AI service. Please try again later.');
-          }
-        };
-        
-        const errorListener = (error: any) => {
-          console.error('WebSocket error:', error);
-          setIsConnected(false);
-        };
-        
-        websocketService.off('ai_message', messageListener);
-        websocketService.off('connected', connectListener);
-        websocketService.off('disconnected', disconnectListener);
-        websocketService.off('error', errorListener);
-        
-        websocketService.on('ai_message', messageListener);
-        websocketService.on('connected', connectListener);
-        websocketService.on('disconnected', disconnectListener);
-        websocketService.on('error', errorListener);
-        
-        await websocketService.initializeConnection();
-        
-        const connected = websocketService.isConnected();
-        setIsConnected(connected);
-        
-        return () => {
-          websocketService.off('ai_message', messageListener);
-          websocketService.off('connected', connectListener);
-          websocketService.off('disconnected', disconnectListener);
-          websocketService.off('error', errorListener);
-          
-          if (websocketService.isConnected()) {
-            websocketService.unsubscribe('ai_chat');
-          }
-        };
-      } catch (error) {
-        console.error('Failed to initialize WebSocket:', error);
-        setIsConnected(false);
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
-          console.log(`Attempting to reconnect in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          reconnectAttemptsRef.current++;
-          await tryConnect();
-        } else {
-          console.error('Max reconnection attempts reached');
-          setErrorMessage('Unable to connect to AI service. Please try again later.');
-        }
-      } finally {
-        isInitializingRef.current = false;
-      }
+
+    const messageListener = (message: AIChatMessage) => {
+      handleIncomingMessage(message);
     };
     
-    return tryConnect();
-  }, [handleWebSocketMessage]);
-
-  // Send message via WebSocket
-  const sendWebSocketMessage = useCallback((messageData: AIChatRequest) => {
-    if (websocketService.isConnected()) {
-      websocketService.sendChatMessage(
-        messageData.message,
-        messageData.session_id,
-        messageData.context
-      );
-    } else {
-      sendRESTMessage(messageData);
-    }
-  }, [isConnected]);
-
-  // Fallback REST API call
-  const sendRESTMessage = async (messageData: AIChatRequest) => {
-    try {
-      const aiUrl = getAICopilotUrl();
-      const response = await fetch(`${aiUrl}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messageData),
-      });
-
-      if (response.ok) {
-        const data: AIChatResponse = await response.json();
-        handleAIChatResponse(data);
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.error('Failed to send message via REST:', error);
+    const connectListener = () => {
+      setIsConnected(true);
       setIsTyping(false);
-      setErrorMessage('Failed to send message. Please check your connection and try again.');
-      
-      const errorMessageObj: ChatMessage = {
-        id: `error-${crypto.randomUUID()}`,
-        text: errorMessage || "Sorry, I'm having trouble connecting right now. Please try again later.",
-        sender: 'bot',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessageObj]);
-    }
-  };
-
-  // Initialize WebSocket when component mounts
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    
-    const init = async () => {
-      cleanup = await initializeWebSocket();
+      websocketService.subscribe('ai_chat');
     };
     
-    init();
+    const disconnectListener = () => {
+      setIsConnected(false);
+      setIsTyping(false);
+    };
+    
+    const errorListener = (error: any) => {
+      console.error('WebSocket error:', error);
+      setIsTyping(false);
+    };
+
+    // Set up listeners
+    websocketService.on('ai_message', messageListener);
+    websocketService.on('connected', connectListener);
+    websocketService.on('disconnected', disconnectListener);
+    websocketService.on('error', errorListener);
+    
+    // Initialize connection
+    websocketService.ensureConnection();
+    
+    if (!websocketService.isConnected()) {
+      websocketService.shouldConnect = true;
+      websocketService.initializeConnection().then(() => {
+        setIsConnected(websocketService.isConnected());
+        if (websocketService.isConnected()) {
+          websocketService.subscribe('ai_chat');
+        }
+      });
+    } else {
+      setIsConnected(true);
+      websocketService.subscribe('ai_chat');
+    }
     
     return () => {
-      if (cleanup) {
-        cleanup();
+      websocketService.off('ai_message', messageListener);
+      websocketService.off('connected', connectListener);
+      websocketService.off('disconnected', disconnectListener);
+      websocketService.off('error', errorListener);
+      
+      if (websocketService.isConnected()) {
+        websocketService.unsubscribe('ai_chat');
       }
-      isInitializingRef.current = false;
     };
-  }, []);
+  }, [handleIncomingMessage]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Focus input when component mounts
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
-
-  const handleSendMessage = useCallback(() => {
-    if (!inputMessage.trim() || isTyping || !validateMessage(inputMessage)) return;
+  // Send message handler
+  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
     
-    const messageText = inputMessage.trim();
-    const userMessageId = `user-${crypto.randomUUID()}`;
-
+    if (!message.trim() || isTyping || !isConnected) return;
+    
     const userMessage: ChatMessage = {
-      id: userMessageId,
-      text: messageText,
+      id: `user-${genId('user')}`,
+      text: message,
       sender: 'user',
       timestamp: new Date(),
     };
-
+    
     setMessages(prev => [...prev, userMessage]);
-    setInputMessage("");
+    setMessage('');
     setIsTyping(true);
-
-    const messageData: AIChatRequest = {
-      message: messageText,
-      context: {
-        user_id: 'current_user',
-        department: 'admin',
-        page: 'ai_chat',
-      },
-      session_id: sessionId || undefined,
-    };
-
-    sendWebSocketMessage(messageData);
-  }, [inputMessage, isTyping, sendWebSocketMessage, sessionId]);
-
-  const handleQuickAction = useCallback((action: string) => {
-    if (isTyping || !validateMessage(action)) return;
     
-    setInputMessage(action);
-    setTimeout(() => {
-      const userMessageId = `user-${crypto.randomUUID()}`;
-      const userMessage: ChatMessage = {
-        id: userMessageId,
-        text: action,
-        sender: 'user',
-        timestamp: new Date(),
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-      setInputMessage("");
-      setIsTyping(true);
-
-      const messageData: AIChatRequest = {
-        message: action,
-        context: {
-          user_id: 'current_user',
-          department: 'admin',
-          page: 'ai_chat',
-        },
-        session_id: sessionId || undefined,
-      };
-
-      sendWebSocketMessage(messageData);
-    }, 100);
-  }, [isTyping, sendWebSocketMessage, sessionId]);
-
-  // Create new conversation
-  const createNewConversation = useCallback(async () => {
     try {
-      setIsLoadingConversation(true);
-      const newConversation = await conversationService.createConversation({
-        title: `New Chat - ${new Date().toLocaleDateString()}`,
-        context: {
+      await websocketService.sendChatMessage(
+        message,
+        currentConversationId || `session_${genId('session')}`,
+        { 
           user_id: 'current_user',
-          department: 'admin',
-          page: 'ai_chat'
+          department: 'general',
+          conversation_id: currentConversationId
         }
-      });
-      
-      setCurrentConversation(newConversation);
-      setSessionId(newConversation.conversation_id);
-      setMessages([]);
-      processedMessageIds.clear();
-      setCurrentReasoningSteps(new Map());
-      
-      // Add welcome message for new conversation
-      const welcomeMessage: ChatMessage = {
-        id: "welcome-new",
-        text: "Hello! I'm your ERP AI Assistant. How can I help you today?",
-        sender: 'bot',
-        timestamp: new Date(),
-      };
-      setMessages([welcomeMessage]);
-      processedMessageIds.add("welcome-new");
-      
-    } catch (error) {
-      console.error('Failed to create new conversation:', error);
-      setErrorMessage('Failed to create new conversation. Please try again.');
-    } finally {
-      setIsLoadingConversation(false);
-    }
-  }, []);
-
-  // Load existing conversation
-  const loadConversation = useCallback(async (conversationId: string) => {
-    if (conversationId === sessionId) return; // Already loaded
-    
-    try {
-      setIsLoadingConversation(true);
-      const { conversation, messages: conversationMessages } = await conversationService.loadConversation(conversationId);
-      
-      setCurrentConversation(conversation);
-      setSessionId(conversation.conversation_id);
-      
-      // Convert conversation messages to chat messages
-      const chatMessages = conversationMessages.map(msg => 
-        conversationService.convertTochatMessage(msg)
       );
-      
-      setMessages(chatMessages);
-      processedMessageIds.clear();
-      chatMessages.forEach(msg => processedMessageIds.add(msg.id));
-      setCurrentReasoningSteps(new Map());
-      
     } catch (error) {
-      console.error('Failed to load conversation:', error);
-      setErrorMessage('Failed to load conversation. Please try again.');
-    } finally {
-      setIsLoadingConversation(false);
+      console.error('Error sending message:', error);
+      setIsTyping(false);
+      
+      setMessages(prev => [...prev, {
+        id: `error-${genId('error')}`,
+        text: 'Failed to send message. Please try again.',
+        sender: 'bot',
+        timestamp: new Date()
+      }]);
     }
-  }, [sessionId]);
+  }, [message, isTyping, isConnected, currentConversationId]);
 
-  const clearChat = useCallback(() => {
-    createNewConversation();
-  }, [createNewConversation]);
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  // Get appropriate SVG icon for reasoning step type
+  // Get appropriate icon for reasoning step type
   const getStepIcon = (stepType: string, status: string) => {
-    const iconProps = { className: "w-3 h-3" };
+    const iconProps = { className: "w-4 h-4" };
     
     switch (stepType) {
       case 'thinking':
@@ -695,35 +460,35 @@ const AIChatPage = () => {
 
   // Reasoning Steps Display Component
   const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
-    <div className="space-y-2 mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-      <div className="flex items-center space-x-2 mb-2">
+    <div className="space-y-3 mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
+      <div className="flex items-center space-x-2 mb-3">
         <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">AI Reasoning Process</span>
+        <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">AI Reasoning Process</span>
       </div>
       {steps.map((step, index) => (
-        <div key={`step-${step.step_number}`} className="flex items-start space-x-3 py-1">
-          <div className="flex-shrink-0 mt-0.5">
+        <div key={`step-${step.step_number}`} className="flex items-start space-x-3 py-2">
+          <div className="flex-shrink-0 mt-1">
             {getStepIcon(step.step_type, step.status)}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {step.step_number}. {step.title}
               </span>
               {step.status === 'processing' && (
-                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
               )}
               {step.status === 'completed' && (
-                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               )}
               {step.status === 'failed' && (
-                <div className="w-1 h-1 bg-red-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
               )}
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               {step.description}
             </p>
-            <div className="flex items-center space-x-2 mt-1">
+            <div className="flex items-center space-x-3 mt-2">
               <span className="text-xs text-gray-500 dark:text-gray-500">
                 📍 {step.source}
               </span>
@@ -739,243 +504,290 @@ const AIChatPage = () => {
     </div>
   );
 
-  // Live Reasoning Steps Indicator
+  // Message Bubble Component
+  const MessageBubble = ({ message, isTyping }: { message: ChatMessage; isTyping: boolean }) => (
+    <div className={`flex gap-4 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+      {message.sender === 'bot' && (
+        <div className="flex-shrink-0">
+          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
+            <CopilotUIIcon className="w-5 h-5 text-white" />
+          </div>
+        </div>
+      )}
+      
+      <div className={`max-w-[80%] ${message.sender === 'user' ? 'order-first' : ''}`}>
+        {/* Show reasoning steps if available */}
+        {message.reasoningSteps && message.reasoningSteps.length > 0 && (
+          <div className="mb-3">
+            <ReasoningStepsDisplay steps={message.reasoningSteps} />
+          </div>
+        )}
+        
+        <div className={`px-6 py-4 rounded-2xl ${
+          message.sender === 'user'
+            ? 'bg-brand-500 text-white rounded-br-md'
+            : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md shadow-sm border border-gray-200 dark:border-gray-600'
+        }`}>
+          <div className="text-sm leading-relaxed">
+            {message.text}
+            {isTyping && (
+              <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse"></span>
+            )}
+          </div>
+        </div>
+        
+        <div className={`flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2 ${
+          message.sender === 'user' ? 'justify-end' : 'justify-start'
+        }`}>
+          <span>{message.timestamp.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })}</span>
+          {message.reasoningSteps && message.reasoningSteps.length > 0 && (
+            <span className="text-blue-500">🧠 {message.reasoningSteps.length} steps</span>
+          )}
+        </div>
+      </div>
+      
+      {message.sender === 'user' && (
+        <div className="flex-shrink-0">
+          <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">U</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Live Reasoning Indicator
   const LiveReasoningIndicator = ({ conversationId }: { conversationId: string }) => {
     const steps = currentReasoningSteps.get(conversationId) || [];
     
     if (steps.length === 0) return null;
     
     return (
-      <div className="flex justify-start mb-4">
-        <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-          <CopilotUIIcon className="w-4 h-4 text-white" />
-        </div>
-        <div className="max-w-xs lg:max-w-md">
-          <ReasoningStepsDisplay steps={steps} />
+      <div className="max-w-4xl mx-auto">
+        <div className="flex gap-4 justify-start">
+          <div className="flex-shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
+              <CopilotUIIcon className="w-5 h-5 text-white" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <ReasoningStepsDisplay steps={steps} />
+          </div>
         </div>
       </div>
     );
   };
 
+  // Enhanced Typing Indicator
   const TypingIndicator = () => (
-    <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg max-w-xs">
-      <div className="flex space-x-1">
-        <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ animationDelay: '0ms', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
-        ></div>
-        <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ animationDelay: '0.2s', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
-        ></div>
-        <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
-          style={{ animationDelay: '0.4s', animationDuration: '1.4s', animationIterationCount: 'infinite' }}
-        ></div>
+    <div className="max-w-4xl mx-auto">
+      <div className="flex gap-4 justify-start">
+        <div className="flex-shrink-0">
+          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
+            <CopilotUIIcon className="w-5 h-5 text-white" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="px-6 py-4 bg-white dark:bg-gray-700 rounded-2xl rounded-bl-md shadow-sm border border-gray-200 dark:border-gray-600">
+            <div className="flex items-center space-x-2">
+              <div className="flex space-x-1">
+                <div 
+                  className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '0ms',
+                    animationDuration: '1.4s',
+                    animationIterationCount: 'infinite'
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '0.2s',
+                    animationDuration: '1.4s',
+                    animationIterationCount: 'infinite'
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '0.4s',
+                    animationDuration: '1.4s',
+                    animationIterationCount: 'infinite'
+                  }}
+                ></div>
+              </div>
+              <span className="text-sm text-brand-600 dark:text-brand-400 font-medium">
+                AI is thinking and processing...
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <span className="ml-2 text-sm text-brand-600 dark:text-brand-400 font-medium">
-        AI is thinking...
-      </span>
     </div>
   );
 
-  const ConnectionStatus = () => (
-    <div className="flex items-center space-x-2 text-xs" aria-live="polite">
-      <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-      <span className={isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-        {isConnected ? 'Connected' : 'Disconnected'}
-      </span>
-    </div>
-  );
-
-  const quickActions = [
-    "Show sales dashboard",
-    "Generate inventory report",
-    "List overdue invoices",
-    "Show top customers",
-    "Check cash flow",
-    "Schedule meeting"
-  ];
-
-  // Initialize with new conversation on mount
+  // Cleanup typewriter effect
   useEffect(() => {
-    if (!sessionId) {
-      createNewConversation();
-    }
-  }, [sessionId, createNewConversation]);
+    return () => {
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Conversation Sidebar */}
       <ConversationSidebar
-        currentConversationId={sessionId}
-        onConversationSelect={loadConversation}
+        currentConversationId={currentConversationId}
+        onConversationSelect={handleConversationSelect}
         onNewConversation={createNewConversation}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
-      
+
+      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        <div className="p-6">
-          <PageBreadcrumb pageTitle="AI Copilot" />
-        </div>
-        
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm mx-6 mb-6 p-6 flex flex-col">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-3">
-            <CopilotUIIcon className="w-6 h-6 text-brand-500" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {currentConversation?.title || 'AI Copilot'}
-              </h3>
-              {currentConversation && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {currentConversation.message_count} messages • Created {new Date(currentConversation.created_at).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-            <ConnectionStatus />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" onClick={clearChat} aria-label="New conversation">New Chat</Button>
-          </div>
-        </div>
-
-        {isLoadingConversation ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading conversation...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto mb-4 space-y-4" aria-live="polite">
-          {messages.map((message, index) => (
-            <div
-              key={message.id}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {message.sender === 'bot' && (
-                <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <CopilotUIIcon className="w-4 h-4 text-white" />
-                </div>
-              )}
-              
-              <div className="max-w-xs lg:max-w-md">
-                {/* Show reasoning steps if available */}
-                {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-                  <div className="mb-2">
-                    <ReasoningStepsDisplay steps={message.reasoningSteps} />
-                  </div>
-                )}
-                
-                <div
-                  className={`px-4 py-2 rounded-lg ${
-                    message.sender === 'user'
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  } ${message.isStreaming ? 'border-l-2 border-brand-500' : ''}`}
-                  role="log"
-                  aria-label={`${message.sender === 'user' ? 'User' : 'AI'} message: ${message.text}`}
-                >
-                  <p className="whitespace-pre-line">{message.text}</p>
-                  {message.isStreaming && (
-                    <span className="inline-block w-2 h-4 ml-1 bg-brand-500 animate-pulse"></span>
+        {/* Chat Header */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
+                <CopilotUIIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  AI Copilot
+                </h1>
+                <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
+                  {currentConversation && (
+                    <>
+                      <span>•</span>
+                      <span>{currentConversation.title}</span>
+                    </>
                   )}
-                  <div className={`flex items-center justify-between text-xs mt-1 ${
-                    message.sender === 'user' ? 'text-brand-100' : 'text-gray-500'
-                  }`}>
-                    <span>{formatTime(message.timestamp)}</span>
-                    {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-                      <span className="text-blue-500">🧠 {message.reasoningSteps.length} steps</span>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
-          ))}
-
-          {/* Show live reasoning steps */}
-          <LiveReasoningIndicator conversationId="current" />
-
-          {isTyping && !currentStreamingId && (
-            <div className="flex justify-start">
-              <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                <CopilotUIIcon className="w-4 h-4 text-white" />
-              </div>
-              <TypingIndicator />
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={createNewConversation}
+                className="flex items-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>New Chat</span>
+              </button>
             </div>
+          </div>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500 mx-auto mb-4"></div>
+                <p className="text-gray-500 dark:text-gray-400">Loading conversation...</p>
+              </div>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CopilotUIIcon className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Start a conversation
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
+                  Ask me anything about your ERP system. I'll show you my step-by-step reasoning process.
+                </p>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    "Help me understand user permissions"
+                  </button>
+                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    "Show me sales analytics for this month"
+                  </button>
+                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    "How do I create a new invoice?"
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Messages Display */}
+              <div className="space-y-6 max-w-4xl mx-auto">
+                {messages.map((msg, index) => (
+                  <MessageBubble 
+                    key={`${msg.id}-${index}`} 
+                    message={msg} 
+                    isTyping={typingMessageId === msg.id}
+                  />
+                ))}
+                
+                {/* Live Reasoning Steps */}
+                <LiveReasoningIndicator conversationId={currentConversationId || 'current'} />
+                
+                {/* Typing Indicator */}
+                {isTyping && <TypingIndicator />}
+              </div>
+            </>
           )}
           
           <div ref={messagesEndRef} />
-          </div>
-        )}
-
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Quick Actions:</p>
-          <div className="flex flex-wrap gap-2">
-            {quickActions.map((action, index) => (
-              <button
-                key={index}
-                onClick={() => handleQuickAction(action)}
-                disabled={isTyping}
-                className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label={`Quick action: ${action}`}
-              >
-                {action}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-              placeholder="Ask me anything about your business..."
-              className="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-              disabled={!isConnected || isTyping}
-              aria-label="Chat input"
-              aria-invalid={!!errorMessage}
-              aria-describedby={errorMessage ? "input-error" : undefined}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || !isConnected || isTyping || !!errorMessage}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
-              aria-label="Send message"
-            >
-              <svg 
-                width="18" 
-                height="18" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="rotate-45"
-              >
-                <path d="m3 3 3 9-3 9 19-9Z"/>
-                <path d="m6 12 13 0"/>
-              </svg>
-            </button>
+        {/* Input Area */}
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-end space-x-4">
+              <div className="flex-1 relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Ask me anything about your ERP system..."
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none"
+                  disabled={!isConnected || isTyping}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!message.trim() || !isConnected || isTyping}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
+                >
+                  <PaperPlaneIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            {!isConnected && (
+              <p className="text-sm text-red-500 mt-2 text-center">
+                Connecting to AI service...
+              </p>
+            )}
+            
+            {isTyping && (
+              <p className="text-sm text-brand-600 dark:text-brand-400 mt-2 text-center">
+                AI is thinking and processing your request...
+              </p>
+            )}
           </div>
-        </div>
-
-        {errorMessage && (
-          <p id="input-error" className="text-xs text-red-500 mt-2 text-center" role="alert">
-            {errorMessage}-
-          </p>
-        )}
-        {!isConnected && !errorMessage && (
-          <p className="text-xs text-red-500 mt-2 text-center" role="alert">
-            Connecting to AI service...
-          </p>
-        )}
         </div>
       </div>
     </div>
