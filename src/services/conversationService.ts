@@ -57,7 +57,12 @@ class ConversationService {
   private currentOrgId: string = 'default_org'; // TODO: Get from auth context
 
   constructor() {
-    this.baseUrl = getAICopilotUrl();
+    // Ensure the base URL ends with /api/v1
+    let base = getAICopilotUrl();
+    if (!base.endsWith('/api/v1')) {
+      base = base.endsWith('/') ? `${base}api/v1` : `${base}/api/v1`;
+    }
+    this.baseUrl = base;
   }
 
   /**
@@ -65,16 +70,17 @@ class ConversationService {
    */
   async createConversation(request: CreateConversationRequest = {}): Promise<ConversationSession> {
     try {
-      const response = await fetch(`${this.baseUrl}/conversations`, {
+      // Add user_id and organization_id as query parameters
+      const url = new URL(`${this.baseUrl}/api/v1/conversations`);
+      url.searchParams.append('user_id', this.currentUserId);
+      url.searchParams.append('organization_id', this.currentOrgId);
+      
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          user_id: this.currentUserId,
-          organization_id: this.currentOrgId,
-          ...request
-        }),
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {
@@ -93,11 +99,14 @@ class ConversationService {
    */
   async loadConversation(conversationId: string): Promise<LoadConversationResponse> {
     try {
-      const response = await fetch(
-        `${this.baseUrl}/conversations/${conversationId}?include_messages=true`,
-        {
-          method: 'GET',
-          headers: {
+      const url = new URL(`${this.baseUrl}/api/v1/conversations/${conversationId}`);
+      url.searchParams.append('include_messages', 'true');
+      url.searchParams.append('user_id', this.currentUserId);
+      url.searchParams.append('organization_id', this.currentOrgId);
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
             'Content-Type': 'application/json',
           },
         }

@@ -18,7 +18,8 @@ export const AI_CONFIG = {
   WEBSOCKET_URL: process.env.NEXT_PUBLIC_AI_WEBSOCKET_URL || computeDefaultWebSocketUrl(),
 
   // REST API endpoint for AI chat (via API Gateway) - use HTTP(S)
-  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || `${API_GATEWAY_URL.replace(/\/$/, '')}/api/v1/ws/chat`,
+  // Remove /ws/chat to point to the base API URL
+  AI_COPILOT_URL: process.env.NEXT_PUBLIC_AI_COPILOT_URL || API_GATEWAY_URL,
 
   // API Gateway base URL
   API_GATEWAY_URL: API_GATEWAY_URL,
