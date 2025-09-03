@@ -111,14 +111,30 @@ const ChatbotWidget: React.FC = () => {
     const initializeConversation = async () => {
       try {
         const { conversationService } = await import('@/services/conversationService');
-        const newConversation = await conversationService.createConversation({
-          title: `Widget Chat - ${new Date().toLocaleDateString()}`,
-          context: {
-            user_id: 'current_user',
-            department: 'general',
-            widget: true
-          }
-        });
+        
+        // Create conversation with proper error handling
+        let newConversation;
+        try {
+          newConversation = await conversationService.createConversation({
+            title: `Widget Chat - ${new Date().toLocaleDateString()}`,
+            context: {
+              user_id: 'current_user',
+              department: 'general',
+              widget: true
+            }
+          });
+          console.log('Successfully created conversation:', newConversation.conversation_id);
+        } catch (error) {
+          console.warn('Failed to create remote conversation, using local session:', error);
+          // Create a local session ID for the widget when backend is unavailable
+          newConversation = {
+            conversation_id: `local-widget-${Date.now()}`,
+            title: `Widget Chat - ${new Date().toLocaleDateString()}`,
+            created_at: new Date().toISOString(),
+            status: 'active',
+            context: {}
+          };
+        }
         
         setCurrentConversation(newConversation);
         setSessionId(newConversation.conversation_id);
@@ -140,11 +156,14 @@ const ChatbotWidget: React.FC = () => {
         ];
         
         setMessages(welcomeMessages);
-        welcomeMessages.forEach(msg => processedMessageIds.add(msg.id));
+        welcomeMessages.forEach((msg: ChatMessage) => processedMessageIds.add(msg.id));
         
       } catch (error) {
         console.error('Failed to initialize conversation:', error);
-        // Fallback to local messages
+        // Fallback to local messages with a session ID
+        const sessionId = `fallback-${Date.now()}`;
+        setSessionId(sessionId);
+        
         const fallbackMessages = [
           {
             id: 'welcome-1',
@@ -160,6 +179,7 @@ const ChatbotWidget: React.FC = () => {
           }
         ];
         setMessages(fallbackMessages);
+        fallbackMessages.forEach((msg: ChatMessage) => processedMessageIds.add(msg.id));
       }
     };
     

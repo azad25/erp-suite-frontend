@@ -110,6 +110,23 @@ const AIChatPage: React.FC = () => {
     
     setIsLoading(true);
     try {
+      // Skip loading for local sessions
+      if (conversationId.startsWith('local-')) {
+        console.log('Skipping load for local session:', conversationId);
+        setMessages([]);
+        setCurrentConversation({
+          conversation_id: conversationId,
+          title: 'Local Chat Session',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active',
+          message_count: 0,
+          context: {},
+          metadata: {}
+        });
+        return;
+      }
+      
       const result = await conversationService.loadConversation(conversationId);
       if (result) {
         setCurrentConversation(result.conversation);
@@ -121,7 +138,7 @@ const AIChatPage: React.FC = () => {
           sender: msg.role === 'user' ? 'user' : 'bot',
           timestamp: new Date(msg.created_at),
           messageId: msg.message_id,
-          reasoningSteps: msg.reasoning_steps || []
+          reasoning_steps: msg.reasoning_steps || []
         }));
         
         setMessages(chatMessages);
@@ -131,6 +148,21 @@ const AIChatPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
+      // Fallback to local session if conversation doesn't exist
+      if (conversationId && !conversationId.startsWith('local-')) {
+        console.warn('Conversation not found, creating local session');
+        setMessages([]);
+        setCurrentConversation({
+          conversation_id: conversationId,
+          title: 'Chat Session',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active',
+          message_count: 0,
+          context: {},
+          metadata: {}
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -139,14 +171,31 @@ const AIChatPage: React.FC = () => {
   // Create new conversation
   const createNewConversation = useCallback(async () => {
     try {
-      const newConversation = await conversationService.createConversation({
-        title: `AI Chat - ${new Date().toLocaleDateString()}`,
-        context: {
-          user_id: 'current_user',
-          department: 'general',
-          page: 'ai_chat'
-        }
-      });
+      let newConversation;
+      try {
+        newConversation = await conversationService.createConversation({
+          title: `AI Chat - ${new Date().toLocaleDateString()}`,
+          context: {
+            user_id: 'current_user',
+            department: 'general',
+            page: 'ai_chat'
+          }
+        });
+        console.log('Successfully created conversation:', newConversation.conversation_id);
+      } catch (error) {
+        console.warn('Failed to create remote conversation, using local session:', error);
+        // Create a local session when backend is unavailable
+        newConversation = {
+          conversation_id: `local-chat-${Date.now()}`,
+          title: `AI Chat - ${new Date().toLocaleDateString()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active',
+          message_count: 0,
+          context: {},
+          metadata: {}
+        };
+      }
       
       setCurrentConversation(newConversation);
       setCurrentConversationId(newConversation.conversation_id);
@@ -154,8 +203,10 @@ const AIChatPage: React.FC = () => {
       processedMessageIds.clear();
       setCurrentReasoningSteps(new Map());
       
-      // Update URL
-      router.push(`/ai/chat?conversation=${newConversation.conversation_id}`);
+      // Update URL only for real conversations
+      if (!newConversation.conversation_id.startsWith('local-')) {
+        router.push(`/ai/chat?conversation=${newConversation.conversation_id}`);
+      }
       
       // Add welcome message
       const welcomeMessage: ChatMessage = {

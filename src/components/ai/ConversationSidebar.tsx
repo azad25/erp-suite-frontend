@@ -35,10 +35,13 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     setIsLoading(true);
     try {
       const result = await conversationService.getUserConversations(1, 50, 'active');
-      setConversations(result.conversations);
-      setFilteredConversations(result.conversations);
+      setConversations(result.items);
+      setFilteredConversations(result.items);
     } catch (error) {
       console.error('Failed to load conversations:', error);
+      // Gracefully handle 404 errors by showing empty state
+      setConversations([]);
+      setFilteredConversations([]);
     } finally {
       setIsLoading(false);
     }
