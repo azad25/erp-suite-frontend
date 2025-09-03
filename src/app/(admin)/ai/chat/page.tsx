@@ -21,6 +21,7 @@ import {
 } from "@/icons";
 import { websocketService, AIChatMessage } from '@/services/websocket';
 import { conversationService, ConversationSession, ConversationMessage } from '@/services/conversationService';
+import UserAvatar from '@/components/common/UserAvatar';
 
 interface ReasoningStep {
   step_number: number;
@@ -358,6 +359,9 @@ const AIChatPage: React.FC = () => {
 
     // Set up listeners
     websocketService.on('ai_message', messageListener);
+    websocketService.on('reasoning_step', messageListener);
+    websocketService.on('final_response', messageListener);
+    websocketService.on('chunk', messageListener);
     websocketService.on('connected', connectListener);
     websocketService.on('disconnected', disconnectListener);
     websocketService.on('error', errorListener);
@@ -370,22 +374,33 @@ const AIChatPage: React.FC = () => {
       websocketService.initializeConnection().then(() => {
         setIsConnected(websocketService.isConnected());
         if (websocketService.isConnected()) {
+          // Subscribe to multiple channels for comprehensive coverage
           websocketService.subscribe('ai_chat');
+          websocketService.subscribe('reasoning_steps');
+          websocketService.subscribe('chat_responses');
         }
       });
     } else {
       setIsConnected(true);
+      // Subscribe to multiple channels for comprehensive coverage
       websocketService.subscribe('ai_chat');
+      websocketService.subscribe('reasoning_steps');
+      websocketService.subscribe('chat_responses');
     }
     
     return () => {
       websocketService.off('ai_message', messageListener);
+      websocketService.off('reasoning_step', messageListener);
+      websocketService.off('final_response', messageListener);
+      websocketService.off('chunk', messageListener);
       websocketService.off('connected', connectListener);
       websocketService.off('disconnected', disconnectListener);
       websocketService.off('error', errorListener);
       
       if (websocketService.isConnected()) {
         websocketService.unsubscribe('ai_chat');
+        websocketService.unsubscribe('reasoning_steps');
+        websocketService.unsubscribe('chat_responses');
       }
     };
   }, [handleIncomingMessage]);
@@ -459,79 +474,89 @@ const AIChatPage: React.FC = () => {
     }
   };
 
-  // Enhanced Reasoning Steps Display Component with Professional Design
+  // Enhanced Reasoning Steps Display Component with Apple-like Professional Design
   const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
-    <div className="space-y-2 mb-4 p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/10 dark:via-indigo-900/10 dark:to-purple-900/10 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 shadow-sm backdrop-blur-sm">
-      <div className="flex items-center space-x-3 mb-4">
+    <div className="space-y-1 mb-4 p-4 bg-gradient-to-br from-slate-50/80 via-blue-50/60 to-indigo-50/80 dark:from-slate-800/40 dark:via-blue-900/20 dark:to-indigo-900/30 rounded-2xl border border-slate-200/60 dark:border-slate-700/40 shadow-sm backdrop-blur-md">
+      <div className="flex items-center space-x-3 mb-3">
         <div className="relative">
-          <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-lg"></div>
-          <div className="absolute inset-0 w-3 h-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-ping opacity-20"></div>
+          <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-sm"></div>
+          <div className="absolute inset-0 w-2.5 h-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-ping opacity-30"></div>
         </div>
-        <span className="text-sm font-semibold bg-gradient-to-r from-blue-700 to-indigo-700 dark:from-blue-300 dark:to-indigo-300 bg-clip-text text-transparent">AI Reasoning Process</span>
-        <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-transparent dark:from-blue-700"></div>
+        <span className="text-xs font-semibold bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-300 dark:to-slate-200 bg-clip-text text-transparent tracking-wide">AI Reasoning</span>
+        <div className="flex-1 h-px bg-gradient-to-r from-slate-200/60 to-transparent dark:from-slate-600/40"></div>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {steps.map((step, index) => (
-          <div key={`step-${step.step_number}`} className="group relative">
-            <div className="flex items-start space-x-4 p-3 rounded-xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/20 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all duration-300 hover:shadow-md">
+          <div 
+            key={`step-${step.step_number}`} 
+            className="group relative animate-in slide-in-from-left-2 duration-300"
+            style={{ animationDelay: `${index * 100}ms` }}
+          >
+            <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/70 dark:bg-slate-800/50 backdrop-blur-sm border border-white/40 dark:border-slate-700/30 hover:bg-white/90 dark:hover:bg-slate-800/70 transition-all duration-200 hover:shadow-sm hover:scale-[1.01]">
               <div className="flex-shrink-0 mt-0.5">
                 <div className="relative">
-                  <div className={`p-2 rounded-lg ${
-                    step.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                    step.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                    step.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
-                    'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  <div className={`p-1.5 rounded-lg shadow-sm transition-all duration-200 ${
+                    step.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 animate-pulse' :
+                    step.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' :
+                    step.status === 'failed' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
+                    'bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400'
                   }`}>
                     {getStepIcon(step.step_type, step.status)}
                   </div>
                   {step.status === 'processing' && (
-                    <div className="absolute -inset-1 bg-blue-400 rounded-lg animate-pulse opacity-20"></div>
+                    <div className="absolute -inset-0.5 bg-blue-400/20 rounded-lg animate-pulse"></div>
+                  )}
+                  {step.status === 'completed' && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full flex items-center justify-center">
+                      <CheckCircleIcon className="w-2 h-2 text-white" />
+                    </div>
                   )}
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-3 mb-2">
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                <div className="flex items-center space-x-2 mb-1.5">
+                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200 leading-tight">
                     {step.step_number}. {step.title}
                   </span>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    step.status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                    step.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                    step.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                    'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                  <div className={`px-1.5 py-0.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                    step.status === 'processing' ? 'bg-blue-100/80 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                    step.status === 'completed' ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                    step.status === 'failed' ? 'bg-red-100/80 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                    'bg-slate-100/80 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300'
                   }`}>
                     {step.status === 'processing' && (
                       <div className="flex items-center space-x-1">
-                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-pulse"></div>
-                        <span>Processing</span>
+                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     )}
                     {step.status === 'completed' && (
                       <div className="flex items-center space-x-1">
-                        <div className="w-1.5 h-1.5 bg-current rounded-full"></div>
-                        <span>Complete</span>
+                        <div className="w-1 h-1 bg-current rounded-full"></div>
+                        <span className="text-xs">Done</span>
                       </div>
                     )}
                     {step.status === 'failed' && (
                       <div className="flex items-center space-x-1">
-                        <div className="w-1.5 h-1.5 bg-current rounded-full"></div>
-                        <span>Failed</span>
+                        <div className="w-1 h-1 bg-current rounded-full"></div>
+                        <span className="text-xs">Error</span>
                       </div>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-2">
                   {step.description}
                 </p>
-                <div className="flex items-center space-x-4 text-xs">
-                  <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-500">
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-                    <span>{step.source}</span>
+                <div className="flex items-center space-x-3 text-xs">
+                  <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-500">
+                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                    <span className="text-xs">{step.source}</span>
                   </div>
                   {step.processing_time && step.processing_time > 0 && (
-                    <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-500">
-                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
-                      <span>{step.processing_time.toFixed(2)}s</span>
+                    <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-500">
+                      <TimeIcon className="w-3 h-3" />
+                      <span className="text-xs">{step.processing_time.toFixed(1)}s</span>
                     </div>
                   )}
                 </div>
@@ -543,41 +568,48 @@ const AIChatPage: React.FC = () => {
     </div>
   );
 
-  // Message Bubble Component
+  // Professional Message Bubble Component with Apple-like Design
   const MessageBubble = ({ message, isTyping }: { message: ChatMessage; isTyping: boolean }) => (
-    <div className={`flex gap-4 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} group`}>
       {message.sender === 'bot' && (
         <div className="flex-shrink-0">
-          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
-            <CopilotUIIcon className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-gray-800">
+            <CopilotUIIcon className="w-4 h-4 text-white" />
           </div>
         </div>
       )}
       
-      <div className={`max-w-[80%] ${message.sender === 'user' ? 'order-first' : ''}`}>
+      <div className={`max-w-[75%] ${message.sender === 'user' ? 'order-first' : ''}`}>
         {/* Show reasoning steps if available */}
         {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-          <div className="mb-3">
+          <div className="mb-2">
             <ReasoningStepsDisplay steps={message.reasoningSteps} />
           </div>
         )}
         
-        <div className={`px-6 py-4 rounded-2xl shadow-sm ${
+        <div className={`relative px-4 py-3 shadow-sm transition-all duration-200 group-hover:shadow-md ${
           message.sender === 'user'
-            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-br-md shadow-lg'
-            : 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm'
+            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-2xl rounded-br-md shadow-brand-500/20'
+            : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl rounded-bl-md border border-slate-200/60 dark:border-slate-700/40 backdrop-blur-sm'
         }`}>
-          <div className="text-sm leading-relaxed">
+          <div className={`text-sm leading-relaxed ${message.sender === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
             {message.text ? (
-              <MarkdownRenderer content={message.text} />
+              <MarkdownRenderer content={message.text} className={message.sender === 'user' ? 'text-white' : ''} />
             ) : null}
             {isTyping && (
-              <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse"></span>
+              <span className={`inline-block w-0.5 h-4 ml-1 ${message.sender === 'user' ? 'bg-white' : 'bg-current'} animate-pulse rounded-full`}></span>
             )}
           </div>
+          
+          {/* Message tail */}
+          <div className={`absolute top-3 w-2 h-2 transform rotate-45 ${
+            message.sender === 'user'
+              ? '-right-1 bg-gradient-to-br from-brand-500 to-brand-600'
+              : '-left-1 bg-white dark:bg-slate-800 border-l border-b border-slate-200/60 dark:border-slate-700/40'
+          }`}></div>
         </div>
         
-        <div className={`flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2 ${
+        <div className={`flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
           message.sender === 'user' ? 'justify-end' : 'justify-start'
         }`}>
           <span>{message.timestamp.toLocaleTimeString('en-US', {
@@ -586,16 +618,21 @@ const AIChatPage: React.FC = () => {
             hour12: true
           })}</span>
           {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-            <span className="text-blue-500">🧠 {message.reasoningSteps.length} steps</span>
+            <span className="flex items-center space-x-1 text-blue-500 dark:text-blue-400">
+              <BoltIcon className="w-3 h-3" />
+              <span>{message.reasoningSteps.length} steps</span>
+            </span>
           )}
         </div>
       </div>
       
       {message.sender === 'user' && (
         <div className="flex-shrink-0">
-          <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">U</span>
-          </div>
+          <UserAvatar 
+            name="You" 
+            size="md"
+            className="ring-2 ring-white dark:ring-gray-800"
+          />
         </div>
       )}
     </div>
@@ -611,9 +648,11 @@ const AIChatPage: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex gap-4 justify-start">
           <div className="flex-shrink-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
-              <CopilotUIIcon className="w-5 h-5 text-white" />
-            </div>
+            <UserAvatar 
+              name="AI Assistant" 
+              size="md"
+              className="bg-gradient-to-br from-brand-500 to-brand-600"
+            />
           </div>
           <div className="flex-1">
             <ReasoningStepsDisplay steps={steps} />
@@ -623,51 +662,49 @@ const AIChatPage: React.FC = () => {
     );
   };
 
-  // Enhanced Professional Typing Indicator
+  // Apple-style Professional Typing Indicator without background
   const TypingIndicator = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex gap-4 justify-start">
-        <div className="flex-shrink-0">
-          <div className="relative w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center shadow-lg">
-            <CopilotUIIcon className="w-5 h-5 text-white" />
-            <div className="absolute -inset-1 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full animate-pulse opacity-20"></div>
-          </div>
+    <div className="flex gap-3 justify-start group">
+      <div className="flex-shrink-0">
+        <div className="relative w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-gray-800">
+          <CopilotUIIcon className="w-4 h-4 text-white" />
+          <div className="absolute -inset-1 bg-gradient-to-br from-brand-400/30 to-brand-500/30 rounded-full animate-pulse"></div>
         </div>
-        <div className="flex-1">
-          <div className="px-6 py-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 rounded-2xl rounded-bl-md shadow-lg border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm">
-            <div className="flex items-center space-x-3">
-              <div className="flex space-x-1">
-                <div 
-                  className="w-2.5 h-2.5 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
-                  style={{ 
-                    animationDelay: '0ms',
-                    animationDuration: '1.4s',
-                    animationIterationCount: 'infinite'
-                  }}
-                ></div>
-                <div 
-                  className="w-2.5 h-2.5 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
-                  style={{ 
-                    animationDelay: '0.2s',
-                    animationDuration: '1.4s',
-                    animationIterationCount: 'infinite'
-                  }}
-                ></div>
-                <div 
-                  className="w-2.5 h-2.5 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
-                  style={{ 
-                    animationDelay: '0.4s',
-                    animationDuration: '1.4s',
-                    animationIterationCount: 'infinite'
-                  }}
-                ></div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-300 bg-clip-text text-transparent">
-                  AI is analyzing and processing...
-                </span>
-                <div className="w-1 h-1 bg-brand-500 rounded-full animate-pulse"></div>
-              </div>
+      </div>
+      <div className="flex-1 max-w-[75%]">
+        <div className="relative px-4 py-3 bg-transparent rounded-2xl rounded-bl-md backdrop-blur-sm">
+          <div className="flex items-center space-x-3">
+            <div className="flex space-x-1.5">
+              <div 
+                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
+                style={{ 
+                  animationDelay: '0ms',
+                  animationDuration: '1.4s',
+                  animationIterationCount: 'infinite'
+                }}
+              ></div>
+              <div 
+                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
+                style={{ 
+                  animationDelay: '0.2s',
+                  animationDuration: '1.4s',
+                  animationIterationCount: 'infinite'
+                }}
+              ></div>
+              <div 
+                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
+                style={{ 
+                  animationDelay: '0.4s',
+                  animationDuration: '1.4s',
+                  animationIterationCount: 'infinite'
+                }}
+              ></div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                AI is thinking...
+              </span>
+              <div className="w-1 h-1 bg-brand-500 rounded-full animate-pulse"></div>
             </div>
           </div>
         </div>
@@ -696,9 +733,9 @@ const AIChatPage: React.FC = () => {
       />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Chat Header */}
-        <div className="bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200/50 dark:border-gray-700/50 px-6 py-4 backdrop-blur-sm shadow-sm">
+        <div className="flex-shrink-0 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200/50 dark:border-gray-700/50 px-6 py-4 backdrop-blur-sm shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
@@ -792,7 +829,7 @@ const AIChatPage: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-t border-gray-200/50 dark:border-gray-700/50 p-6 backdrop-blur-sm shadow-lg">
+        <div className="flex-shrink-0 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-t border-gray-200/50 dark:border-gray-700/50 p-6 backdrop-blur-sm shadow-lg">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-end space-x-4">
               <div className="flex-1 relative">

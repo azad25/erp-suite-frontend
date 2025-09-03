@@ -55,7 +55,6 @@
     "react-dom": "^19.1.1",
     "react-dropzone": "^14.3.5",
     "react-intl": "^7.1.11",
-    "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.1",

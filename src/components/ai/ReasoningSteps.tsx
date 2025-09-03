@@ -23,14 +23,21 @@ interface ReasoningStepsProps {
 const getStatusIcon = (status: string) => {
   switch (status) {
     case 'completed':
-      return <span className="text-green-500">✓</span>;
+      return <span className="text-green-500 animate-bounce">✓</span>;
     case 'failed':
-      return <span className="text-red-500">✗</span>;
+      return <span className="text-red-500 animate-pulse">✗</span>;
     case 'in_progress':
     case 'processing':
-      return <span className="text-blue-500 animate-pulse">⟳</span>;
+      return (
+        <span className="text-blue-500 animate-spin inline-block">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </span>
+      );
     default:
-      return <span className="text-gray-400">○</span>;
+      return <span className="text-gray-400 animate-pulse">○</span>;
   }
 };
 
@@ -67,11 +74,20 @@ export function ReasoningSteps({ steps, isStreaming = false }: ReasoningStepsPro
       
       <div className="space-y-2">
         {steps.map((step, index) => (
-          <div key={index} className="border border-gray-200 rounded-lg border-l-4 border-l-blue-500 bg-white shadow-sm">
+          <div 
+            key={index} 
+            className="border border-gray-200 rounded-lg border-l-4 border-l-blue-500 bg-white shadow-sm transform transition-all duration-300 hover:shadow-md animate-fadeInUp"
+            style={{
+              animationDelay: `${index * 100}ms`,
+              animationFillMode: 'both'
+            }}
+          >
             <div className="p-3">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 mt-0.5">
-                  <span className="text-lg">{step.icon}</span>
+                  <span className="text-lg animate-bounce" style={{ animationDelay: `${index * 200}ms` }}>
+                    {step.icon}
+                  </span>
                 </div>
                 
                 <div className="flex-1 min-w-0">
@@ -123,9 +139,14 @@ export function ReasoningSteps({ steps, isStreaming = false }: ReasoningStepsPro
       </div>
       
       {isStreaming && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
-          <span className="animate-pulse">⟳</span>
-          <span>Processing your request step by step...</span>
+        <div className="flex items-center gap-2 text-xs text-gray-500 mt-3 animate-pulse">
+          <span className="animate-spin inline-block">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </span>
+          <span className="animate-pulse">Processing your request step by step...</span>
         </div>
       )}
     </div>

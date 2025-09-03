@@ -820,11 +820,36 @@ class WebSocketService {
           break;
           
         case 'reasoning_step':
-          this.emit('ai_message', message);
+          console.log('=== WEBSOCKET: Processing reasoning_step ===', message);
+          this.emit('ai_message', {
+            ...message,
+            type: 'reasoning_step',
+            conversation_id: message.conversation_id,
+            message_id: message.message_id,
+            metadata: message.metadata || JSON.parse(message.content || '{}'),
+            data: message.metadata || JSON.parse(message.content || '{}')
+          });
           break;
           
         case 'final_response':
-          this.emit('ai_message', message);
+          console.log('=== WEBSOCKET: Processing final_response ===', message);
+          this.emit('ai_message', {
+            ...message,
+            type: 'final_response',
+            conversation_id: message.conversation_id,
+            message_id: message.message_id,
+            content: message.content,
+            data: { content: message.content, message: message.content }
+          });
+          break;
+          
+        case 'chunk':
+          console.log('=== WEBSOCKET: Processing chunk ===', message);
+          this.emit('ai_message', {
+            ...message,
+            type: 'chat_response',
+            data: { content: message.content, message: message.content, response: message.content }
+          });
           break;
           
         case 'chat_message':
