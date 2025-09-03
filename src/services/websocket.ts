@@ -819,6 +819,14 @@ class WebSocketService {
           this.emit('system_notification', message);
           break;
           
+        case 'reasoning_step':
+          this.emit('ai_message', message);
+          break;
+          
+        case 'final_response':
+          this.emit('ai_message', message);
+          break;
+          
         case 'chat_message':
         case 'chat_response':
         case 'ai_chat':

@@ -1,5 +1,7 @@
 "use client";
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { websocketService, AIChatMessage, AIChatRequest } from '@/services/websocket';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import { 
   CopilotUIIcon, 
   BoltIcon, 
@@ -12,10 +14,11 @@ import {
   TaskIcon,
   BellIcon,
   ErrorIcon,
-  PaperPlaneIcon 
+  PaperPlaneIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from "@/icons";
 import Link from "next/link";
-import { websocketService, AIChatMessage, AIChatRequest } from "@/services/websocket";
 
 interface ReasoningStep {
   step_number: number;
@@ -662,58 +665,89 @@ const ChatbotWidget: React.FC = () => {
     }
   };
 
-  // Reasoning Steps Display Component
+  // Enhanced Reasoning Steps Display Component for Widget
   const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
-    <div className="space-y-2 mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-      <div className="flex items-center space-x-2 mb-2">
-        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">AI Reasoning Process</span>
-      </div>
-      {steps.map((step, index) => (
-        <div key={`step-${step.step_number}`} className="flex items-start space-x-3 py-1">
-          <div className="flex-shrink-0 mt-0.5">
-            {getStepIcon(step.step_type, step.status)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                {step.step_number}. {step.title}
-              </span>
-              {step.status === 'processing' && (
-                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
-              )}
-              {step.status === 'completed' && (
-                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-              )}
-              {step.status === 'failed' && (
-                <div className="w-1 h-1 bg-red-500 rounded-full"></div>
-              )}
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-              {step.description}
-            </p>
-            <div className="flex items-center space-x-2 mt-1">
-              <span className="text-xs text-gray-500 dark:text-gray-500">
-                📍 {step.source}
-              </span>
-              {step.processing_time && step.processing_time > 0 && (
-                <span className="text-xs text-gray-500 dark:text-gray-500">
-                  ⏱️ {step.processing_time.toFixed(2)}s
-                </span>
-              )}
-            </div>
-          </div>
+    <div className="space-y-2 mb-3 p-3 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/10 dark:via-indigo-900/10 dark:to-purple-900/10 rounded-xl border border-blue-200/50 dark:border-blue-700/50 shadow-sm backdrop-blur-sm">
+      <div className="flex items-center space-x-2 mb-3">
+        <div className="relative">
+          <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-sm"></div>
+          <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-ping opacity-20"></div>
         </div>
-      ))}
+        <span className="text-xs font-semibold bg-gradient-to-r from-blue-700 to-indigo-700 dark:from-blue-300 dark:to-indigo-300 bg-clip-text text-transparent">AI Reasoning Process</span>
+        <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-transparent dark:from-blue-700"></div>
+      </div>
+      <div className="space-y-2">
+        {steps.map((step, index) => (
+          <div key={`step-${step.step_number}`} className="group relative">
+            <div className="flex items-start space-x-3 p-2 rounded-lg bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/20 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all duration-200">
+              <div className="flex-shrink-0 mt-0.5">
+                <div className="relative">
+                  <div className={`p-1.5 rounded-md text-xs ${
+                    step.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
+                    step.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
+                    step.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                    'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {getStepIcon(step.step_type, step.status)}
+                  </div>
+                  {step.status === 'processing' && (
+                    <div className="absolute -inset-0.5 bg-blue-400 rounded-md animate-pulse opacity-20"></div>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    {step.step_number}. {step.title}
+                  </span>
+                  <div className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                    step.status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                    step.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                    step.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                    'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {step.status === 'processing' && (
+                      <div className="flex items-center space-x-1">
+                        <div className="w-1 h-1 bg-current rounded-full animate-pulse"></div>
+                      </div>
+                    )}
+                    {step.status === 'completed' && (
+                      <div className="w-1 h-1 bg-current rounded-full"></div>
+                    )}
+                    {step.status === 'failed' && (
+                      <div className="w-1 h-1 bg-current rounded-full"></div>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+                  {step.description}
+                </p>
+                <div className="flex items-center space-x-3 text-xs">
+                  <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-500">
+                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                    <span>{step.source}</span>
+                  </div>
+                  {step.processing_time && step.processing_time > 0 && (
+                    <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-500">
+                      <span className="w-1 h-1 bg-amber-400 rounded-full"></span>
+                      <span>{step.processing_time.toFixed(2)}s</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 
-  // Enhanced Typing Indicator with Smooth Dot Animation
+  // Enhanced Professional Typing Indicator for Widget
   const TypingIndicator = () => (
-    <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+    <div className="flex items-center space-x-3 p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-lg shadow-sm backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50">
       <div className="flex space-x-1">
         <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          className="w-2 h-2 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
           style={{ 
             animationDelay: '0ms',
             animationDuration: '1.4s',
@@ -721,7 +755,7 @@ const ChatbotWidget: React.FC = () => {
           }}
         ></div>
         <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          className="w-2 h-2 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
           style={{ 
             animationDelay: '0.2s',
             animationDuration: '1.4s',
@@ -729,7 +763,7 @@ const ChatbotWidget: React.FC = () => {
           }}
         ></div>
         <div 
-          className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" 
+          className="w-2 h-2 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full animate-bounce shadow-sm" 
           style={{ 
             animationDelay: '0.4s',
             animationDuration: '1.4s',
@@ -737,9 +771,12 @@ const ChatbotWidget: React.FC = () => {
           }}
         ></div>
       </div>
-      <span className="ml-2 text-sm text-brand-600 dark:text-brand-400 font-medium">
-        AI is thinking...
-      </span>
+      <div className="flex items-center space-x-2">
+        <span className="text-sm font-medium bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-300 bg-clip-text text-transparent">
+          AI is analyzing...
+        </span>
+        <div className="w-1 h-1 bg-brand-500 rounded-full animate-pulse"></div>
+      </div>
     </div>
   );
 
@@ -838,15 +875,19 @@ const ChatbotWidget: React.FC = () => {
                         </div>
                       )}
                       
-                      <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'user'
-                        ? 'bg-brand-500 text-white rounded-br-md'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
+                      <div className={`px-4 py-2 rounded-2xl shadow-sm ${msg.sender === 'user'
+                        ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-br-md shadow-md'
+                        : 'bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm'
                         } ${msg.isStreaming ? 'border-l-2 border-brand-500' : ''}`}>
                         <span className="block text-theme-sm">
-                          {msg.text}
-                          {msg.isStreaming && (
-                            <span className="inline-block w-2 h-4 ml-1 bg-brand-500 animate-pulse"></span>
-                          )}
+                          <div className="text-sm leading-relaxed">
+                            {msg.text ? (
+                              <MarkdownRenderer content={msg.text} />
+                            ) : null}
+                            {msg.isStreaming && (
+                              <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse"></span>
+                            )}
+                          </div>
                         </span>
                       </div>
 

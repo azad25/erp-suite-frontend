@@ -28,11 +28,21 @@ export async function POST(request: NextRequest) {
     const aiCopilotUrl = process.env.AI_COPILOT_URL || 'http://localhost:8003';
     
     try {
+      // Get authorization header from the incoming request
+      const authHeader = request.headers.get('authorization');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if present
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+      }
+      
       const response = await fetch(`${aiCopilotUrl}/api/v1/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: body.message,
           context: body.context || {},

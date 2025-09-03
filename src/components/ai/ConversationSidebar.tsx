@@ -176,9 +176,9 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   }
 
   return (
-    <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-80 bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-r border-gray-200/50 dark:border-gray-700/50 flex flex-col shadow-sm backdrop-blur-sm">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-b border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <ChatIcon className="w-5 h-5 mr-2" />
@@ -212,7 +212,7 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300/50 dark:border-gray-600/50 rounded-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md focus:shadow-lg"
           />
         </div>
       </div>
@@ -246,10 +246,10 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             {filteredConversations.map((conversation) => (
               <div
                 key={conversation.conversation_id}
-                className={`group relative p-3 mb-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                className={`group relative p-3 mb-2 rounded-xl cursor-pointer transition-all duration-300 ${
                   currentConversationId === conversation.conversation_id
-                    ? 'bg-brand-50 dark:bg-brand-900/20 border-l-4 border-brand-500'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                    ? 'bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/20 border-l-4 border-brand-500 shadow-md backdrop-blur-sm'
+                    : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100/50 dark:hover:from-gray-700 dark:hover:to-gray-600/50 hover:shadow-sm backdrop-blur-sm'
                 }`}
                 onClick={() => onConversationSelect(conversation.conversation_id)}
               >
@@ -301,12 +301,12 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
         <Button
           variant="primary"
           size="sm"
           onClick={onNewConversation}
-          className="w-full"
+          className="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 shadow-md hover:shadow-lg transition-all duration-200"
         >
           <PlusIcon className="w-4 h-4 mr-2" />
           New Conversation
