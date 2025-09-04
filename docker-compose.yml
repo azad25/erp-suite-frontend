@@ -6,7 +6,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
     user: "root"
     env_file:
-      - ../erp-suit-infrastructure/.env.frontend
+      - ../erp-frontend/.env
     environment:
       - NEXT_TELEMETRY_DISABLED=1
       - NODE_OPTIONS=--max-old-space-size=2048 --max-semi-space-size=128
