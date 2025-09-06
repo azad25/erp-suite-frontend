@@ -81,7 +81,7 @@ class ConversationService {
     // Check if we're in development and need to adjust the URL
     if (base.includes('localhost:3000')) {
       // If frontend is on 3000, AI copilot is likely on 8000
-      base = base.replace('localhost:3000', 'localhost:8000');
+      base = base.replace('localhost:3000', 'localhost');
     }
     
     // Ensure we have the correct API path

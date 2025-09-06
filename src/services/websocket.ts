@@ -114,6 +114,8 @@ class WebSocketService {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' = 'disconnected';
+  private isConnecting = false;
+  private connectionLock = false;
 
   constructor() {
     // Initialize with empty URL, will be set in initializeConnection()
@@ -130,7 +132,14 @@ class WebSocketService {
       return;
     }
     
+    // Prevent multiple simultaneous initialization attempts
+    if (this.isConnecting) {
+      console.log('WebSocket connection already in progress');
+      return;
+    }
+    
     this.connectionInitialized = true;
+    this.isConnecting = true;
     console.log('Initializing WebSocket connection to:', AI_CONFIG.WEBSOCKET_URL);
 
     try {
@@ -148,6 +157,7 @@ class WebSocketService {
         error: errorMsg,
         details: error instanceof Error ? error.message : String(error)
       });
+      this.isConnecting = false;
       throw error;
     }
   }
@@ -163,6 +173,8 @@ class WebSocketService {
       console.log('WebSocket connection established successfully');
       this.connectionState = 'connected';
       this.reconnectAttempts = 0;
+      this.isConnecting = false;
+      this.connectionLock = false;
 
       // Clear any pending reconnect timeout
       if (this.reconnectTimeout) {
@@ -198,6 +210,8 @@ class WebSocketService {
       });
       
       this.connectionState = 'disconnected';
+      this.isConnecting = false;
+      this.connectionLock = false;
 
       // Stop heartbeat
       console.log('Stopping WebSocket heartbeat');
@@ -216,11 +230,11 @@ class WebSocketService {
       this.emit('disconnected', disconnectEvent);
 
       // Attempt to reconnect unless it was a clean close
-      if (event.code !== 1000) {
+      if (event.code !== 1000 && this.shouldConnect) {
         console.log(`Attempting to reconnect (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
         this.handleReconnect();
       } else {
-        console.log('Clean close detected, not attempting to reconnect');
+        console.log('Clean close detected or shouldConnect is false, not attempting to reconnect');
       }
     };
 
@@ -233,7 +247,19 @@ class WebSocketService {
         url: this.socket?.url || 'unknown'
       };
       console.error('WebSocket error occurred:', errorDetails);
+      
+      // Reset connection state on error
+      this.connectionState = 'disconnected';
+      this.isConnecting = false;
+      this.connectionLock = false;
+      
       this.emit('error', errorDetails);
+      
+      // Attempt to reconnect on error if we should be connected
+      if (this.shouldConnect) {
+        console.log('WebSocket error, attempting to reconnect...');
+        this.handleReconnect();
+      }
     };
 
     this.socket.onmessage = (event) => {
@@ -311,13 +337,43 @@ class WebSocketService {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        // Check token expiration before sending heartbeat
+        this.checkTokenExpiration();
+        
+        // Send ping message that matches backend expectations
         this.sendMessage({
-          type: 'heartbeat',
+          type: 'ping',
           data: { status: 'ping' },
           timestamp: new Date().toISOString()
         });
+        console.log('Sent heartbeat ping');
+      } else {
+        console.warn('Cannot send heartbeat - WebSocket not open');
       }
     }, 30000); // Send heartbeat every 30 seconds
+  }
+
+  private checkTokenExpiration(): void {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('No access token found during heartbeat');
+        return;
+      }
+
+      // Decode JWT token to check expiration
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      const expirationTime = payload.exp;
+      
+      // If token expires in less than 5 minutes, refresh it
+      if (expirationTime - currentTime < 300) {
+        console.log('Token expires soon, refreshing...');
+        this.refreshTokenAndReconnect();
+      }
+    } catch (error) {
+      console.error('Error checking token expiration:', error);
+    }
   }
 
   private stopHeartbeat(): void {
@@ -344,6 +400,7 @@ class WebSocketService {
 
   private async refreshTokenAndReconnect(): Promise<void> {
     try {
+      console.log('Attempting to refresh token...');
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
         throw new Error('No refresh token available');
@@ -361,11 +418,12 @@ class WebSocketService {
       });
 
       if (!response.ok) {
-        throw new Error('Token refresh failed');
+        throw new Error(`Token refresh failed with status: ${response.status}`);
       }
 
       const data = await response.json();
       if (data.success && data.data) {
+        console.log('Token refresh successful, updating tokens');
         if (typeof window !== 'undefined') {
           // Ensure cookie is set in addition to localStorage for middleware
           try {
@@ -378,14 +436,15 @@ class WebSocketService {
           localStorage.setItem('refresh_token', data.data.refresh_token);
         }
 
-        // Reconnect with new token
-        this.disconnect();
-        this.connect();
+        // Reconnect with new token without full disconnect
+        console.log('Reconnecting with new token...');
+        this.reconnectWithNewToken();
       } else {
         throw new Error('Invalid refresh response format');
       }
     } catch (error) {
-      // Token refresh failed
+      console.error('Token refresh failed:', error);
+      // Token refresh failed - redirect to login
       if (typeof window !== 'undefined') {
         try {
           const { apiClient: unifiedApiClient } = await import('@/lib/api');
@@ -398,6 +457,22 @@ class WebSocketService {
         window.location.href = '/signin';
       }
     }
+  }
+
+  private reconnectWithNewToken(): void {
+    // Close current connection and reconnect with new token
+    if (this.socket) {
+      this.socket.close(1000, 'Token refresh');
+    }
+    this.socket = null;
+    this.connectionState = 'disconnected';
+    this.connectionLock = false;
+    this.isConnecting = false;
+    
+    // Reconnect after a short delay
+    setTimeout(() => {
+      this.connect();
+    }, 1000);
   }
 
   private scheduleReconnect(): void {
@@ -425,6 +500,15 @@ class WebSocketService {
       console.warn('WebSocket connection attempted in non-browser environment');
       return;
     }
+
+    // Prevent multiple simultaneous connection attempts
+    if (this.connectionLock || this.isConnecting) {
+      console.log('Connection already in progress, skipping duplicate attempt');
+      return;
+    }
+
+    this.connectionLock = true;
+    this.isConnecting = true;
     
     // Always use the URL from AI_CONFIG to ensure it's up to date
     this.websocketUrl = AI_CONFIG.WEBSOCKET_URL;
@@ -434,6 +518,8 @@ class WebSocketService {
       const errorMsg = 'WebSocket URL not configured';
       console.error(errorMsg);
       this.emit('error', { error: errorMsg });
+      this.connectionLock = false;
+      this.isConnecting = false;
       return;
     }
 
@@ -443,6 +529,8 @@ class WebSocketService {
       const errorMsg = 'No access token available for WebSocket connection';
       console.warn(errorMsg);
       this.emit('error', { error: errorMsg });
+      this.connectionLock = false;
+      this.isConnecting = false;
       this.handleReconnect();
       return;
     }
@@ -526,21 +614,32 @@ class WebSocketService {
     } catch (error) {
       console.error('WebSocket connection error:', error);
       this.connectionState = 'disconnected';
+      this.connectionLock = false;
+      this.isConnecting = false;
       this.handleReconnect();
     }
   }
 
   private handleReconnect(): void {
     if (this.connectionState === 'reconnecting') {
+      console.log('Already attempting to reconnect, skipping duplicate attempt');
       return; // Already attempting to reconnect
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       // Max reconnection attempts reached
+      console.error(`Max reconnection attempts reached (${this.reconnectAttempts})`);
       this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempts });
+      this.connectionState = 'disconnected';
       return;
     }
 
+    if (!this.shouldConnect) {
+      console.log('Should not connect, skipping reconnection');
+      return;
+    }
+
+    console.log(`Starting reconnection attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}`);
     this.connectionState = 'reconnecting';
     this.scheduleReconnect();
   }
@@ -557,6 +656,8 @@ class WebSocketService {
   public disconnect(): void {
     this.shouldConnect = false;
     this.stopHeartbeat();
+    this.connectionLock = false;
+    this.isConnecting = false;
 
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -569,6 +670,11 @@ class WebSocketService {
     }
 
     this.connectionState = 'disconnected';
+    
+    // Clear all event listeners
+    this.eventListeners.clear();
+    this.subscribedChannels.clear();
+    this.queuedSubscriptions.clear();
   }
 
   public reconnect(): void {

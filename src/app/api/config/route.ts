@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost';
   const config = {
     apiUrls: {
       base: apiBase,

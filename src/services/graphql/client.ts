@@ -22,7 +22,7 @@ export class GraphQLClient {
     } catch (error) {
       console.error('Failed to load GraphQL config:', error);
       // Default to API Gateway directly in development to avoid nginx proxy health issues
-      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql';
+      this.baseURL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost/graphql';
       this.configLoaded = true;
     }
   }

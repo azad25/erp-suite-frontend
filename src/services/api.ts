@@ -3,7 +3,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { apiClient as unifiedApiClient } from '@/lib/api';
 
 // API Configuration - Connect to API Gateway, not directly to auth service
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost';
 const API_GATEWAY_URL = `${API_BASE_URL}/api/v1`;
 
 // Create axios instance with default configuration

@@ -176,11 +176,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/v1/:path*',
-        destination: 'http://localhost:8000/api/v1/:path*',
+        destination: 'http://localhost/api/v1/:path*',
       },
       {
         source: '/graphql',
-        destination: 'http://localhost:8000/graphql',
+        destination: 'http://localhost/graphql',
       },
     ];
   },

@@ -491,6 +491,13 @@ const ChatbotWidget: React.FC = () => {
     // Initialize WebSocket connection
     const initWebSocket = async () => {
       try {
+        // Only initialize if not already connected or connecting
+        if (websocketService.isConnected() || websocketService.getConnectionState() === 'connecting') {
+          console.log('WebSocket already connected or connecting, skipping initialization');
+          setIsConnected(websocketService.isConnected());
+          return;
+        }
+
         // Remove any existing listeners first to prevent duplicates
         websocketService.off('ai_message', messageListener);
         websocketService.off('acknowledgment', ackListener);

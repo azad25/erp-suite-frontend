@@ -1,5 +1,5 @@
 // AI Service Configuration
-export const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'http://localhost:8000';
+export const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'http://localhost';
 
 // Compute a sane default WebSocket URL from the API gateway URL
 const computeDefaultWebSocketUrl = (): string => {
@@ -8,7 +8,7 @@ const computeDefaultWebSocketUrl = (): string => {
     const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${wsProtocol}//${base.host}/api/v1/ws/chat`;
   } catch (e) {
-    return 'ws://localhost:8000/api/v1/ws/chat';
+    return 'ws://localhost/api/v1/ws/chat';
   }
 };
 
