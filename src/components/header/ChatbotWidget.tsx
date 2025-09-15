@@ -51,12 +51,30 @@ interface AIChatMessage {
     metadata?: Record<string, any>;
     reasoning_step?: ReasoningStep;
     isChunk?: boolean;
+    is_complete?: boolean;
   };
   messageId?: string;
+  // Reasoning step properties at root level (as per backend structure)
+  step_number?: number;
+  step_type?: string;
+  title?: string;
+  description?: string;
+  icon?: string;
+  status?: 'processing' | 'completed' | 'error';
+  source?: string;
+  timestamp?: string;
+  processing_time?: number;
 }
 
 // Utility function to generate unique IDs
 const genId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Extend Window interface for timeout
+declare global {
+  interface Window {
+    chatbotStreamTimeout?: NodeJS.Timeout;
+  }
+}
 
 const ChatbotWidget: React.FC = () => {
   const pathname = usePathname();
@@ -96,8 +114,18 @@ const ChatbotWidget: React.FC = () => {
     console.log('=== CHATBOT WIDGET MESSAGE ===', message.type, message);
     
     // Handle reasoning steps - Create or update single thinking message
-    if (message.type === 'reasoning_step' && message.data.reasoning_step) {
-      const step = message.data.reasoning_step;
+    if (message.type === 'reasoning_step') {
+      const step = {
+        step_number: message.step_number || 1,
+        step_type: message.step_type || 'thinking',
+        title: message.title || 'Processing...',
+        description: message.description || '',
+        icon: message.icon || '🧠',
+        status: message.status || 'processing',
+        source: message.source || '',
+        timestamp: message.timestamp || new Date().toISOString(),
+        processing_time: message.processing_time || 0
+      };
       
       console.log('=== REASONING STEP DEBUG ===', {
         messageType: message.type,
@@ -129,16 +157,13 @@ const ChatbotWidget: React.FC = () => {
         
         setMessages(prev => [...prev, thinkingMessage]);
       } else {
-        // Update existing thinking message with new step
+        // Update existing thinking message with latest step only (not accumulating)
         setMessages(prev => 
           prev.map(msg => 
             msg.id === activeReasoningMessageId 
               ? { 
                   ...msg, 
-                  reasoningSteps: [
-                    ...(msg.reasoningSteps || []),
-                    step
-                  ]
+                  reasoningSteps: [step] // Only show current step
                 }
               : msg
           )
@@ -176,72 +201,95 @@ const ChatbotWidget: React.FC = () => {
       
       console.log('=== CHATBOT CHUNK ===', { content, isComplete, activeReasoningMessageId });
       
-      // Create new streaming message if none exists
-      if (!activeReasoningMessageId) {
-        const streamMessageId = `stream-${Date.now()}`;
-        setActiveReasoningMessageId(streamMessageId);
-        setIsThinking(false); // Hide any thinking animation
+      console.log('=== CHATBOT CHUNK DEBUG ===', {
+        content: `"${content}"`,
+        contentLength: content?.length,
+        isComplete,
+        activeReasoningMessageId
+      });
+      
+      // Hide reasoning steps when streaming starts
+      if (activeReasoningMessageId) {
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === activeReasoningMessageId 
+              ? {
+                  ...msg,
+                  reasoningPhase: 'complete',
+                  showReasoningSteps: false
+                }
+              : msg
+          )
+        );
+      }
+      
+      // Create new streaming message if none exists or use existing one
+      let currentStreamId = activeReasoningMessageId;
+      
+      if (!currentStreamId) {
+        currentStreamId = `stream-${Date.now()}`;
+        setActiveReasoningMessageId(currentStreamId);
+        setIsThinking(false);
         
         const streamMessage: ChatMessage = {
-          id: streamMessageId,
-          text: content,
+          id: currentStreamId,
+          text: content || '',
           sender: 'bot',
           timestamp: new Date(),
-          messageId: streamMessageId,
+          messageId: currentStreamId,
           isStreaming: !isComplete
         };
         
         setMessages(prev => [...prev, streamMessage]);
-        setStreamBuffer(prev => new Map(prev.set(streamMessageId, content)));
+        setStreamBuffer(prev => new Map(prev.set(currentStreamId!, content || '')));
       } else {
-        // Accumulate content in buffer
-        const currentBuffer = streamBuffer.get(activeReasoningMessageId) || '';
-        const newBuffer = currentBuffer + content;
-        setStreamBuffer(prev => new Map(prev.set(activeReasoningMessageId, newBuffer)));
-        
-        // Always update the buffer, but only update UI for complete sentences or final response
-        if (isComplete) {
-          // Final update - show complete response
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === activeReasoningMessageId 
-                ? {
-                    ...msg,
-                    text: newBuffer,
-                    isStreaming: false,
-                    reasoningPhase: 'complete',
-                    showReasoningSteps: false
-                  }
-                : msg
-            )
-          );
-        } else {
-          // For streaming, buffer content and only update UI periodically to show complete phrases
-          const words = newBuffer.split(' ');
-          const shouldUpdate = 
-            words.length >= 5 || // At least 5 words
-            newBuffer.match(/[.!?]\s*$/) || // Sentence ending
-            newBuffer.length >= 30; // Significant content
+        // Accumulate content in existing message
+        setStreamBuffer(prev => {
+          const currentBuffer = prev.get(currentStreamId!) || '';
+          const newBuffer = currentBuffer + (content || '');
           
-          if (shouldUpdate) {
-            setMessages(prev => 
-              prev.map(msg => 
-                msg.id === activeReasoningMessageId 
+          console.log('=== CHATBOT BUFFER UPDATE ===', {
+            currentBuffer: `"${currentBuffer}"`,
+            newChunk: `"${content}"`,
+            newBuffer: `"${newBuffer}"`,
+            bufferLength: newBuffer.length,
+            streamId: currentStreamId
+          });
+          
+          const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
+          
+          // Debounce UI updates to batch rapid chunks
+          const updateUI = () => {
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === currentStreamId 
                   ? {
                       ...msg,
                       text: newBuffer,
-                      isStreaming: true,
+                      isStreaming: !isComplete,
                       reasoningPhase: 'complete',
                       showReasoningSteps: false
                     }
                   : msg
               )
             );
+          };
+          
+          if (isComplete) {
+            // Final update - show complete response immediately
+            updateUI();
+            setActiveReasoningMessageId(null);
+          } else {
+            // Debounce UI updates to batch rapid chunks
+            clearTimeout(window.chatbotStreamTimeout);
+            window.chatbotStreamTimeout = setTimeout(updateUI, 50);
           }
-        }
-        
-        setIsThinking(false); // Ensure thinking is hidden
+          
+          return updatedBuffer;
+        });
       }
+      
+      setIsThinking(false);
       
       // Complete streaming
       if (isComplete) {
@@ -259,17 +307,20 @@ const ChatbotWidget: React.FC = () => {
 
     // Handle final AI response
     if (message.type === 'final_response' && message.data?.content) {
+      console.log('=== CHATBOT: Processing final response ===', message.data.content);
+      
       if (activeReasoningMessageId) {
-        // Replace reasoning message with final response
+        // Replace reasoning message with final response and hide thinking
         setMessages(prev => 
           prev.map(msg => 
             msg.id === activeReasoningMessageId 
               ? {
                   ...msg,
                   text: message.data.content || '',
-                  reasoningPhase: 'complete',
+                  reasoningPhase: 'hidden',
                   showReasoningSteps: false,
-                  reasoningSteps: undefined
+                  reasoningSteps: undefined,
+                  isStreaming: false
                 }
               : msg
           )
@@ -288,6 +339,7 @@ const ChatbotWidget: React.FC = () => {
         setMessages(prev => [...prev, aiMessage]);
       }
       
+      setIsThinking(false);
       setIsTyping(false);
       return;
     }

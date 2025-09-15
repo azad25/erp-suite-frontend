@@ -658,18 +658,18 @@ class WebSocketService {
         this.isConnecting = false;
         this.connectionLock = false;
         
-        // Only emit error if it's not a heartbeat/ping related error
+        // Filter out non-critical errors to prevent unnecessary disconnections
         const errorMessage = (error as any)?.message || (error as any)?.type || 'WebSocket connection failed';
-        if (!errorMessage.includes('heartbeat') && !errorMessage.includes('ping')) {
-          this.emit('error', { 
-            error: 'WebSocket connection failed', 
-            message: errorMessage,
-            url: websocketUrl
-          });
+        if (!errorMessage.includes('heartbeat') && 
+            !errorMessage.includes('ping') && 
+            !errorMessage.includes('Failed to process message') &&
+            !errorMessage.includes('PingHandler')) {
+          console.warn('WebSocket error (filtered, non-critical):', errorMessage);
+          // Don't emit error to prevent connection breaks - just log it
         }
         
-        // Attempt to reconnect on error if we should be connected
-        if (this.shouldConnect) {
+        // Only attempt to reconnect on actual connection errors, not processing errors
+        if (this.shouldConnect && errorMessage.includes('connection')) {
           this.handleReconnect();
         }
       };
@@ -1032,22 +1032,19 @@ class WebSocketService {
             console.warn('Backend heartbeat error (filtered):', message.message);
             return;
           }
-          // Only emit meaningful errors, not generic ones
+          // Filter out processing errors that don't require disconnection
+          if (message.message && message.message.includes('Failed to process message')) {
+            console.warn('Message processing error (non-critical):', message.message);
+            return;
+          }
+          // Only emit meaningful errors, not generic ones that would break the connection
           if (message.data && message.data.error && message.data.error !== 'Unknown error occurred') {
-            this.emit('error', message.data);
+            console.warn('WebSocket error (non-critical):', message.data.error);
+            // Don't emit error to prevent connection breaks - just log it
+            return;
           }
           break;
           
-        case 'reasoning_complete':
-          console.log('=== WEBSOCKET: Processing reasoning_complete ===', message);
-          this.emit('message', {
-            type: 'reasoning_complete',
-            data: {
-              messageId: message.message_id,
-              conversationId: message.conversation_id
-            }
-          });
-          break;
           
         case 'user_activity':
           this.emit('user_activity', message as unknown as UserActivityMessage);
@@ -1067,25 +1064,25 @@ class WebSocketService {
           
         case 'reasoning_step':
           console.log('=== WEBSOCKET: Processing reasoning_step ===', message);
-          // Transform reasoning step message to match expected format
-          // Backend sends step data at root level, not nested in data.reasoning_step
-          const transformedMessage = {
+          // Backend sends step data at root level - pass it through directly
+          const reasoningMessage = {
             type: 'reasoning_step',
             data: {
               messageId: message.message_id,
-              conversationId: message.conversation_id,
-              reasoning_step: {
-                title: message.title,
-                icon: message.icon,
-                step_number: message.step_number,
-                description: message.description,
-                status: message.status,
-                step_type: message.step_type
-              }
+              conversationId: message.conversation_id
             },
-            timestamp: message.timestamp
+            // Pass reasoning step data at root level (as per backend structure)
+            step_number: message.step_number,
+            step_type: message.step_type,
+            title: message.title,
+            description: message.description,
+            icon: message.icon,
+            status: message.status,
+            source: message.source,
+            timestamp: message.timestamp,
+            processing_time: message.processing_time
           };
-          this.emit('message', transformedMessage);
+          this.emit('message', reasoningMessage);
           break;
           
         case 'final_response':

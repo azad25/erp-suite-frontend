@@ -60,10 +60,27 @@ interface AIChatMessage {
     is_complete?: boolean;
   };
   messageId?: string;
+  // Reasoning step properties at root level (as per backend structure)
+  step_number?: number;
+  step_type?: string;
+  title?: string;
+  description?: string;
+  icon?: string;
+  status?: 'processing' | 'completed' | 'error';
+  source?: string;
+  timestamp?: string;
+  processing_time?: number;
 }
 
 // Utility function to generate unique IDs
 const genId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Extend Window interface for timeout
+declare global {
+  interface Window {
+    streamUpdateTimeout?: NodeJS.Timeout;
+  }
+}
 
 // ChatGPT/Grok style thinking animation with sequential fade in/out
 const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
@@ -240,21 +257,34 @@ const AIChatPage: React.FC = () => {
     
     console.log('=== HANDLING MESSAGE ===', message.type, message);
     
-    // Handle reasoning steps with fade animation
-    if (message.type === 'reasoning_step' && message.data.reasoning_step) {
-      const step = message.data.reasoning_step;
+    // Handle reasoning steps with fade animation - data is at root level
+    if (message.type === 'reasoning_step') {
+      const step = {
+        step_number: message.step_number || 1,
+        step_type: message.step_type || 'thinking',
+        title: message.title || 'Processing...',
+        description: message.description || '',
+        icon: message.icon || '🧠',
+        status: message.status || 'processing',
+        source: message.source || '',
+        timestamp: message.timestamp || new Date().toISOString(),
+        processing_time: message.processing_time || 0
+      };
       console.log('=== AI CHAT: Processing reasoning step ===', step);
       
       setCurrentReasoningStep({
-        title: step.title || 'Processing...',
-        icon: step.icon || '🧠',
-        stepNumber: step.step_number || 1,
-        description: step.description || ''
+        title: step.title,
+        icon: step.icon,
+        stepNumber: step.step_number,
+        description: step.description
       });
       
-      // Create or update thinking message
+      // Create or update single thinking message (not multiple)
       if (!activeReasoningMessageId) {
-        const thinkingMessageId = `reasoning-${message.data.conversationId}-${Date.now()}`;
+        // Remove any existing thinking messages to prevent duplicates
+        setMessages(prev => prev.filter(msg => !msg.id.startsWith('reasoning-')));
+        
+        const thinkingMessageId = `reasoning-${message.data?.conversationId || 'default'}-${Date.now()}`;
         setActiveReasoningMessageId(thinkingMessageId);
         
         const thinkingMessage: ChatMessage = {
@@ -263,25 +293,22 @@ const AIChatPage: React.FC = () => {
           sender: 'bot',
           timestamp: new Date(),
           isStreaming: false,
-          reasoningPhase: 'reasoning' as const,
+          reasoningPhase: 'thinking' as const,
           showReasoningSteps: true,
           reasoningSteps: [step]
         };
         
         setMessages(prev => [...prev, thinkingMessage]);
       } else {
-        // Update existing thinking message with new step
+        // Update existing thinking message with latest step only (not accumulating)
         setMessages(prev => 
           prev.map(msg => 
             msg.id === activeReasoningMessageId 
               ? {
                   ...msg,
-                  reasoningPhase: 'reasoning',
+                  reasoningPhase: 'thinking',
                   showReasoningSteps: true,
-                  reasoningSteps: [
-                    ...(msg.reasoningSteps || []),
-                    step
-                  ]
+                  reasoningSteps: [step] // Only show current step
                 }
               : msg
           )
@@ -292,6 +319,7 @@ const AIChatPage: React.FC = () => {
     // Handle reasoning complete message
     if (message.type === 'reasoning_complete') {
       console.log('=== AI CHAT: Reasoning complete, hiding thinking animation ===');
+      setCurrentReasoningStep(null);
       setMessages(prev => 
         prev.map(msg => 
           msg.id === activeReasoningMessageId 
@@ -307,24 +335,13 @@ const AIChatPage: React.FC = () => {
     
     // Handle final AI response - Replace reasoning message with final response
     if ((message.type === 'ai_message' || message.type === 'final_response') && message.data.content) {
+      console.log('=== AI CHAT: Processing final response ===', message.data.content);
+      
       if (activeReasoningMessageId) {
-        // Clear reasoning step when starting to stream final response
+        // Clear reasoning step and hide thinking animation
         setCurrentReasoningStep(null);
         
-        // Hide thinking animation when AI response starts
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === activeReasoningMessageId 
-              ? {
-                  ...msg,
-                  reasoningPhase: 'complete',
-                  showReasoningSteps: false
-                }
-              : msg
-          )
-        );
-        
-        // Replace reasoning message with final response
+        // Replace reasoning message with final response and hide thinking
         setMessages(prev => 
           prev.map(msg => 
             msg.id === activeReasoningMessageId 
@@ -333,7 +350,8 @@ const AIChatPage: React.FC = () => {
                   text: message.data.content || '',
                   reasoningPhase: 'hidden',
                   showReasoningSteps: false,
-                  reasoningSteps: undefined
+                  reasoningSteps: undefined,
+                  isStreaming: false
                 }
               : msg
           )
@@ -360,63 +378,95 @@ const AIChatPage: React.FC = () => {
       const { content, messageId, conversationId, is_complete, isFinal } = message.data;
       const isComplete = is_complete || isFinal;
       
-      setStreamBuffer(prev => {
-        const currentBuffer = prev.get(messageId || '') || '';
-        const newBuffer = currentBuffer + content;
+      console.log('=== CHUNK DEBUG ===', {
+        content: `"${content}"`,
+        contentLength: content?.length,
+        isComplete,
+        activeReasoningMessageId
+      });
+      
+      // Hide reasoning steps when streaming starts
+      if (activeReasoningMessageId) {
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === activeReasoningMessageId 
+              ? {
+                  ...msg,
+                  reasoningPhase: 'complete',
+                  showReasoningSteps: false
+                }
+              : msg
+          )
+        );
+      }
+      
+      // Create new streaming message if none exists or use existing one
+      let currentStreamId = activeReasoningMessageId;
+      
+      if (!currentStreamId) {
+        // Create new streaming message to replace reasoning message
+        const streamMessageId = `stream-${Date.now()}`;
+        setActiveReasoningMessageId(streamMessageId);
         
-        // Update buffer
-        const updatedBuffer = new Map(prev);
-        if (messageId) {
-          updatedBuffer.set(messageId, newBuffer);
-        }
+        const streamMessage: ChatMessage = {
+          id: streamMessageId,
+          text: content || '',
+          sender: 'bot',
+          timestamp: new Date(),
+          messageId: streamMessageId,
+          isStreaming: !isComplete,
+          reasoningPhase: 'complete',
+          showReasoningSteps: false
+        };
         
-        // Find the message to update
-        const messageToUpdate = messages.find(msg => msg.id === activeReasoningMessageId);
-        if (messageToUpdate) {
-          // Only update UI for complete sentences or final response
-          if (isComplete) {
-            // Final update - show complete response
+        setMessages(prev => [...prev, streamMessage]);
+        setStreamBuffer(prev => new Map(prev.set(streamMessageId, content || '')));
+      } else {
+        // Accumulate content in existing message
+        setStreamBuffer(prev => {
+          const currentBuffer = prev.get(currentStreamId!) || '';
+          const newBuffer = currentBuffer + (content || '');
+          
+          console.log('=== BUFFER UPDATE ===', {
+            currentBuffer: `"${currentBuffer}"`,
+            newChunk: `"${content}"`,
+            newBuffer: `"${newBuffer}"`,
+            bufferLength: newBuffer.length,
+            streamId: currentStreamId
+          });
+          
+          const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
+          
+          // Use setTimeout to batch multiple rapid chunks together
+          const updateUI = () => {
             setMessages(prevMessages => 
               prevMessages.map(msg => 
-                msg.id === activeReasoningMessageId 
+                msg.id === currentStreamId 
                   ? {
                       ...msg,
                       text: newBuffer,
-                      isStreaming: false,
+                      isStreaming: !isComplete,
                       reasoningPhase: 'complete',
                       showReasoningSteps: false
                     }
                   : msg
               )
             );
+          };
+          
+          if (isComplete) {
+            // Final update - show complete response immediately
+            updateUI();
+            setActiveReasoningMessageId(null);
           } else {
-            // For streaming, buffer content and only update UI periodically to show complete phrases
-            const words = newBuffer.split(' ');
-            const shouldUpdate = 
-              words.length >= 5 || // At least 5 words
-              newBuffer.match(/[.!?]\s*$/) || // Sentence ending
-              newBuffer.length >= 30; // Significant content
-            
-            if (shouldUpdate) {
-              setMessages(prevMessages => 
-                prevMessages.map(msg => 
-                  msg.id === activeReasoningMessageId 
-                    ? {
-                        ...msg,
-                        text: newBuffer,
-                        isStreaming: true,
-                        reasoningPhase: 'complete',
-                        showReasoningSteps: false
-                      }
-                    : msg
-                )
-              );
-            }
+            // Debounce UI updates to batch rapid chunks
+            clearTimeout(window.streamUpdateTimeout);
+            window.streamUpdateTimeout = setTimeout(updateUI, 50);
           }
-        }
-        
-        return updatedBuffer;
-      });
+          
+          return updatedBuffer;
+        });
+      }
     }
     
     
@@ -806,8 +856,8 @@ const AIChatPage: React.FC = () => {
               )}
               
               <div className={`${msg.sender === 'user' ? 'order-2 max-w-[80%]' : 'max-w-[85%]'}`}>
-                {/* Show reasoning steps if in reasoning phase */}
-                {msg.showReasoningSteps && msg.reasoningPhase === 'reasoning' && msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
+                {/* Show reasoning steps if in thinking phase */}
+                {msg.showReasoningSteps && msg.reasoningPhase === 'thinking' && msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
                   <div className="mb-4">
                     <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
                       <div className="flex-shrink-0 mt-1">
