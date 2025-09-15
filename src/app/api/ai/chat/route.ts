@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     // This is a fallback route when WebSocket is not available
-    // In production, this should proxy to the AI Copilot service
-    const aiCopilotUrl = process.env.AI_COPILOT_URL || 'http://localhost:8003';
+    // In production, this should proxy to the AI Copilot service via API Gateway
+    const aiCopilotUrl = process.env.AI_COPILOT_URL || 'http://localhost:8000/api/v1/ai/chat';
     
     try {
       // Get authorization header from the incoming request
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         headers['Authorization'] = authHeader;
       }
       
-      const response = await fetch(`${aiCopilotUrl}/api/v1/chat`, {
+      const response = await fetch(aiCopilotUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({

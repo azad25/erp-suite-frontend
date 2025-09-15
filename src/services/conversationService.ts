@@ -7,17 +7,22 @@
  * API Documentation: /conversations
  */
 
-import { getAICopilotUrl } from '@/config/ai-config';
+import { getAICopilotUrl, getAPIGatewayUrl } from '@/config/ai-config';
+import { authInterceptor } from '@/lib/auth-interceptor';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ConversationSession {
   conversation_id: string;
+  organization_id: string;
+  user_id: string;
   title: string;
-  status: string;
   created_at: string;
   updated_at: string;
+  status: string;
   message_count: number;
   context: Record<string, any>;
   metadata: Record<string, any>;
+  last_message_at?: string;
 }
 
 export interface ConversationMessage {
@@ -71,27 +76,17 @@ export interface ConversationAnalytics {
 
 class ConversationService {
   private baseUrl: string;
-  private currentUserId: string = 'current_user'; // TODO: Get from auth context
-  private currentOrgId: string = 'default_org'; // TODO: Get from auth context
+  private currentUserId: string;
+  private currentOrgId: string;
 
-  constructor() {
-    // Ensure the base URL points to the AI copilot service
-    let base = getAICopilotUrl();
+  constructor(userId: string = '', orgId: string = '') {
+    this.currentUserId = userId;
+    this.currentOrgId = orgId;
+    // Use API Gateway URL for all AI endpoints
+    const baseUrl = getAPIGatewayUrl();
     
-    // Check if we're in development and need to adjust the URL
-    if (base.includes('localhost:3000')) {
-      // If frontend is on 3000, AI copilot is likely on 8000
-      base = base.replace('localhost:3000', 'localhost');
-    }
-    
-    // Ensure we have the correct API path
-    if (!base.includes('/api/v1')) {
-      base = base.endsWith('/') ? `${base}api/v1` : `${base}/api/v1`;
-    }
-    
-    // The base URL should already include /ai-copilot from the config
-    // Remove any duplicate path additions
-    this.baseUrl = base;
+    // Set the base URL to use API Gateway's AI chat endpoint
+    this.baseUrl = `${baseUrl}/api/v1/ai/chat`;
     
     // Log the final URL for debugging
     console.log('ConversationService base URL:', this.baseUrl);
@@ -102,36 +97,89 @@ class ConversationService {
    */
   async createConversation(request: CreateConversationRequest = {}): Promise<ConversationSession> {
     try {
+      // Use the conversations endpoint through API Gateway
       const url = new URL(`${this.baseUrl}/conversations`);
       
       // Use proper user identification - these should come from auth context
       const userId = this.currentUserId || 'default_user';
       const orgId = this.currentOrgId || 'default_org';
       
+      // Add query parameters as the backend might expect them
       url.searchParams.append('user_id', userId);
       url.searchParams.append('organization_id', orgId);
       
-      console.log('Creating conversation with URL:', url.toString());
+      // Create a timestamp for consistent use
+      const now = new Date().toISOString();
       
-      const response = await fetch(url.toString(), {
+      // Simplified request structure
+      const requestBody = {
+        title: request.title || `Chat - ${new Date().toLocaleDateString()}`,
+        context: request.context || {},
+        metadata: request.metadata || {
+          created_by: 'frontend',
+          source: 'ai_chat',
+          version: '1.0.0',
+          created_at: now,
+          status: 'active',
+          user_id: userId,
+          organization_id: orgId
+        }
+      };
+      
+      console.log('Creating conversation with URL:', url.toString());
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+      
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title: request.title,
-          context: request.context || {},
-          metadata: request.metadata || {}
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Create conversation error:', response.status, errorText);
+        console.error('Request that failed:', {
+          url: url.toString(),
+          method: 'POST',
+          body: requestBody
+        });
         throw new Error(`Failed to create conversation: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('Conversation created successfully:', result);
+      
+      // Ensure the response has all required fields
+      const defaultUserId = this.currentUserId || 'default_user';
+      const defaultOrgId = this.currentOrgId || 'default_org';
+      const timestamp = new Date().toISOString();
+      
+      // Create a complete conversation object with all required fields
+      const conversation: ConversationSession = {
+        conversation_id: result.conversation_id || result.id,
+        organization_id: result.organization_id || defaultOrgId,
+        user_id: result.user_id || defaultUserId,
+        title: request.title || `Chat - ${new Date().toLocaleDateString()}`,
+        status: result.status || 'active',
+        created_at: result.created_at || timestamp,
+        updated_at: result.updated_at || timestamp,
+        message_count: result.message_count || 0,
+        context: request.context || {},
+        metadata: result.metadata || {
+          created_by: 'frontend',
+          source: 'ai_chat',
+          version: '1.0.0',
+          created_at: timestamp,
+          user_id: defaultUserId,
+          organization_id: defaultOrgId,
+          status: 'active'
+        },
+        last_message_at: result.last_message_at || timestamp
+      };
+      
+      return conversation;
     } catch (error) {
       console.error('Error creating conversation:', error);
       throw error;
@@ -159,7 +207,7 @@ class ConversationService {
       url.searchParams.append('page', Math.max(1, page).toString());
       url.searchParams.append('limit', Math.min(200, Math.max(1, limit)).toString());
       
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +219,37 @@ class ConversationService {
         throw new Error(error.detail || `Failed to get conversation messages: ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      // Ensure the response has all required fields
+      const defaultUserId = this.currentUserId || 'default_user';
+      const defaultOrgId = this.currentOrgId || 'default_org';
+      const timestamp = new Date().toISOString();
+      
+      // Process messages if present
+      if (result.messages) {
+        result.messages = result.messages.map((msg: any) => {
+          return {
+            ...msg,
+            metadata: msg.metadata || {
+              created_by: 'frontend',
+              source: 'ai_chat',
+              version: '1.0.0',
+              created_at: timestamp,
+              user_id: defaultUserId,
+              organization_id: defaultOrgId
+            }
+          };
+        });
+      }
+      
+      // Return paginated response with messages
+      return {
+        items: result.messages || [],
+        total: result.total || result.messages?.length || 0,
+        page: result.page || 1,
+        limit: result.limit || 50
+      };
     } catch (error) {
       console.error('Error getting conversation messages:', error);
       throw error;
@@ -210,7 +288,7 @@ class ConversationService {
 
       console.log('Getting user conversations with URL:', url.toString());
 
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -223,7 +301,49 @@ class ConversationService {
         throw new Error(`Failed to get conversations: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      // Handle both API response formats
+      const conversations = result.conversations || result.items || [];
+      const total = result.total || conversations.length;
+      const pageNum = result.page || 1;
+      const limitNum = result.size || result.limit || 20;
+      
+      // Ensure each conversation has all required fields
+      const processedConversations = conversations.map((conv: any) => {
+        const userId = this.currentUserId || 'default_user';
+        const orgId = this.currentOrgId || 'default_org';
+        const now = new Date().toISOString();
+        
+        return {
+          conversation_id: conv.conversation_id || conv.id,
+          organization_id: conv.organization_id || orgId,
+          user_id: conv.user_id || userId,
+          title: conv.title || `Chat - ${new Date().toLocaleDateString()}`,
+          status: conv.status || 'active',
+          created_at: conv.created_at || now,
+          updated_at: conv.updated_at || now,
+          message_count: conv.message_count || 0,
+          context: conv.context || {},
+          metadata: conv.metadata || {
+            created_by: 'frontend',
+            source: 'ai_chat',
+            version: '1.0.0',
+            created_at: now,
+            user_id: userId,
+            organization_id: orgId,
+            status: 'active'
+          },
+          last_message_at: conv.last_message_at || now
+        };
+      });
+      
+      return {
+        items: processedConversations,
+        total: total,
+        page: pageNum,
+        limit: limitNum
+      };
     } catch (error) {
       console.error('Error getting user conversations:', error);
       throw error;
@@ -242,7 +362,7 @@ class ConversationService {
       url.searchParams.append('user_id', this.currentUserId);
       url.searchParams.append('organization_id', this.currentOrgId);
       
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -254,7 +374,37 @@ class ConversationService {
         throw new Error(`Failed to update conversation: ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      // Ensure the response has all required fields
+      const userId = this.currentUserId || 'default_user';
+      const orgId = this.currentOrgId || 'default_org';
+      const now = new Date().toISOString();
+      
+      // Create a complete conversation object with all required fields
+      const conversation: ConversationSession = {
+        conversation_id: result.conversation_id || result.id,
+        organization_id: result.organization_id || orgId,
+        user_id: result.user_id || userId,
+        title: result.title || `Chat - ${new Date().toLocaleDateString()}`,
+        status: result.status || 'active',
+        created_at: result.created_at || now,
+        updated_at: result.updated_at || now,
+        message_count: result.message_count || 0,
+        context: result.context || {},
+        metadata: result.metadata || {
+          created_by: 'frontend',
+          source: 'ai_chat',
+          version: '1.0.0',
+          created_at: now,
+          user_id: userId,
+          organization_id: orgId,
+          status: 'active'
+        },
+        last_message_at: result.last_message_at || now
+      };
+      
+      return conversation;
     } catch (error) {
       console.error('Error updating conversation:', error);
       throw error;
@@ -270,7 +420,7 @@ class ConversationService {
       url.searchParams.append('user_id', this.currentUserId);
       url.searchParams.append('organization_id', this.currentOrgId);
       
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,7 +443,7 @@ class ConversationService {
       url.searchParams.append('user_id', this.currentUserId);
       url.searchParams.append('organization_id', this.currentOrgId);
       
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -313,36 +463,74 @@ class ConversationService {
   /**
    * Search user's conversations
    * @param query Search query string
+   * @param page Page number (1-based)
    * @param limit Maximum number of results (1-50)
    */
   async searchConversations(
-    query: string,
+    query?: string,
+    page: number = 1,
     limit: number = 10
   ): Promise<PaginatedResponse<ConversationSession>> {
     try {
-      const url = new URL(`${this.baseUrl}/conversations/search`);
-      url.searchParams.append('query', query);
-      url.searchParams.append('limit', limit.toString());
-      url.searchParams.append('user_id', this.currentUserId);
-      url.searchParams.append('organization_id', this.currentOrgId);
+      const url = new URL(`${this.baseUrl}/conversations`);
       
-      const response = await fetch(url.toString(), {
+      // Add query parameters
+      url.searchParams.append('user_id', this.currentUserId || 'current_user');
+      url.searchParams.append('organization_id', this.currentOrgId || 'default_org');
+      url.searchParams.append('page', page.toString());
+      url.searchParams.append('limit', limit.toString());
+      
+      if (query) {
+        url.searchParams.append('query', query);
+      }
+      
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || `Failed to search conversations: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Get conversations error:', response.status, errorText);
+        throw new Error(`Failed to list conversations: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
       
+      // Ensure each conversation has all required fields
+      const defaultUserId = this.currentUserId || 'default_user';
+      const defaultOrgId = this.currentOrgId || 'default_org';
+      const timestamp = new Date().toISOString();
+      
+      const conversations = (result.conversations || []).map((conv: any) => {
+        return {
+          conversation_id: conv.conversation_id || conv.id,
+          organization_id: conv.organization_id || defaultOrgId,
+          user_id: conv.user_id || defaultUserId,
+          title: conv.title || `Chat - ${new Date(conv.created_at || timestamp).toLocaleDateString()}`,
+          status: conv.status || 'active',
+          created_at: conv.created_at || timestamp,
+          updated_at: conv.updated_at || timestamp,
+          message_count: conv.message_count || 0,
+          context: conv.context || {},
+          metadata: conv.metadata || {
+            created_by: 'frontend',
+            source: 'ai_chat',
+            version: '1.0.0',
+            created_at: timestamp,
+            user_id: defaultUserId,
+            organization_id: defaultOrgId,
+            status: 'active'
+          },
+          last_message_at: conv.last_message_at || timestamp
+        };
+      });
+      
       // Transform the response to match PaginatedResponse type
       const responseData: PaginatedResponse<ConversationSession> = {
-        items: result.conversations || [],
+        items: conversations,
         total: result.total || 0,
         page: result.page || 1,
         limit: result.limit || limit
@@ -393,7 +581,7 @@ class ConversationService {
       url.searchParams.append('user_id', this.currentUserId);
       url.searchParams.append('organization_id', this.currentOrgId);
       
-      const response = await fetch(url.toString(), {
+      const response = await authInterceptor.interceptRequest(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -435,7 +623,7 @@ class ConversationService {
         params.append('conversation_id', conversationId);
       }
 
-      const response = await fetch(
+      const response = await authInterceptor.interceptRequest(
         `${this.baseUrl}/conversations/analytics?${params.toString()}`,
         {
           method: 'GET',

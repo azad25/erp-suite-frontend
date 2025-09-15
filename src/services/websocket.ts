@@ -15,6 +15,7 @@ export interface WebSocketMessage<T = any> {
   userId?: string;
   status?: 'success' | 'error' | 'pending';
   error?: string;
+  metadata?: Record<string, any>;
 }
 
 // AI Chat specific message types
@@ -32,6 +33,7 @@ export interface AIChatMessage extends WebSocketMessage {
 // AI Chat request message
 export interface AIChatRequest extends WebSocketMessage {
   type: 'chat_message';
+  metadata?: Record<string, any>;
   data: {
     message: string;
     conversationId?: string;
@@ -116,6 +118,8 @@ class WebSocketService {
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' = 'disconnected';
   private isConnecting = false;
   private connectionLock = false;
+  private initializationPromise: Promise<void> | null = null;
+  private static instance: WebSocketService | null = null;
 
   constructor() {
     // Initialize with empty URL, will be set in initializeConnection()
@@ -126,40 +130,62 @@ class WebSocketService {
     console.log('WebSocketService initialized. Will connect to:', AI_CONFIG.WEBSOCKET_URL);
   }
 
-  public async initializeConnection(): Promise<void> {
-    if (this.connectionInitialized) {
-      console.log('WebSocket connection already initialized');
-      return;
+  // Static method to get singleton instance
+  public static getInstance(): WebSocketService {
+    if (!WebSocketService.instance) {
+      WebSocketService.instance = new WebSocketService();
     }
-    
-    // Prevent multiple simultaneous initialization attempts
-    if (this.isConnecting) {
-      console.log('WebSocket connection already in progress');
-      return;
-    }
-    
-    this.connectionInitialized = true;
-    this.isConnecting = true;
-    console.log('Initializing WebSocket connection to:', AI_CONFIG.WEBSOCKET_URL);
+    return WebSocketService.instance;
+  }
 
-    try {
-      // Use AI_CONFIG directly
-      this.websocketUrl = AI_CONFIG.WEBSOCKET_URL;
-      
-      // Set shouldConnect to true to ensure connection is established
-      this.shouldConnect = true;
-      console.log('Connecting to WebSocket...');
-      this.connect();
-    } catch (error) {
-      const errorMsg = 'Error initializing WebSocket connection';
-      console.error(errorMsg, error);
-      this.emit('error', { 
-        error: errorMsg,
-        details: error instanceof Error ? error.message : String(error)
-      });
-      this.isConnecting = false;
-      throw error;
+  public async initializeConnection(): Promise<void> {
+    // Return existing initialization promise if already in progress
+    if (this.initializationPromise) {
+      console.log('Connection initialization already in progress, returning existing promise');
+      return this.initializationPromise;
     }
+
+    // If already connected, return immediately
+    if (this.connectionState === 'connected' && this.socket?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected, skipping initialization');
+      return Promise.resolve();
+    }
+
+    // Create and store the initialization promise
+    this.initializationPromise = this._performInitialization();
+    
+    try {
+      await this.initializationPromise;
+    } finally {
+      // Clear the promise when done (success or failure)
+      this.initializationPromise = null;
+    }
+  }
+
+  private async _performInitialization(): Promise<void> {
+    console.log('=== PERFORMING WEBSOCKET INITIALIZATION ===');
+    console.log('Connection state:', {
+      connectionInitialized: this.connectionInitialized,
+      isConnecting: this.isConnecting,
+      connectionLock: this.connectionLock,
+      shouldConnect: this.shouldConnect,
+      connectionState: this.connectionState
+    });
+    
+    // Reset connection state if stuck
+    if (this.connectionState === 'connecting' && !this.socket) {
+      console.log('Resetting stuck connection state');
+      this.connectionLock = false;
+      this.isConnecting = false;
+    }
+    
+    // Use AI_CONFIG directly
+    this.websocketUrl = AI_CONFIG.WEBSOCKET_URL;
+    
+    // Set shouldConnect to true to ensure connection is established
+    this.shouldConnect = true;
+    console.log('Connecting to WebSocket...');
+    this.connect();
   }
 
 
@@ -295,22 +321,41 @@ class WebSocketService {
     const messageId = `msg_${Date.now()}`;
     // Generate conversation ID if not provided
     const finalConversationId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
     
-    const chatMessage: AIChatRequest = {
+    // Ensure we have user_id and organization_id
+    const userId = context?.user_id || 'current_user';
+    const orgId = context?.organization_id || 'default_org';
+    
+    // Format message according to AI Copilot backend expectations
+    const chatMessage = {
       type: 'chat_message',
+      message: message, // This is the required field the backend expects
       messageId,
-      timestamp: new Date().toISOString(),
-      data: {
-        message,
-        conversationId: finalConversationId,
-        context: {
-          ...context,
-          ...AI_CONFIG.DEFAULT_CONTEXT,
-        },
+      conversationId: finalConversationId,
+      timestamp: now,
+      metadata: {
+        created_by: 'frontend',
+        source: 'ai_chat',
+        version: '1.0.0',
+        created_at: now,
+        user_id: userId,
+        organization_id: orgId,
+        status: 'active'
       },
+      context: {
+        ...context,
+        ...AI_CONFIG.DEFAULT_CONTEXT,
+        user_id: userId,
+        organization_id: orgId
+      }
     };
     
-    this.sendMessage(chatMessage);
+    // Send directly to WebSocket without wrapping in WebSocketMessage format
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      console.log('=== SENDING CHAT MESSAGE ===', chatMessage);
+      this.socket.send(JSON.stringify(chatMessage));
+    }
     return messageId;
   }
 
@@ -492,26 +537,46 @@ class WebSocketService {
     }, delay);
   }
 
-  // Update the connect method to use handleReconnect for consistency
+  // Main method for connecting to websocket for ai copilot and chatbot
   private connect(): void {
-    console.log('Attempting to connect to WebSocket...');
+    console.log('=== ATTEMPTING TO CONNECT TO WEBSOCKET ===');
+    console.log('Current connection state:', {
+      connectionLock: this.connectionLock,
+      isConnecting: this.isConnecting,
+      shouldConnect: this.shouldConnect,
+      connectionState: this.connectionState,
+      socketExists: !!this.socket,
+      socketReadyState: this.socket?.readyState
+    });
     
     if (typeof window === 'undefined') {
       console.warn('WebSocket connection attempted in non-browser environment');
       return;
     }
 
-    // Prevent multiple simultaneous connection attempts
-    if (this.connectionLock || this.isConnecting) {
-      console.log('Connection already in progress, skipping duplicate attempt');
+    // If already connected, don't reconnect
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected, skipping');
+      return;
+    }
+
+    // If socket exists but is not open, close it first
+    if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+      console.log('Closing existing WebSocket before reconnecting');
+      this.socket.close();
+      this.socket = null;
+    }
+
+    if (!this.shouldConnect) {
+      console.log('Should not connect, aborting');
       return;
     }
 
     this.connectionLock = true;
+    this.connectionState = 'connecting';
     this.isConnecting = true;
     
     // Always use the URL from AI_CONFIG to ensure it's up to date
-    this.websocketUrl = AI_CONFIG.WEBSOCKET_URL;
     console.log('Using WebSocket URL:', this.websocketUrl);
     
     if (!this.websocketUrl) {
@@ -525,13 +590,15 @@ class WebSocketService {
 
     // Get fresh token on each connection attempt
     const token = localStorage.getItem('access_token');
+    console.log('Token check:', token ? 'Token found' : 'No token found');
     if (!token) {
       const errorMsg = 'No access token available for WebSocket connection';
-      console.warn(errorMsg);
+      console.error(errorMsg);
       this.emit('error', { error: errorMsg });
       this.connectionLock = false;
       this.isConnecting = false;
-      this.handleReconnect();
+      this.connectionState = 'disconnected';
+      // Don't retry if no token - this will cause infinite loops
       return;
     }
 
@@ -542,55 +609,69 @@ class WebSocketService {
       console.log('Raw WebSocket URL from config:', this.websocketUrl);
       
       // Construct the WebSocket URL
-      let finalUrl: string;
-      
-      if (this.websocketUrl.startsWith('ws://') || this.websocketUrl.startsWith('wss://')) {
-        // If it's already a full WebSocket URL, use it as is
-        finalUrl = this.websocketUrl;
-      } else if (this.websocketUrl.startsWith('/')) {
-        // If it's a path, prepend the current protocol and host
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        finalUrl = `${protocol}//${window.location.host}${this.websocketUrl}`;
-      } else {
-        // Otherwise, assume it's a relative path and prepend the current origin
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        finalUrl = `${protocol}//${window.location.host}/${this.websocketUrl.replace(/^\//, '')}`;
-      }
+      let websocketUrl: string = this.websocketUrl;
       
       // Add token as query parameter if not already present
-      const wsUrl = new URL(finalUrl);
+      const wsUrl = new URL(websocketUrl);
       if (!wsUrl.searchParams.has('token')) {
         wsUrl.searchParams.set('token', token);
       }
       
-      finalUrl = wsUrl.toString();
-      console.log('Final WebSocket connection URL:', finalUrl);
+      websocketUrl = wsUrl.toString();
+      console.log('🚀 CREATING WEBSOCKET CONNECTION:', websocketUrl);
       
       // Create WebSocket with the final URL
-      console.log('Creating WebSocket connection...');
-      this.socket = new WebSocket(finalUrl);
+      this.socket = new WebSocket(websocketUrl);
+      console.log('✅ WebSocket object created, readyState:', this.socket.readyState);
       
-      // Set up event handlers
-      this.setupEventHandlers();
-      
-      // Add detailed logging for debugging
+      // Set up event handlers BEFORE creating the socket
       this.socket.onopen = (event) => {
-        console.log('WebSocket connection established successfully', { url: finalUrl });
+        console.log('✅ WebSocket connection established successfully', { url: websocketUrl });
         this.connectionState = 'connected';
-        this.emit('connected', { url: finalUrl });
+        this.reconnectAttempts = 0;
+        this.isConnecting = false;
+        this.connectionLock = false;
+        
+        // Clear any pending reconnect timeout
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+        }
+        
+        // Start heartbeat
+        this.startHeartbeat();
+        
+        // Process queued subscriptions
+        this.queuedSubscriptions.forEach(channel => {
+          this.subscribe(channel);
+        });
+        
+        this.emit('connected', { 
+          timestamp: new Date().toISOString(),
+          url: websocketUrl
+        });
       };
       
       this.socket.onerror = (error) => {
-        console.error('WebSocket connection error:', { 
-          error, 
-          url: finalUrl,
-          readyState: this.socket?.readyState
-        });
-        this.emit('error', { 
-          error: 'WebSocket error', 
-          details: error,
-          url: finalUrl
-        });
+        console.error('WebSocket error:', error);
+        this.connectionState = 'disconnected';
+        this.isConnecting = false;
+        this.connectionLock = false;
+        
+        // Only emit error if it's not a heartbeat/ping related error
+        const errorMessage = (error as any)?.message || (error as any)?.type || 'WebSocket connection failed';
+        if (!errorMessage.includes('heartbeat') && !errorMessage.includes('ping')) {
+          this.emit('error', { 
+            error: 'WebSocket connection failed', 
+            message: errorMessage,
+            url: websocketUrl
+          });
+        }
+        
+        // Attempt to reconnect on error if we should be connected
+        if (this.shouldConnect) {
+          this.handleReconnect();
+        }
       };
       
       this.socket.onclose = (event) => {
@@ -598,18 +679,55 @@ class WebSocketService {
           code: event.code,
           reason: event.reason,
           wasClean: event.wasClean,
-          url: finalUrl
+          url: websocketUrl
         });
+        
         this.connectionState = 'disconnected';
+        this.isConnecting = false;
+        this.connectionLock = false;
+        
+        // Stop heartbeat
+        this.stopHeartbeat();
+        
+        // Reset connection state on disconnect
+        this.subscribedChannels.clear();
+        
         this.emit('disconnected', { 
-          event: {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean
-          },
-          url: finalUrl 
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          timestamp: new Date().toISOString(),
+          url: websocketUrl
         });
-        this.handleReconnect();
+        
+        // Attempt to reconnect unless it was a clean close
+        if (event.code !== 1000 && this.shouldConnect) {
+          this.handleReconnect();
+        }
+      };
+      
+      this.socket.onmessage = (event) => {
+        console.log('=== WEBSOCKET SERVICE: Raw message received ===', event.data);
+        try {
+          const message = typeof event.data === 'string' 
+            ? JSON.parse(event.data) 
+            : event.data;
+          
+          if (!message || typeof message !== 'object') {
+            throw new Error('Invalid message format: expected an object');
+          }
+          
+          this.handleMessage(message);
+        } catch (error) {
+          const errorMsg = `Error processing WebSocket message: ${error instanceof Error ? error.message : String(error)}`;
+          console.error(errorMsg, { rawData: event.data, error });
+          this.emit('error', { 
+            type: 'websocket_error',
+            error: errorMsg,
+            rawData: event.data,
+            timestamp: new Date().toISOString()
+          });
+        }
       };
     } catch (error) {
       console.error('WebSocket connection error:', error);
@@ -649,9 +767,6 @@ class WebSocketService {
     return this.socket?.readyState === WebSocket.OPEN;
   }
 
-  public getConnectionState(): string {
-    return this.connectionState;
-  }
 
   public disconnect(): void {
     this.shouldConnect = false;
@@ -826,6 +941,12 @@ class WebSocketService {
       return;
     }
 
+    // For chat messages, use the correct format expected by AI Copilot backend
+    if (type === 'chat_message' && data.content) {
+      this.sendChatMessage(data.content, data.conversationId, data.context);
+      return;
+    }
+
     const message: WebSocketMessage = {
       type,
       channel: channel || 'default',
@@ -906,7 +1027,26 @@ class WebSocketService {
           break;
           
         case 'error':
-          this.emit('error', message.data || { error: 'Unknown error occurred' });
+          // Filter out backend heartbeat/ping errors that aren't user-relevant
+          if (message.message && (message.message.includes('PingHandler') || message.message.includes('heartbeat'))) {
+            console.warn('Backend heartbeat error (filtered):', message.message);
+            return;
+          }
+          // Only emit meaningful errors, not generic ones
+          if (message.data && message.data.error && message.data.error !== 'Unknown error occurred') {
+            this.emit('error', message.data);
+          }
+          break;
+          
+        case 'reasoning_complete':
+          console.log('=== WEBSOCKET: Processing reasoning_complete ===', message);
+          this.emit('message', {
+            type: 'reasoning_complete',
+            data: {
+              messageId: message.message_id,
+              conversationId: message.conversation_id
+            }
+          });
           break;
           
         case 'user_activity':
@@ -927,34 +1067,66 @@ class WebSocketService {
           
         case 'reasoning_step':
           console.log('=== WEBSOCKET: Processing reasoning_step ===', message);
-          this.emit('ai_message', {
-            ...message,
+          // Transform reasoning step message to match expected format
+          // Backend sends step data at root level, not nested in data.reasoning_step
+          const transformedMessage = {
             type: 'reasoning_step',
-            conversation_id: message.conversation_id,
-            message_id: message.message_id,
-            metadata: message.metadata || JSON.parse(message.content || '{}'),
-            data: message.metadata || JSON.parse(message.content || '{}')
-          });
+            data: {
+              messageId: message.message_id,
+              conversationId: message.conversation_id,
+              reasoning_step: {
+                title: message.title,
+                icon: message.icon,
+                step_number: message.step_number,
+                description: message.description,
+                status: message.status,
+                step_type: message.step_type
+              }
+            },
+            timestamp: message.timestamp
+          };
+          this.emit('message', transformedMessage);
           break;
           
         case 'final_response':
           console.log('=== WEBSOCKET: Processing final_response ===', message);
-          this.emit('ai_message', {
-            ...message,
+          this.emit('message', {
             type: 'final_response',
-            conversation_id: message.conversation_id,
-            message_id: message.message_id,
-            content: message.content,
-            data: { content: message.content, message: message.content }
+            data: {
+              content: message.content,
+              messageId: message.message_id,
+              conversationId: message.conversation_id
+            }
           });
           break;
           
         case 'chunk':
           console.log('=== WEBSOCKET: Processing chunk ===', message);
-          this.emit('ai_message', {
-            ...message,
-            type: 'chat_response',
-            data: { content: message.content, message: message.content, response: message.content }
+          // Handle streaming chunks - accumulate content instead of emitting individual characters
+          if (message.content && message.content.length > 0) {
+            this.emit('message', {
+              type: 'chunk',
+              data: {
+                content: message.content,
+                messageId: message.message_id,
+                conversationId: message.conversation_id,
+                isChunk: true,
+                isFinal: message.is_complete || false,
+                is_complete: message.is_complete || false
+              }
+            });
+          }
+          break;
+          
+        case 'reasoning_complete':
+          console.log('=== WEBSOCKET: Processing reasoning_complete ===', message);
+          this.emit('message', {
+            type: 'reasoning_complete',
+            data: {
+              messageId: message.message_id,
+              conversationId: message.conversation_id
+            },
+            timestamp: message.timestamp
           });
           break;
           
@@ -963,7 +1135,20 @@ class WebSocketService {
         case 'ai_chat':
         case 'ai_stream':
         case 'ai_status':
-          this.emit('ai_message', message);
+        case 'ai_message':
+          console.log('=== WEBSOCKET: Processing AI message ===', message);
+          // Only emit if we have actual content to avoid empty messages
+          const content = message.content || message.data?.content;
+          if (content && content.trim().length > 0) {
+            this.emit('message', {
+              type: 'ai_message',
+              data: {
+                content: content,
+                messageId: message.message_id || message.messageId,
+                conversationId: message.conversation_id || message.conversationId
+              }
+            });
+          }
           break;
           
         case 'notification':
@@ -971,11 +1156,19 @@ class WebSocketService {
           break;
           
         default:
+          console.log('=== WEBSOCKET: Processing unknown message type ===', message.type, message);
+          // Emit as generic message for components to handle
+          this.emit('message', message);
           this.emit('*', message);
       }
     } else {
       this.emit('*', message);
     }
+  }
+
+  // Get connection state for debugging
+  public getConnectionState(): WebSocketState {
+    return this.connectionState;
   }
 
   // Get connection status
@@ -995,14 +1188,22 @@ class WebSocketService {
 }
 
 // Create singleton instance
-export const websocketService = new WebSocketService();
+export const websocketService = WebSocketService.getInstance();
 
-// React hook for WebSocket integration
+// React hook for WebSocket integration with StrictMode protection
 export function useWebSocket() {
   const [connected, setConnected] = React.useState(websocketService.isConnected());
   const [status, setStatus] = React.useState(websocketService.getStatus());
+  const initializationRef = React.useRef(false);
 
   React.useEffect(() => {
+    // Prevent duplicate initialization in React StrictMode
+    if (initializationRef.current) {
+      console.log('useWebSocket: Already initialized, skipping duplicate effect');
+      return;
+    }
+    initializationRef.current = true;
+
     const handleConnect = () => {
       setConnected(true);
       setStatus(websocketService.getStatus());
@@ -1026,6 +1227,8 @@ export function useWebSocket() {
       websocketService.off('connected', handleConnect);
       websocketService.off('disconnected', handleDisconnect);
       websocketService.off('error', handleError);
+      // Reset initialization flag on cleanup
+      initializationRef.current = false;
     };
   }, []);
 
@@ -1039,5 +1242,7 @@ export function useWebSocket() {
     send: websocketService.send.bind(websocketService),
     reconnect: websocketService.reconnect.bind(websocketService),
     ensureConnection: websocketService.ensureConnection.bind(websocketService),
+    initializeConnection: websocketService.initializeConnection.bind(websocketService),
+    getConnectionState: websocketService.getConnectionState.bind(websocketService),
   };
 }

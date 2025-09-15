@@ -35,8 +35,9 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     setIsLoading(true);
     try {
       const result = await conversationService.getUserConversations(1, 50, 'active');
-      setConversations(result.items);
-      setFilteredConversations(result.items);
+      const conversations = result?.items || [];
+      setConversations(conversations);
+      setFilteredConversations(conversations);
     } catch (error) {
       console.error('Failed to load conversations:', error);
       // Gracefully handle 404 errors by showing empty state
@@ -49,13 +50,16 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
 
   // Search conversations
   useEffect(() => {
+    const safeConversations = conversations || [];
     if (searchQuery.trim()) {
-      const filtered = conversations.filter(conv =>
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = safeConversations.filter(
+        (conv) =>
+          conv?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conv?.metadata?.source?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredConversations(filtered);
     } else {
-      setFilteredConversations(conversations);
+      setFilteredConversations(safeConversations);
     }
   }, [searchQuery, conversations]);
 
@@ -157,7 +161,7 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         </button>
         
         <div className="flex-1 overflow-y-auto w-full">
-          {filteredConversations.slice(0, 5).map((conversation) => (
+          {(filteredConversations || []).slice(0, 5).map((conversation) => (
             <button
               key={conversation.conversation_id}
               onClick={() => onConversationSelect(conversation.conversation_id)}
@@ -227,7 +231,7 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500 mx-auto"></div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading conversations...</p>
           </div>
-        ) : filteredConversations.length === 0 ? (
+        ) : (filteredConversations || []).length === 0 ? (
           <div className="p-4 text-center">
             <ChatIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -246,7 +250,7 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
           </div>
         ) : (
           <div className="p-2">
-            {filteredConversations.map((conversation) => (
+            {(filteredConversations || []).map((conversation) => (
               <div
                 key={conversation.conversation_id}
                 className={`group relative p-3 mb-2 rounded-xl cursor-pointer transition-all duration-300 ${

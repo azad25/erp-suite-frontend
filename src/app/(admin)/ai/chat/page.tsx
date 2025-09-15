@@ -1,27 +1,32 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import ConversationSidebar from '@/components/ai/ConversationSidebar';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { websocketService } from '@/services/websocket';
+import { conversationService } from '@/services/conversationService';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import { 
-  CopilotUIIcon, 
-  BoltIcon, 
-  InfoIcon, 
-  CheckCircleIcon, 
-  AlertIcon, 
-  TimeIcon, 
-  ChatIcon, 
-  DocsIcon, 
-  TaskIcon,
-  BellIcon,
-  ErrorIcon,
-  PaperPlaneIcon,
-  PlusIcon 
+  ChatbotIcon, 
+  SendIcon, 
+  UserIcon,
+  CheckCircleIcon,
+  TimeIcon,
+  PlusIcon,
+  CloseIcon
 } from "@/icons";
-import { websocketService, AIChatMessage } from '@/services/websocket';
-import { conversationService, ConversationSession, ConversationMessage } from '@/services/conversationService';
-import UserAvatar from '@/components/common/UserAvatar';
+
+// Types
+interface ChatMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'bot';
+  timestamp: Date;
+  messageId?: string;
+  reasoningSteps?: ReasoningStep[];
+  reasoningPhase?: 'thinking' | 'reasoning' | 'complete' | 'hidden' | 'streaming';
+  showReasoningSteps?: boolean;
+  isStreaming?: boolean;
+  streamBuffer?: string;
+}
 
 interface ReasoningStep {
   step_number: number;
@@ -29,897 +34,906 @@ interface ReasoningStep {
   title: string;
   description: string;
   source: string;
-  status: 'processing' | 'completed' | 'failed';
+  status: 'processing' | 'completed' | 'error';
   icon: string;
   timestamp: string;
-  processing_time?: number;
+  processing_time: number;
 }
 
-interface ChatMessage {
+interface Conversation {
   id: string;
-  text: string;
-  sender: 'user' | 'bot';
+  title: string;
+  lastMessage: string;
   timestamp: Date;
-  isStreaming?: boolean;
-  messageId?: string;
-  isFinal?: boolean;
-  reasoningSteps?: ReasoningStep[];
-  isReasoningComplete?: boolean;
+  isActive: boolean;
 }
 
-const AIChatPage: React.FC = () => {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const conversationParam = searchParams.get('conversation');
+interface AIChatMessage {
+  type: 'chat_message' | 'ai_stream' | 'ai_status' | 'reasoning_step' | 'reasoning_complete' | 'ai_message' | 'final_response' | 'chunk';
+  data: {
+    content?: string;
+    messageId?: string;
+    conversationId?: string;
+    reasoning_step?: ReasoningStep;
+    isChunk?: boolean;
+    isFinal?: boolean;
+    is_complete?: boolean;
+  };
+  messageId?: string;
+}
+
+// Utility function to generate unique IDs
+const genId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// ChatGPT/Grok style thinking animation with sequential fade in/out
+const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
+  const [currentStep, setCurrentStep] = React.useState(0);
+  const [isVisible, setIsVisible] = React.useState(true);
   
+  React.useEffect(() => {
+    if (steps.length === 0) return;
+    if (steps.length === 1) return; // No need to cycle if only one step
+    
+    const cycleSteps = () => {
+      // Fade out current step
+      setIsVisible(false);
+      
+      setTimeout(() => {
+        // Change to next step
+        setCurrentStep(prev => (prev + 1) % steps.length);
+        // Fade in new step
+        setIsVisible(true);
+      }, 300); // Wait for fade out to complete
+    };
+    
+    const interval = setInterval(cycleSteps, 2500); // Change every 2.5 seconds
+    
+    return () => clearInterval(interval);
+  }, [steps.length]);
+  
+  if (steps.length === 0) {
+    return (
+      <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
+        <div className="flex-shrink-0 mt-1">
+          <div className="flex items-center space-x-1">
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+            Thinking...
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Processing...
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
+      <div className="flex-shrink-0 mt-1">
+        <div className="flex items-center space-x-1">
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+          Thinking...
+        </div>
+        <div className="text-sm text-gray-600 dark:text-gray-400 min-h-[20px] flex items-center">
+          <span 
+            className={`transition-opacity duration-300 ease-in-out ${
+              isVisible ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            {steps[currentStep]?.title || 'Processing...'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ReasoningStepsDisplay Component - now just for thinking animation
+const ReasoningStepsDisplay: React.FC<{ steps: ReasoningStep[]; phase?: string }> = ({ steps, phase }) => {
+  if (!steps || steps.length === 0 || phase !== 'thinking') return null;
+  return <ThinkingAnimation steps={steps} />;
+};
+
+// Main Chat Page Component
+const AIChatPage: React.FC = () => {
   // State management
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationParam);
-  const [currentConversation, setCurrentConversation] = useState<ConversationSession | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  
-  // WebSocket and reasoning state
-  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+  const [activeReasoningMessageId, setActiveReasoningMessageId] = useState<string | null>(null);
   const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
+  const [streamBuffer, setStreamBuffer] = useState<Map<string, string>>(new Map());
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [currentReasoningStep, setCurrentReasoningStep] = useState<{
+    title: string;
+    icon: string;
+    stepNumber: number;
+    description: string;
+  } | null>(null);
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const idCounter = useRef(0);
-  
-  const genId = (prefix = 'id') => {
-    idCounter.current += 1;
-    return `${prefix}-${Date.now()}-${idCounter.current}-${Math.random().toString(36).slice(2,8)}`;
-  };
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isInitializedRef = useRef(false);
 
-  // Typewriter effect for AI responses
-  const typewriterEffect = useCallback((fullText: string, messageId: string, speed: number = 15) => {
-    setTypingMessageId(messageId);
-    let index = 0;
-    
-    const typeNextChar = () => {
-      if (index < fullText.length) {
-        const currentText = fullText.substring(0, index + 1);
-        
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId 
-            ? { ...msg, text: currentText }
-            : msg
-        ));
-        
-        index++;
-        typewriterTimeoutRef.current = setTimeout(typeNextChar, speed);
-      } else {
-        setTypingMessageId(null);
-        setIsTyping(false);
-      }
-    };
-    
-    typeNextChar();
-  }, []);
-
-  // Load conversation by ID
-  const loadConversation = useCallback(async (conversationId: string) => {
-    if (!conversationId) return;
-    
-    setIsLoading(true);
+  // Load conversations from AI copilot service
+  const loadConversations = useCallback(async () => {
     try {
-      // Skip loading for local sessions
-      if (conversationId.startsWith('local-')) {
-        console.log('Skipping load for local session:', conversationId);
-        setMessages([]);
-        setCurrentConversation({
-          conversation_id: conversationId,
-          title: 'Local Chat Session',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          status: 'active',
-          message_count: 0,
-          context: {},
-          metadata: {}
-        });
-        return;
-      }
+      setIsLoadingConversations(true);
+      const response = await conversationService.getUserConversations(1, 20);
       
-      const result = await conversationService.loadConversation(conversationId);
-      if (result) {
-        setCurrentConversation(result.conversation);
-        
-        // Convert to ChatMessage format
-        const chatMessages: ChatMessage[] = result.messages.map((msg: ConversationMessage) => ({
-          id: msg.message_id,
-          text: msg.content,
-          sender: msg.role === 'user' ? 'user' : 'bot',
-          timestamp: new Date(msg.created_at),
-          messageId: msg.message_id,
-          reasoning_steps: msg.reasoning_steps || []
-        }));
-        
-        setMessages(chatMessages);
-        
-        // Mark all loaded messages as processed
-        chatMessages.forEach(msg => processedMessageIds.add(msg.id));
+      const formattedConversations: Conversation[] = response.items.map(conv => ({
+        id: conv.conversation_id,
+        title: conv.title,
+        lastMessage: `${conv.message_count} messages`,
+        timestamp: new Date(conv.updated_at || conv.created_at),
+        isActive: conv.conversation_id === activeConversationId
+      }));
+      
+      setConversations(formattedConversations);
+      
+      // If no active conversation and we have conversations, select the first one
+      if (!activeConversationId && formattedConversations.length > 0) {
+        setActiveConversationId(formattedConversations[0].id);
       }
     } catch (error) {
-      console.error('Failed to load conversation:', error);
-      // Fallback to local session if conversation doesn't exist
-      if (conversationId && !conversationId.startsWith('local-')) {
-        console.warn('Conversation not found, creating local session');
-        setMessages([]);
-        setCurrentConversation({
-          conversation_id: conversationId,
-          title: 'Chat Session',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          status: 'active',
-          message_count: 0,
-          context: {},
-          metadata: {}
-        });
-      }
+      console.error('Failed to load conversations:', error);
+      // Set mock conversations as fallback
+      const mockConversations: Conversation[] = [
+        {
+          id: 'conv-1',
+          title: 'ERP Architecture Discussion',
+          lastMessage: 'Can you explain the microservices?',
+          timestamp: new Date(Date.now() - 3600000),
+          isActive: false
+        },
+        {
+          id: 'conv-2',
+          title: 'Database Schema Help',
+          lastMessage: 'How to optimize queries?',
+          timestamp: new Date(Date.now() - 7200000),
+          isActive: false
+        }
+      ];
+      setConversations(mockConversations);
     } finally {
-      setIsLoading(false);
+      setIsLoadingConversations(false);
     }
-  }, [processedMessageIds]);
+  }, [activeConversationId]);
 
-  // Create new conversation
-  const createNewConversation = useCallback(async () => {
-    try {
-      let newConversation;
-      try {
-        newConversation = await conversationService.createConversation({
-          title: `AI Chat - ${new Date().toLocaleDateString()}`,
-          context: {
-            user_id: 'current_user',
-            department: 'general',
-            page: 'ai_chat'
-          }
-        });
-        console.log('Successfully created conversation:', newConversation.conversation_id);
-      } catch (error) {
-        console.warn('Failed to create remote conversation, using local session:', error);
-        // Create a local session when backend is unavailable
-        newConversation = {
-          conversation_id: `local-chat-${Date.now()}`,
-          title: `AI Chat - ${new Date().toLocaleDateString()}`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          status: 'active',
-          message_count: 0,
-          context: {},
-          metadata: {}
-        };
-      }
-      
-      setCurrentConversation(newConversation);
-      setCurrentConversationId(newConversation.conversation_id);
-      setMessages([]);
-      processedMessageIds.clear();
-      setCurrentReasoningSteps(new Map());
-      
-      // Update URL only for real conversations
-      if (!newConversation.conversation_id.startsWith('local-')) {
-        router.push(`/ai/chat?conversation=${newConversation.conversation_id}`);
-      }
-      
-      // Add welcome message
-      const welcomeMessage: ChatMessage = {
-        id: 'welcome-full-chat',
-        text: "👋 Welcome to the AI Chat! I'm your intelligent assistant with step-by-step reasoning capabilities. How can I help you today?",
-        sender: 'bot',
-        timestamp: new Date(),
-      };
-      
-      setMessages([welcomeMessage]);
-      processedMessageIds.add('welcome-full-chat');
-      
-    } catch (error) {
-      console.error('Failed to create new conversation:', error);
-    }
-  }, [router, processedMessageIds]);
-
-  // Handle conversation selection
-  const handleConversationSelect = useCallback((conversationId: string) => {
-    setCurrentConversationId(conversationId);
-    router.push(`/ai/chat?conversation=${conversationId}`);
-  }, [router]);
-
-  // Initialize conversation on mount or param change
+  // Load conversations on component mount
   useEffect(() => {
-    if (conversationParam && conversationParam !== currentConversationId) {
-      setCurrentConversationId(conversationParam);
-      loadConversation(conversationParam);
-    } else if (!conversationParam && !currentConversationId) {
-      createNewConversation();
-    }
-  }, [conversationParam, currentConversationId, loadConversation, createNewConversation]);
+    loadConversations();
+  }, [loadConversations]);
 
-  // Auto-scroll to bottom
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // Handle incoming WebSocket messages with reasoning steps support
+  // Handle incoming WebSocket messages
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
     if (!message) return;
-
-    // Extract message ID for deduplication
-    const messageId = (message as any).message_id || (message.data as any)?.message_id || `msg-${genId('msg')}`;
     
-    // Check if already processed
-    if (processedMessageIds.has(messageId)) {
-      return;
-    }
+    const msgId = message.data?.messageId || message.messageId || genId('msg');
+    const conversationId = message.data?.conversationId || activeConversationId || 'default';
     
-    // Mark as processed immediately
-    setProcessedMessageIds(prev => new Set([...prev, messageId]));
-
-    // Handle different message types
-    const messageType = (message as any).type;
+    console.log('=== HANDLING MESSAGE ===', message.type, message);
     
-    if (messageType === 'reasoning_step') {
-      // Handle reasoning step
-      const stepData = (message as any).metadata || message.data || message;
-      const conversationId = (message as any).conversation_id || currentConversationId || 'current';
+    // Handle reasoning steps with fade animation
+    if (message.type === 'reasoning_step' && message.data.reasoning_step) {
+      const step = message.data.reasoning_step;
+      console.log('=== AI CHAT: Processing reasoning step ===', step);
       
-      const reasoningStep: ReasoningStep = {
-        step_number: (stepData as any).step_number || 0,
-        step_type: (stepData as any).step_type || 'thinking',
-        title: (stepData as any).title || 'Processing...',
-        description: (stepData as any).description || '',
-        source: (stepData as any).source || 'AI System',
-        status: (stepData as any).status || 'processing',
-        icon: (stepData as any).icon || '🤔',
-        timestamp: (stepData as any).timestamp || new Date().toISOString(),
-        processing_time: (stepData as any).processing_time || 0
-      };
-      
-      // Update reasoning steps
-      setCurrentReasoningSteps(prev => {
-        const steps = prev.get(conversationId) || [];
-        const updatedSteps = [...steps];
-        
-        const existingIndex = updatedSteps.findIndex(s => s.step_number === reasoningStep.step_number);
-        if (existingIndex >= 0) {
-          updatedSteps[existingIndex] = reasoningStep;
-        } else {
-          updatedSteps.push(reasoningStep);
-        }
-        
-        const newMap = new Map(prev);
-        newMap.set(conversationId, updatedSteps.sort((a, b) => a.step_number - b.step_number));
-        return newMap;
+      setCurrentReasoningStep({
+        title: step.title || 'Processing...',
+        icon: step.icon || '🧠',
+        stepNumber: step.step_number || 1,
+        description: step.description || ''
       });
       
-      return;
+      // Create or update thinking message
+      if (!activeReasoningMessageId) {
+        const thinkingMessageId = `reasoning-${message.data.conversationId}-${Date.now()}`;
+        setActiveReasoningMessageId(thinkingMessageId);
+        
+        const thinkingMessage: ChatMessage = {
+          id: thinkingMessageId,
+          text: '',
+          sender: 'bot',
+          timestamp: new Date(),
+          isStreaming: false,
+          reasoningPhase: 'reasoning' as const,
+          showReasoningSteps: true,
+          reasoningSteps: [step]
+        };
+        
+        setMessages(prev => [...prev, thinkingMessage]);
+      } else {
+        // Update existing thinking message with new step
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === activeReasoningMessageId 
+              ? {
+                  ...msg,
+                  reasoningPhase: 'reasoning',
+                  showReasoningSteps: true,
+                  reasoningSteps: [
+                    ...(msg.reasoningSteps || []),
+                    step
+                  ]
+                }
+              : msg
+          )
+        );
+      }
     }
     
-    if (messageType === 'final_response') {
-      // Handle final response
-      const content = (message as any).content || '';
-      const conversationId = (message as any).conversation_id || currentConversationId || 'current';
-      
-      // Clear typewriter effect
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
+    // Handle reasoning complete message
+    if (message.type === 'reasoning_complete') {
+      console.log('=== AI CHAT: Reasoning complete, hiding thinking animation ===');
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === activeReasoningMessageId 
+            ? {
+                ...msg,
+                reasoningPhase: 'complete',
+                showReasoningSteps: false
+              }
+            : msg
+        )
+      );
+    }
+    
+    // Handle final AI response - Replace reasoning message with final response
+    if ((message.type === 'ai_message' || message.type === 'final_response') && message.data.content) {
+      if (activeReasoningMessageId) {
+        // Clear reasoning step when starting to stream final response
+        setCurrentReasoningStep(null);
+        
+        // Hide thinking animation when AI response starts
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === activeReasoningMessageId 
+              ? {
+                  ...msg,
+                  reasoningPhase: 'complete',
+                  showReasoningSteps: false
+                }
+              : msg
+          )
+        );
+        
+        // Replace reasoning message with final response
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === activeReasoningMessageId 
+              ? {
+                  ...msg,
+                  text: message.data.content || '',
+                  reasoningPhase: 'hidden',
+                  showReasoningSteps: false,
+                  reasoningSteps: undefined
+                }
+              : msg
+          )
+        );
+        setActiveReasoningMessageId(null);
+      } else {
+        // Create new message if no reasoning was shown
+        const aiMessage: ChatMessage = {
+          id: msgId,
+          text: message.data.content || '',
+          sender: 'bot',
+          timestamp: new Date(),
+          messageId: msgId
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
       }
       
-      // Get reasoning steps
-      const reasoningSteps = currentReasoningSteps.get(conversationId) || [];
+      setIsTyping(false);
+    }
+    
+    // Handle streaming chunks - Accumulate content for complete sentences
+    if (message.type === 'chunk') {
+      const { content, messageId, conversationId, is_complete, isFinal } = message.data;
+      const isComplete = is_complete || isFinal;
       
-      // Add message with reasoning steps
-      const newMessage: ChatMessage = {
-        id: messageId,
-        text: '',
+      setStreamBuffer(prev => {
+        const currentBuffer = prev.get(messageId || '') || '';
+        const newBuffer = currentBuffer + content;
+        
+        // Update buffer
+        const updatedBuffer = new Map(prev);
+        if (messageId) {
+          updatedBuffer.set(messageId, newBuffer);
+        }
+        
+        // Find the message to update
+        const messageToUpdate = messages.find(msg => msg.id === activeReasoningMessageId);
+        if (messageToUpdate) {
+          // Only update UI for complete sentences or final response
+          if (isComplete) {
+            // Final update - show complete response
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === activeReasoningMessageId 
+                  ? {
+                      ...msg,
+                      text: newBuffer,
+                      isStreaming: false,
+                      reasoningPhase: 'complete',
+                      showReasoningSteps: false
+                    }
+                  : msg
+              )
+            );
+          } else {
+            // For streaming, buffer content and only update UI periodically to show complete phrases
+            const words = newBuffer.split(' ');
+            const shouldUpdate = 
+              words.length >= 5 || // At least 5 words
+              newBuffer.match(/[.!?]\s*$/) || // Sentence ending
+              newBuffer.length >= 30; // Significant content
+            
+            if (shouldUpdate) {
+              setMessages(prevMessages => 
+                prevMessages.map(msg => 
+                  msg.id === activeReasoningMessageId 
+                    ? {
+                        ...msg,
+                        text: newBuffer,
+                        isStreaming: true,
+                        reasoningPhase: 'complete',
+                        showReasoningSteps: false
+                      }
+                    : msg
+                )
+              );
+            }
+          }
+        }
+        
+        return updatedBuffer;
+      });
+    }
+    
+    
+    // Handle regular AI messages (fallback)
+    if (message.data?.content && !activeReasoningMessageId) {
+      const aiMessage: ChatMessage = {
+        id: msgId,
+        text: message.data.content,
         sender: 'bot',
         timestamp: new Date(),
-        messageId,
-        reasoningSteps: reasoningSteps,
-        isReasoningComplete: true
+        messageId: msgId
       };
       
-      setMessages(prevMessages => [...prevMessages, newMessage]);
+      setMessages(prev => [...prev, aiMessage]);
       setIsTyping(false);
-      
-      // Start typewriter effect
-      typewriterEffect(content, messageId);
-      
-      // Clear reasoning steps
-      setCurrentReasoningSteps(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(conversationId);
-        return newMap;
-      });
-      
-      return;
     }
-    
-    // Handle regular messages (fallback)
-    const messageData = message.data || message;
-    let content = messageData.content || (messageData as any).message || (messageData as any).text || (messageData as any).response;
-    
-    if (!content && Object.keys(messageData).length === 0) {
-      content = (message as any).content || (message as any).message || (message as any).text || (message as any).response;
-    }
-    
-    if (!content && (message as any).type === 'chat_response') {
-      content = (message as any).response || (message as any).data?.response;
-    }
-    
-    if (!content) return;
-    
-    const messageContent = typeof content === 'string' ? content : JSON.stringify(content);
-    
-    // Clear typewriter effect
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
-    }
-    
-    // Add message
-    const newMessage: ChatMessage = {
-      id: messageId,
-      text: '',
-      sender: 'bot',
-      timestamp: new Date(),
-      messageId
-    };
-    
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-    setIsTyping(false);
-    
-    // Start typewriter effect
-    typewriterEffect(messageContent, messageId);
-  }, [typewriterEffect, processedMessageIds, currentReasoningSteps, currentConversationId]);
+  }, [activeReasoningMessageId, messages]);
 
-  // WebSocket connection and event handling
+  // Initialize WebSocket connection
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    
-    if (!token) {
-      console.warn('No access token found for WebSocket connection');
-      return;
-    }
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
 
-    const messageListener = (message: AIChatMessage) => {
-      handleIncomingMessage(message);
-    };
-    
-    const connectListener = () => {
-      setIsConnected(true);
-      setIsTyping(false);
-      websocketService.subscribe('ai_chat');
-    };
-    
-    const disconnectListener = () => {
-      setIsConnected(false);
-      setIsTyping(false);
-    };
-    
-    const errorListener = (error: any) => {
-      console.error('WebSocket error:', error);
-      setIsTyping(false);
-    };
-
-    // Set up listeners
-    websocketService.on('ai_message', messageListener);
-    websocketService.on('reasoning_step', messageListener);
-    websocketService.on('final_response', messageListener);
-    websocketService.on('chunk', messageListener);
-    websocketService.on('connected', connectListener);
-    websocketService.on('disconnected', disconnectListener);
-    websocketService.on('error', errorListener);
-    
-    // Initialize connection
-    websocketService.ensureConnection();
-    
-    if (!websocketService.isConnected()) {
-      websocketService.shouldConnect = true;
-      websocketService.initializeConnection().then(() => {
-        setIsConnected(websocketService.isConnected());
+    const initializeWebSocket = async () => {
+      try {
+        await websocketService.initializeConnection();
+        
+        // Check if already connected
         if (websocketService.isConnected()) {
-          // Subscribe to multiple channels for comprehensive coverage
-          websocketService.subscribe('ai_chat');
-          websocketService.subscribe('reasoning_steps');
-          websocketService.subscribe('chat_responses');
+          setIsConnected(true);
         }
-      });
-    } else {
-      setIsConnected(true);
-      // Subscribe to multiple channels for comprehensive coverage
-      websocketService.subscribe('ai_chat');
-      websocketService.subscribe('reasoning_steps');
-      websocketService.subscribe('chat_responses');
-    }
-    
-    return () => {
-      websocketService.off('ai_message', messageListener);
-      websocketService.off('reasoning_step', messageListener);
-      websocketService.off('final_response', messageListener);
-      websocketService.off('chunk', messageListener);
-      websocketService.off('connected', connectListener);
-      websocketService.off('disconnected', disconnectListener);
-      websocketService.off('error', errorListener);
-      
-      if (websocketService.isConnected()) {
-        websocketService.unsubscribe('ai_chat');
-        websocketService.unsubscribe('reasoning_steps');
-        websocketService.unsubscribe('chat_responses');
+        
+        // Set up event listeners
+        websocketService.on('connected', () => {
+          console.log('Chat page: WebSocket connected');
+          setIsConnected(true);
+        });
+
+        websocketService.on('disconnected', () => {
+          setIsConnected(false);
+          setIsTyping(false);
+        });
+
+        websocketService.on('error', (error) => {
+          // Filter out backend heartbeat/ping errors that aren't user-relevant
+          if (error?.message && (error.message.includes('PingHandler') || error.message.includes('heartbeat'))) {
+            console.warn('Backend heartbeat error (filtered):', error.message);
+            return;
+          }
+          
+          // Filter out processing errors that don't require disconnection
+          if (error?.message && error.message.includes('Failed to process message')) {
+            console.warn('Message processing error (non-critical):', error.message);
+            setIsTyping(false);
+            return;
+          }
+          
+          console.error('WebSocket error:', error);
+          // Don't disconnect on every error - only on connection errors
+          if (error?.type === 'connection_error') {
+            setIsConnected(false);
+          }
+          setIsTyping(false);
+        });
+
+        websocketService.on('message', handleIncomingMessage);
+
+      } catch (error) {
+        console.error('Failed to initialize WebSocket:', error);
+        setIsConnected(false);
       }
+    };
+
+    initializeWebSocket();
+
+    // Cleanup on unmount
+    return () => {
+      websocketService.off('connected');
+      websocketService.off('disconnected');
+      websocketService.off('error');
+      websocketService.off('message');
     };
   }, [handleIncomingMessage]);
 
-  // Send message handler
-  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault();
+  // Initialize with sample conversations and welcome message
+  useEffect(() => {
+    const sampleConversations: Conversation[] = [
+      {
+        id: genId('conv'),
+        title: 'ERP System Overview',
+        lastMessage: 'Can you explain the ERP architecture?',
+        timestamp: new Date(Date.now() - 3600000),
+        isActive: false
+      },
+      {
+        id: genId('conv'),
+        title: 'Database Queries',
+        lastMessage: 'Help me with SQL optimization',
+        timestamp: new Date(Date.now() - 7200000),
+        isActive: false
+      }
+    ];
     
-    if (!message.trim() || isTyping || !isConnected) return;
+    setConversations(sampleConversations);
     
-    const userMessage: ChatMessage = {
-      id: `user-${genId('user')}`,
-      text: message,
-      sender: 'user',
-      timestamp: new Date(),
+    // Initialize with welcome message
+    const welcomeMessage: ChatMessage = {
+      id: genId('welcome'),
+      text: "Hi! I'm your AI assistant. I can help you with ERP system questions, database queries, code analysis, and more. How can I assist you today?",
+      sender: 'bot',
+      timestamp: new Date()
     };
-    
+    setMessages([welcomeMessage]);
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || isTyping) return;
+
+    const userMessage: ChatMessage = {
+      id: genId('user'),
+      text: message.trim(),
+      sender: 'user',
+      timestamp: new Date()
+    };
+
     setMessages(prev => [...prev, userMessage]);
+    const messageText = message.trim();
     setMessage('');
     setIsTyping(true);
-    
+
     try {
-      await websocketService.sendChatMessage(
-        message,
-        currentConversationId || `session_${genId('session')}`,
-        { 
-          user_id: 'current_user',
-          department: 'general',
-          conversation_id: currentConversationId
-        }
-      );
+      // Clear all state for new message
+      setActiveReasoningMessageId(null);
+      setStreamBuffer(new Map());
+      setIsThinking(false);
+      setCurrentStepIndex(0);
+      
+      // Remove any existing thinking/streaming messages
+      setMessages(prev => prev.filter(msg => 
+        !msg.id.startsWith('thinking-') && 
+        !msg.id.startsWith('stream-') && 
+        !msg.id.startsWith('response-')
+      ));
+      
+      // Send message via WebSocket
+      websocketService.send('chat_message', {
+        content: messageText,
+        conversationId: activeConversationId || 'default'
+      });
+      
+      // Don't set isTyping to false here - let the WebSocket response handle it
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Failed to send message:', error);
       setIsTyping(false);
       
-      setMessages(prev => [...prev, {
-        id: `error-${genId('error')}`,
-        text: 'Failed to send message. Please try again.',
+      // Add error message
+      const errorMessage: ChatMessage = {
+        id: genId('error'),
+        text: 'Sorry, I encountered an error. Please try again.',
         sender: 'bot',
         timestamp: new Date()
-      }]);
-    }
-  }, [message, isTyping, isConnected, currentConversationId]);
-
-  // Get appropriate icon for reasoning step type
-  const getStepIcon = (stepType: string, status: string) => {
-    const iconProps = { className: "w-4 h-4" };
-    
-    switch (stepType) {
-      case 'thinking':
-      case 'analysis':
-        return <BoltIcon {...iconProps} />;
-      case 'search':
-      case 'retrieval':
-        return <DocsIcon {...iconProps} />;
-      case 'processing':
-      case 'computation':
-        return <TaskIcon {...iconProps} />;
-      case 'validation':
-      case 'verification':
-        return status === 'completed' ? <CheckCircleIcon {...iconProps} /> : <InfoIcon {...iconProps} />;
-      case 'error':
-      case 'failure':
-        return <ErrorIcon {...iconProps} />;
-      case 'notification':
-        return <BellIcon {...iconProps} />;
-      case 'communication':
-        return <ChatIcon {...iconProps} />;
-      default:
-        return <InfoIcon {...iconProps} />;
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
-  // Enhanced Reasoning Steps Display Component with Apple-like Professional Design
-  const ReasoningStepsDisplay = ({ steps }: { steps: ReasoningStep[] }) => (
-    <div className="space-y-1 mb-4 p-4 bg-gradient-to-br from-slate-50/80 via-blue-50/60 to-indigo-50/80 dark:from-slate-800/40 dark:via-blue-900/20 dark:to-indigo-900/30 rounded-2xl border border-slate-200/60 dark:border-slate-700/40 shadow-sm backdrop-blur-md">
-      <div className="flex items-center space-x-3 mb-3">
-        <div className="relative">
-          <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-sm"></div>
-          <div className="absolute inset-0 w-2.5 h-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-ping opacity-30"></div>
-        </div>
-        <span className="text-xs font-semibold bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-300 dark:to-slate-200 bg-clip-text text-transparent tracking-wide">AI Reasoning</span>
-        <div className="flex-1 h-px bg-gradient-to-r from-slate-200/60 to-transparent dark:from-slate-600/40"></div>
-      </div>
-      <div className="space-y-2">
-        {steps.map((step, index) => (
-          <div 
-            key={`step-${step.step_number}`} 
-            className="group relative animate-in slide-in-from-left-2 duration-300"
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/70 dark:bg-slate-800/50 backdrop-blur-sm border border-white/40 dark:border-slate-700/30 hover:bg-white/90 dark:hover:bg-slate-800/70 transition-all duration-200 hover:shadow-sm hover:scale-[1.01]">
-              <div className="flex-shrink-0 mt-0.5">
-                <div className="relative">
-                  <div className={`p-1.5 rounded-lg shadow-sm transition-all duration-200 ${
-                    step.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 animate-pulse' :
-                    step.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' :
-                    step.status === 'failed' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
-                    'bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    {getStepIcon(step.step_type, step.status)}
-                  </div>
-                  {step.status === 'processing' && (
-                    <div className="absolute -inset-0.5 bg-blue-400/20 rounded-lg animate-pulse"></div>
-                  )}
-                  {step.status === 'completed' && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <CheckCircleIcon className="w-2 h-2 text-white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1.5">
-                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200 leading-tight">
-                    {step.step_number}. {step.title}
-                  </span>
-                  <div className={`px-1.5 py-0.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                    step.status === 'processing' ? 'bg-blue-100/80 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                    step.status === 'completed' ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
-                    step.status === 'failed' ? 'bg-red-100/80 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                    'bg-slate-100/80 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300'
-                  }`}>
-                    {step.status === 'processing' && (
-                      <div className="flex items-center space-x-1">
-                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                      </div>
-                    )}
-                    {step.status === 'completed' && (
-                      <div className="flex items-center space-x-1">
-                        <div className="w-1 h-1 bg-current rounded-full"></div>
-                        <span className="text-xs">Done</span>
-                      </div>
-                    )}
-                    {step.status === 'failed' && (
-                      <div className="flex items-center space-x-1">
-                        <div className="w-1 h-1 bg-current rounded-full"></div>
-                        <span className="text-xs">Error</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-2">
-                  {step.description}
-                </p>
-                <div className="flex items-center space-x-3 text-xs">
-                  <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-500">
-                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
-                    <span className="text-xs">{step.source}</span>
-                  </div>
-                  {step.processing_time && step.processing_time > 0 && (
-                    <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-500">
-                      <TimeIcon className="w-3 h-3" />
-                      <span className="text-xs">{step.processing_time.toFixed(1)}s</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
-  // Professional Message Bubble Component with Apple-like Design
-  const MessageBubble = ({ message, isTyping }: { message: ChatMessage; isTyping: boolean }) => (
-    <div className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} group`}>
-      {message.sender === 'bot' && (
-        <div className="flex-shrink-0">
-          <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-gray-800">
-            <CopilotUIIcon className="w-4 h-4 text-white" />
-          </div>
-        </div>
-      )}
+  const handleNewConversation = async () => {
+    try {
+      // Create new conversation via API
+      const newConversation = await conversationService.createConversation({
+        title: `Chat - ${new Date().toLocaleDateString()}`
+      });
       
-      <div className={`max-w-[75%] ${message.sender === 'user' ? 'order-first' : ''}`}>
-        {/* Show reasoning steps if available */}
-        {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-          <div className="mb-2">
-            <ReasoningStepsDisplay steps={message.reasoningSteps} />
-          </div>
-        )}
-        
-        <div className={`relative px-4 py-3 shadow-sm transition-all duration-200 group-hover:shadow-md ${
-          message.sender === 'user'
-            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-2xl rounded-br-md shadow-brand-500/20'
-            : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl rounded-bl-md border border-slate-200/60 dark:border-slate-700/40 backdrop-blur-sm'
-        }`}>
-          <div className={`text-sm leading-relaxed ${message.sender === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
-            {message.text ? (
-              <MarkdownRenderer content={message.text} className={message.sender === 'user' ? 'text-white' : ''} />
-            ) : null}
-            {isTyping && (
-              <span className={`inline-block w-0.5 h-4 ml-1 ${message.sender === 'user' ? 'bg-white' : 'bg-current'} animate-pulse rounded-full`}></span>
-            )}
+      const newConvId = newConversation.conversation_id;
+      setActiveConversationId(newConvId);
+      setMessages([]);
+      setActiveReasoningMessageId(null);
+      setCurrentReasoningSteps(new Map());
+      setProcessedMessageIds(new Set());
+      
+      // Reload conversations to include the new one
+      await loadConversations();
+      
+      // Add welcome message for new conversation
+      const welcomeMessage: ChatMessage = {
+        id: genId('welcome'),
+        text: "Hi! I'm your AI assistant. How can I help you today?",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      setMessages([welcomeMessage]);
+    } catch (error) {
+      console.error('Failed to create new conversation:', error);
+      // Fallback to local creation
+      const newConvId = genId('conv');
+      setActiveConversationId(newConvId);
+      setMessages([]);
+      setActiveReasoningMessageId(null);
+      setCurrentReasoningSteps(new Map());
+      setProcessedMessageIds(new Set());
+      
+      // Update conversations list
+      setConversations(prev => prev.map(conv => ({ ...conv, isActive: false })));
+      
+      // Add welcome message for new conversation
+      const welcomeMessage: ChatMessage = {
+        id: genId('welcome'),
+        text: "Hi! I'm your AI assistant. How can I help you today?",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      setMessages([welcomeMessage]);
+    }
+  };
+
+  const handleSelectConversation = async (conversationId: string) => {
+    try {
+      console.log('Selecting conversation:', conversationId);
+      
+      // Clear current messages and reset state
+      setMessages([]);
+      setIsTyping(false);
+      setActiveReasoningMessageId(null);
+      setProcessedMessageIds(new Set());
+      
+      // Update active conversation
+      setActiveConversationId(conversationId);
+      setConversations(prev => prev.map(conv => ({ 
+        ...conv, 
+        isActive: conv.id === conversationId 
+      })));
+      
+      // Load conversation messages from API
+      console.log('Loading messages for conversation:', conversationId);
+      const response = await conversationService.getConversationMessages(conversationId, 1, 50);
+      console.log('Loaded messages response:', response);
+      
+      const loadedMessages: ChatMessage[] = response.items.map(msg => ({
+        id: msg.message_id,
+        text: msg.content,
+        sender: msg.role === 'user' ? 'user' : 'bot',
+        timestamp: new Date(msg.created_at),
+        messageId: msg.message_id,
+        reasoningSteps: msg.reasoning_steps?.map(step => ({
+          ...step,
+          status: step.status === 'failed' ? 'error' : step.status
+        })),
+        reasoningPhase: msg.reasoning_steps && msg.reasoning_steps.length > 0 ? 'hidden' : undefined
+      }));
+      
+      console.log('Setting loaded messages:', loadedMessages);
+      setMessages(loadedMessages);
+      
+      // Update WebSocket to use the selected conversation
+      if (websocketService.isConnected()) {
+        websocketService.send('join_conversation', {
+          conversationId: conversationId
+        });
+      }
+      
+    } catch (error) {
+      console.error('Failed to load conversation messages:', error);
+      // Fallback to mock data for the selected conversation
+      const mockMessages: ChatMessage[] = [
+        {
+          id: genId('msg'),
+          text: "Can you explain the ERP architecture?",
+          sender: 'user',
+          timestamp: new Date(Date.now() - 1800000)
+        },
+        {
+          id: genId('msg'),
+          text: "The ERP architecture consists of several microservices including authentication, sales, inventory, and AI copilot services. Each service is containerized and communicates through an API gateway...",
+          sender: 'bot',
+          timestamp: new Date(Date.now() - 1700000)
+        }
+      ];
+      
+      console.log('Using fallback mock messages for conversation:', conversationId);
+      setMessages(mockMessages);
+    }
+  };
+
+  return (
+    <div className="h-screen max-h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-80 min-w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-2 mb-4">
+            <ChatbotIcon className="w-6 h-6 text-brand-500" />
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              AI Assistant
+            </h1>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           </div>
           
-          {/* Message tail */}
-          <div className={`absolute top-3 w-2 h-2 transform rotate-45 ${
-            message.sender === 'user'
-              ? '-right-1 bg-gradient-to-br from-brand-500 to-brand-600'
-              : '-left-1 bg-white dark:bg-slate-800 border-l border-b border-slate-200/60 dark:border-slate-700/40'
-          }`}></div>
+          <button
+            onClick={handleNewConversation}
+            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>New Conversation</span>
+          </button>
         </div>
-        
-        <div className={`flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${
-          message.sender === 'user' ? 'justify-end' : 'justify-start'
-        }`}>
-          <span>{message.timestamp.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          })}</span>
-          {message.reasoningSteps && message.reasoningSteps.length > 0 && (
-            <span className="flex items-center space-x-1 text-blue-500 dark:text-blue-400">
-              <BoltIcon className="w-3 h-3" />
-              <span>{message.reasoningSteps.length} steps</span>
-            </span>
+
+        {/* Conversations List */}
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          {isLoadingConversations ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
+              <span className="ml-2 text-sm text-gray-500">Loading conversations...</span>
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <ChatbotIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs mt-1">Start a new conversation to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => handleSelectConversation(conv.id)}
+                  className={`w-full text-left p-3 rounded-lg transition-colors ${
+                    conv.isActive
+                      ? 'bg-brand-100 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {conv.title}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
+                    {conv.lastMessage}
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    {conv.timestamp.toLocaleDateString()}
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
-      
-      {message.sender === 'user' && (
-        <div className="flex-shrink-0">
-          <UserAvatar 
-            name="You" 
-            size="md"
-            className="ring-2 ring-white dark:ring-gray-800"
-          />
-        </div>
-      )}
-    </div>
-  );
-
-  // Live Reasoning Indicator
-  const LiveReasoningIndicator = ({ conversationId }: { conversationId: string }) => {
-    const steps = currentReasoningSteps.get(conversationId) || [];
-    
-    if (steps.length === 0) return null;
-    
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="flex gap-4 justify-start">
-          <div className="flex-shrink-0">
-            <UserAvatar 
-              name="AI Assistant" 
-              size="md"
-              className="bg-gradient-to-br from-brand-500 to-brand-600"
-            />
-          </div>
-          <div className="flex-1">
-            <ReasoningStepsDisplay steps={steps} />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Apple-style Professional Typing Indicator without background
-  const TypingIndicator = () => (
-    <div className="flex gap-3 justify-start group">
-      <div className="flex-shrink-0">
-        <div className="relative w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-gray-800">
-          <CopilotUIIcon className="w-4 h-4 text-white" />
-          <div className="absolute -inset-1 bg-gradient-to-br from-brand-400/30 to-brand-500/30 rounded-full animate-pulse"></div>
-        </div>
-      </div>
-      <div className="flex-1 max-w-[75%]">
-        <div className="relative px-4 py-3 bg-transparent rounded-2xl rounded-bl-md backdrop-blur-sm">
-          <div className="flex items-center space-x-3">
-            <div className="flex space-x-1.5">
-              <div 
-                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
-                style={{ 
-                  animationDelay: '0ms',
-                  animationDuration: '1.4s',
-                  animationIterationCount: 'infinite'
-                }}
-              ></div>
-              <div 
-                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
-                style={{ 
-                  animationDelay: '0.2s',
-                  animationDuration: '1.4s',
-                  animationIterationCount: 'infinite'
-                }}
-              ></div>
-              <div 
-                className="w-2 h-2 bg-gradient-to-r from-slate-400 to-slate-500 dark:from-slate-500 dark:to-slate-400 rounded-full animate-bounce" 
-                style={{ 
-                  animationDelay: '0.4s',
-                  animationDuration: '1.4s',
-                  animationIterationCount: 'infinite'
-                }}
-              ></div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                AI is thinking...
-              </span>
-              <div className="w-1 h-1 bg-brand-500 rounded-full animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Cleanup typewriter effect
-  useEffect(() => {
-    return () => {
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Conversation Sidebar */}
-      <ConversationSidebar
-        currentConversationId={currentConversationId}
-        onConversationSelect={handleConversationSelect}
-        onNewConversation={createNewConversation}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-      />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Chat Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200/50 dark:border-gray-700/50 px-6 py-4 backdrop-blur-sm shadow-sm">
+        <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
-                <CopilotUIIcon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  AI Copilot
-                </h1>
-                <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
-                  {currentConversation && (
-                    <>
-                      <span>•</span>
-                      <span>{currentConversation.title}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={createNewConversation}
-                className="flex items-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span>New Chat</span>
-              </button>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {activeConversationId ? 'Chat Session' : 'New Conversation'}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {isConnected ? 'Connected' : 'Connecting...'}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500 mx-auto mb-4"></div>
-                <p className="text-gray-500 dark:text-gray-400">Loading conversation...</p>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex gap-4 ${
+                msg.sender === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              {msg.sender === 'bot' && (
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </div>
+                </div>
+              )}
+              
+              <div className={`${msg.sender === 'user' ? 'order-2 max-w-[80%]' : 'max-w-[85%]'}`}>
+                {/* Show reasoning steps if in reasoning phase */}
+                {msg.showReasoningSteps && msg.reasoningPhase === 'reasoning' && msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="flex items-center space-x-1">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="text-lg">{msg.reasoningSteps[msg.reasoningSteps.length - 1]?.icon || '🧠'}</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.title || 'Processing...'}
+                          </span>
+                        </div>
+                        {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.description && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            {msg.reasoningSteps[msg.reasoningSteps.length - 1].description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Message content - Show if not in thinking phase */}
+                {msg.text && msg.reasoningPhase !== 'thinking' && (
+                  <div className={`rounded-2xl px-4 py-3 inline-block ${
+                    msg.sender === 'user'
+                      ? 'bg-brand-500 text-white ml-auto rounded-br-md'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md'
+                  }`}>
+                    <div className="text-sm leading-relaxed">
+                      <MarkdownRenderer content={msg.text} />
+                      {msg.isStreaming && (
+                        <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Timestamp */}
+                {msg.text && (
+                  <div className={`flex items-center space-x-2 mt-2 text-xs text-gray-500 dark:text-gray-400 ${
+                    msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                  }`}>
+                    <span>{msg.timestamp.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}</span>
+                  </div>
+                )}
+              </div>
+              
+              {msg.sender === 'user' && (
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
+                    <UserIcon className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing indicator - only show when no active reasoning */}
+          {isTyping && !activeReasoningMessageId && (
+            <div className="flex justify-start">
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-2xl rounded-bl-md inline-block">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    </div>
+                    <span className="text-xs text-gray-500">AI is thinking...</span>
+                  </div>
+                </div>
               </div>
             </div>
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center max-w-md">
-                <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CopilotUIIcon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Start a conversation
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  Ask me anything about your ERP system. I'll show you my step-by-step reasoning process.
-                </p>
-                <div className="grid grid-cols-1 gap-2 text-sm">
-                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    "Help me understand user permissions"
-                  </button>
-                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    "Show me sales analytics for this month"
-                  </button>
-                  <button className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    "How do I create a new invoice?"
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Messages Display */}
-              <div className="space-y-6 max-w-4xl mx-auto">
-                {messages.map((msg, index) => (
-                  <MessageBubble 
-                    key={`${msg.id}-${index}`} 
-                    message={msg} 
-                    isTyping={typingMessageId === msg.id}
-                  />
-                ))}
-                
-                {/* Live Reasoning Steps */}
-                <LiveReasoningIndicator conversationId={currentConversationId || 'current'} />
-                
-                {/* Typing Indicator */}
-                {isTyping && <TypingIndicator />}
-              </div>
-            </>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-t border-gray-200/50 dark:border-gray-700/50 p-6 backdrop-blur-sm shadow-lg">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-end space-x-4">
-              <div className="flex-1 relative">
-                <input
+        <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-end space-x-3 max-w-4xl mx-auto">
+            <div className="flex-1">
+              <div className="relative">
+                <textarea
                   ref={inputRef}
-                  type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
+                  onKeyPress={handleKeyPress}
                   placeholder="Ask me anything about your ERP system..."
-                  className="w-full px-4 py-3 pr-12 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md focus:shadow-lg"
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 resize-none transition-all duration-200"
+                  rows={1}
                   disabled={!isConnected || isTyping}
+                  style={{ minHeight: '48px', maxHeight: '120px' }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                  }}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!message.trim() || !isConnected || isTyping}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-brand-50 dark:hover:bg-brand-900/20"
+                  className="absolute right-2 bottom-2 p-2 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0"
                 >
-                  <PaperPlaneIcon className="w-5 h-5" />
+                  {isTyping ? (
+                    <TimeIcon className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <SendIcon className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
-            
-            {!isConnected && (
-              <p className="text-sm text-red-500 mt-2 text-center">
-                Connecting to AI service...
-              </p>
-            )}
-            
-            {isTyping && (
-              <p className="text-sm text-brand-600 dark:text-brand-400 mt-2 text-center">
-                AI is thinking and processing your request...
-              </p>
-            )}
           </div>
         </div>
       </div>
