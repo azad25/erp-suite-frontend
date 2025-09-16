@@ -88,6 +88,7 @@ const ChatbotWidget: React.FC = () => {
   const [streamBuffer, setStreamBuffer] = useState<Map<string, string>>(new Map());
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [hasStartedStreaming, setHasStartedStreaming] = useState<boolean>(false);
   
   // Hide widget on AI chat page
   const shouldHideWidget = pathname?.includes('/ai/chat');
@@ -199,114 +200,110 @@ const ChatbotWidget: React.FC = () => {
       const content = message.data.content;
       const isComplete = message.data.isFinal || (message.data as any).is_complete;
       
-      console.log('=== CHATBOT CHUNK ===', { content, isComplete, activeReasoningMessageId });
-      
       console.log('=== CHATBOT CHUNK DEBUG ===', {
         content: `"${content}"`,
         contentLength: content?.length,
         isComplete,
-        activeReasoningMessageId
+        activeReasoningMessageId,
+        hasStartedStreaming
       });
       
-      // Hide reasoning steps when streaming starts
-      if (activeReasoningMessageId) {
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === activeReasoningMessageId 
-              ? {
-                  ...msg,
-                  reasoningPhase: 'complete',
-                  showReasoningSteps: false
-                }
-              : msg
-          )
-        );
+      // Mark that streaming has started and hide reasoning steps immediately
+      if (!hasStartedStreaming) {
+        setHasStartedStreaming(true);
+        
+        // Aggressively filter out ALL thinking/reasoning messages when streaming starts
+        setMessages(prev => prev.filter(msg => {
+          const shouldRemove = (
+            msg.reasoningPhase === 'thinking' ||
+            msg.showReasoningSteps === true ||
+            msg.id.startsWith('reasoning-') ||
+            msg.id.startsWith('thinking-') ||
+            msg.id.startsWith('stream-') ||
+            msg.id.startsWith('response-')
+          );
+          return !shouldRemove;
+        }));
+        
+        setActiveReasoningMessageId(null);
+        setIsThinking(false);
       }
       
-      // Create new streaming message if none exists or use existing one
+      // Create new streaming message if none exists
       let currentStreamId = activeReasoningMessageId;
       
       if (!currentStreamId) {
         currentStreamId = `stream-${Date.now()}`;
         setActiveReasoningMessageId(currentStreamId);
-        setIsThinking(false);
         
         const streamMessage: ChatMessage = {
           id: currentStreamId,
-          text: content || '',
+          text: '',
           sender: 'bot',
           timestamp: new Date(),
           messageId: currentStreamId,
-          isStreaming: !isComplete
+          isStreaming: !isComplete,
+          reasoningPhase: 'hidden',
+          showReasoningSteps: false
         };
         
         setMessages(prev => [...prev, streamMessage]);
         setStreamBuffer(prev => new Map(prev.set(currentStreamId!, content || '')));
-      } else {
-        // Accumulate content in existing message
-        setStreamBuffer(prev => {
-          const currentBuffer = prev.get(currentStreamId!) || '';
-          const newBuffer = currentBuffer + (content || '');
-          
-          console.log('=== CHATBOT BUFFER UPDATE ===', {
-            currentBuffer: `"${currentBuffer}"`,
-            newChunk: `"${content}"`,
-            newBuffer: `"${newBuffer}"`,
-            bufferLength: newBuffer.length,
-            streamId: currentStreamId
-          });
-          
-          const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
-          
-          // Debounce UI updates to batch rapid chunks
-          const updateUI = () => {
-            setMessages(prevMessages => 
-              prevMessages.map(msg => 
-                msg.id === currentStreamId 
-                  ? {
-                      ...msg,
-                      text: newBuffer,
-                      isStreaming: !isComplete,
-                      reasoningPhase: 'complete',
-                      showReasoningSteps: false
-                    }
-                  : msg
-              )
-            );
-          };
+      }
+      
+      // Accumulate content with sentence buffering
+      setStreamBuffer(prev => {
+        const currentBuffer = prev.get(currentStreamId!) || '';
+        const newBuffer = currentBuffer + (content || '');
+        const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
+        
+        // Sentence buffering logic - more aggressive flushing
+        const shouldFlush = (
+          isComplete || // Always flush on completion
+          newBuffer.match(/[.!?]\s/) || // Sentence end + space
+          newBuffer.length > 30 || // Flush after 30 characters
+          newBuffer.includes('\n') || // Line breaks
+          content?.includes(' ') // Flush on word boundaries
+        );
+        
+        const updateUI = (textToShow: string) => {
+          setMessages(prevMessages => 
+            prevMessages.map(msg => 
+              msg.id === currentStreamId 
+                ? {
+                    ...msg,
+                    text: textToShow,
+                    isStreaming: !isComplete,
+                    reasoningPhase: 'hidden',
+                    showReasoningSteps: false
+                  }
+                : msg
+            )
+          );
+        };
+        
+        if (shouldFlush || isComplete) {
+          // Always show the complete accumulated buffer
+          updateUI(newBuffer);
           
           if (isComplete) {
-            // Final update - show complete response immediately
-            updateUI();
             setActiveReasoningMessageId(null);
-          } else {
-            // Debounce UI updates to batch rapid chunks
-            clearTimeout(window.chatbotStreamTimeout);
-            window.chatbotStreamTimeout = setTimeout(updateUI, 50);
+            setHasStartedStreaming(false);
+            setIsTyping(false);
           }
-          
-          return updatedBuffer;
-        });
-      }
-      
-      setIsThinking(false);
-      
-      // Complete streaming
-      if (isComplete) {
-        setStreamBuffer(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(activeReasoningMessageId || '');
-          return newMap;
-        });
-        setActiveReasoningMessageId(null);
-        setIsTyping(false);
-      }
+        } else {
+          // Show accumulated content while buffering (not just last part)
+          updateUI(newBuffer);
+        }
+        
+        return updatedBuffer;
+      });
       
       return;
     }
 
-    // Handle final AI response
-    if (message.type === 'final_response' && message.data?.content) {
+    // Handle final AI response - Only process if streaming hasn't started
+    if (message.type === 'final_response' && message.data?.content && !hasStartedStreaming) {
       console.log('=== CHATBOT: Processing final response ===', message.data.content);
       
       if (activeReasoningMessageId) {
@@ -447,13 +444,20 @@ const ChatbotWidget: React.FC = () => {
       setActiveReasoningMessageId(null);
       setStreamBuffer(new Map());
       setIsThinking(false);
+      setHasStartedStreaming(false);
       
-      // Remove any existing thinking/streaming messages
-      setMessages(prev => prev.filter(msg => 
-        !msg.id.startsWith('thinking-') && 
-        !msg.id.startsWith('stream-') && 
-        !msg.id.startsWith('response-')
-      ));
+      // Aggressively remove any existing thinking/streaming messages
+      setMessages(prev => prev.filter(msg => {
+        const shouldRemove = (
+          msg.reasoningPhase === 'thinking' ||
+          msg.showReasoningSteps === true ||
+          msg.id.startsWith('reasoning-') ||
+          msg.id.startsWith('thinking-') ||
+          msg.id.startsWith('stream-') ||
+          msg.id.startsWith('response-')
+        );
+        return !shouldRemove;
+      }));
       
       // Send message via WebSocket
       websocketService.send('chat_message', {

@@ -178,6 +178,7 @@ const AIChatPage: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [hasStartedStreaming, setHasStartedStreaming] = useState<boolean>(false);
   const [currentReasoningStep, setCurrentReasoningStep] = useState<{
     title: string;
     icon: string;
@@ -332,8 +333,8 @@ const AIChatPage: React.FC = () => {
       );
     }
 
-    // Handle final AI response - Replace reasoning message with final response
-    if ((message.type === 'ai_message' || message.type === 'final_response') && message.data.content) {
+    // Handle final AI response - Only process if streaming hasn't started
+    if ((message.type === 'ai_message' || message.type === 'final_response') && message.data.content && !hasStartedStreaming) {
       console.log('=== AI CHAT: Processing final response ===', message.data.content);
 
       if (activeReasoningMessageId) {
@@ -381,91 +382,101 @@ const AIChatPage: React.FC = () => {
         content: `"${content}"`,
         contentLength: content?.length,
         isComplete,
-        activeReasoningMessageId
+        activeReasoningMessageId,
+        hasStartedStreaming
       });
 
-      // Hide reasoning steps when streaming starts
-      if (activeReasoningMessageId) {
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === activeReasoningMessageId
-              ? {
-                ...msg,
-                reasoningPhase: 'complete',
-                showReasoningSteps: false
-              }
-              : msg
-          )
-        );
+      // Mark that streaming has started and hide reasoning steps immediately
+      if (!hasStartedStreaming) {
+        setHasStartedStreaming(true);
+        setCurrentReasoningStep(null);
+        
+        // Aggressively filter out ALL thinking/reasoning messages when streaming starts
+        setMessages(prev => prev.filter(msg => {
+          const shouldRemove = (
+            msg.reasoningPhase === 'thinking' ||
+            msg.showReasoningSteps === true ||
+            msg.id.startsWith('reasoning-') ||
+            msg.id.startsWith('thinking-') ||
+            msg.id.startsWith('stream-') ||
+            msg.id.startsWith('response-')
+          );
+          return !shouldRemove;
+        }));
+        
+        setActiveReasoningMessageId(null);
       }
 
-      // Create new streaming message if none exists or use existing one
+      // Create new streaming message if none exists
       let currentStreamId = activeReasoningMessageId;
 
       if (!currentStreamId) {
-        // Create new streaming message to replace reasoning message
+        // Create new streaming message
         const streamMessageId = `stream-${Date.now()}`;
         setActiveReasoningMessageId(streamMessageId);
 
         const streamMessage: ChatMessage = {
           id: streamMessageId,
-          text: content || '',
+          text: '',
           sender: 'bot',
           timestamp: new Date(),
           messageId: streamMessageId,
           isStreaming: !isComplete,
-          reasoningPhase: 'complete',
+          reasoningPhase: 'hidden',
           showReasoningSteps: false
         };
 
         setMessages(prev => [...prev, streamMessage]);
         setStreamBuffer(prev => new Map(prev.set(streamMessageId, content || '')));
-      } else {
-        // Accumulate content in existing message
-        setStreamBuffer(prev => {
-          const currentBuffer = prev.get(currentStreamId!) || '';
-          const newBuffer = currentBuffer + (content || '');
-
-          console.log('=== BUFFER UPDATE ===', {
-            currentBuffer: `"${currentBuffer}"`,
-            newChunk: `"${content}"`,
-            newBuffer: `"${newBuffer}"`,
-            bufferLength: newBuffer.length,
-            streamId: currentStreamId
-          });
-
-          const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
-
-          // Use setTimeout to batch multiple rapid chunks together
-          const updateUI = () => {
-            setMessages(prevMessages =>
-              prevMessages.map(msg =>
-                msg.id === currentStreamId
-                  ? {
-                    ...msg,
-                    text: newBuffer,
-                    isStreaming: !isComplete,
-                    reasoningPhase: 'complete',
-                    showReasoningSteps: false
-                  }
-                  : msg
-              )
-            );
-          };
-
-          if (isComplete) {
-            // Final update - show complete response immediately
-            updateUI();
-            setActiveReasoningMessageId(null);
-          } else {
-            // Debounce UI updates to batch rapid chunks
-            clearTimeout(window.streamUpdateTimeout);
-            window.streamUpdateTimeout = setTimeout(updateUI, 50);
-          }
-
-          return updatedBuffer;
-        });
+        currentStreamId = streamMessageId;
       }
+
+      // Accumulate content with sentence buffering
+      setStreamBuffer(prev => {
+        const currentBuffer = prev.get(currentStreamId!) || '';
+        const newBuffer = currentBuffer + (content || '');
+        const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
+
+        // Sentence buffering logic - more aggressive flushing
+        const shouldFlush = (
+          isComplete || // Always flush on completion
+          newBuffer.match(/[.!?]\s/) || // Sentence end + space
+          newBuffer.length > 30 || // Flush after 30 characters
+          newBuffer.includes('\n') || // Line breaks
+          content?.includes(' ') // Flush on word boundaries
+        );
+
+        const updateUI = (textToShow: string) => {
+          setMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.id === currentStreamId
+                ? {
+                  ...msg,
+                  text: textToShow,
+                  isStreaming: !isComplete,
+                  reasoningPhase: 'hidden',
+                  showReasoningSteps: false
+                }
+                : msg
+            )
+          );
+        };
+
+        if (shouldFlush || isComplete) {
+          // Always show the complete accumulated buffer
+          updateUI(newBuffer);
+          
+          if (isComplete) {
+            setActiveReasoningMessageId(null);
+            setHasStartedStreaming(false);
+          }
+        } else {
+          // Show accumulated content while buffering (not just last part)
+          updateUI(newBuffer);
+        }
+
+        return updatedBuffer;
+      });
     }
 
 
@@ -602,13 +613,21 @@ const AIChatPage: React.FC = () => {
       setStreamBuffer(new Map());
       setIsThinking(false);
       setCurrentStepIndex(0);
+      setHasStartedStreaming(false);
+      setCurrentReasoningStep(null);
 
-      // Remove any existing thinking/streaming messages
-      setMessages(prev => prev.filter(msg =>
-        !msg.id.startsWith('thinking-') &&
-        !msg.id.startsWith('stream-') &&
-        !msg.id.startsWith('response-')
-      ));
+      // Aggressively remove any existing thinking/streaming messages
+      setMessages(prev => prev.filter(msg => {
+        const shouldRemove = (
+          msg.reasoningPhase === 'thinking' ||
+          msg.showReasoningSteps === true ||
+          msg.id.startsWith('reasoning-') ||
+          msg.id.startsWith('thinking-') ||
+          msg.id.startsWith('stream-') ||
+          msg.id.startsWith('response-')
+        );
+        return !shouldRemove;
+      }));
 
       // Send message via WebSocket
       websocketService.send('chat_message', {
