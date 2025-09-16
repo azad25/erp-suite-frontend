@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { websocketService } from '@/services/websocket';
 import { conversationService } from '@/services/conversationService';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
-import { 
-  ChatbotIcon, 
-  SendIcon, 
+import {
+  ChatbotIcon,
+  SendIcon,
   UserIcon,
   CheckCircleIcon,
   TimeIcon,
@@ -86,15 +86,15 @@ declare global {
 const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isVisible, setIsVisible] = React.useState(true);
-  
+
   React.useEffect(() => {
     if (steps.length === 0) return;
     if (steps.length === 1) return; // No need to cycle if only one step
-    
+
     const cycleSteps = () => {
       // Fade out current step
       setIsVisible(false);
-      
+
       setTimeout(() => {
         // Change to next step
         setCurrentStep(prev => (prev + 1) % steps.length);
@@ -102,12 +102,12 @@ const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
         setIsVisible(true);
       }, 300); // Wait for fade out to complete
     };
-    
+
     const interval = setInterval(cycleSteps, 2500); // Change every 2.5 seconds
-    
+
     return () => clearInterval(interval);
   }, [steps.length]);
-  
+
   if (steps.length === 0) {
     return (
       <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
@@ -129,7 +129,7 @@ const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
       <div className="flex-shrink-0 mt-1">
@@ -144,10 +144,9 @@ const ThinkingAnimation: React.FC<{ steps: ReasoningStep[] }> = ({ steps }) => {
           Thinking...
         </div>
         <div className="text-sm text-gray-600 dark:text-gray-400 min-h-[20px] flex items-center">
-          <span 
-            className={`transition-opacity duration-300 ease-in-out ${
-              isVisible ? 'opacity-100' : 'opacity-0'
-            }`}
+          <span
+            className={`transition-opacity duration-300 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'
+              }`}
           >
             {steps[currentStep]?.title || 'Processing...'}
           </span>
@@ -185,7 +184,7 @@ const AIChatPage: React.FC = () => {
     stepNumber: number;
     description: string;
   } | null>(null);
-  
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -196,7 +195,7 @@ const AIChatPage: React.FC = () => {
     try {
       setIsLoadingConversations(true);
       const response = await conversationService.getUserConversations(1, 20);
-      
+
       const formattedConversations: Conversation[] = response.items.map(conv => ({
         id: conv.conversation_id,
         title: conv.title,
@@ -204,9 +203,9 @@ const AIChatPage: React.FC = () => {
         timestamp: new Date(conv.updated_at || conv.created_at),
         isActive: conv.conversation_id === activeConversationId
       }));
-      
+
       setConversations(formattedConversations);
-      
+
       // If no active conversation and we have conversations, select the first one
       if (!activeConversationId && formattedConversations.length > 0) {
         setActiveConversationId(formattedConversations[0].id);
@@ -251,12 +250,12 @@ const AIChatPage: React.FC = () => {
   // Handle incoming WebSocket messages
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
     if (!message) return;
-    
+
     const msgId = message.data?.messageId || message.messageId || genId('msg');
     const conversationId = message.data?.conversationId || activeConversationId || 'default';
-    
+
     console.log('=== HANDLING MESSAGE ===', message.type, message);
-    
+
     // Handle reasoning steps with fade animation - data is at root level
     if (message.type === 'reasoning_step') {
       const step = {
@@ -271,22 +270,22 @@ const AIChatPage: React.FC = () => {
         processing_time: message.processing_time || 0
       };
       console.log('=== AI CHAT: Processing reasoning step ===', step);
-      
+
       setCurrentReasoningStep({
         title: step.title,
         icon: step.icon,
         stepNumber: step.step_number,
         description: step.description
       });
-      
+
       // Create or update single thinking message (not multiple)
       if (!activeReasoningMessageId) {
         // Remove any existing thinking messages to prevent duplicates
         setMessages(prev => prev.filter(msg => !msg.id.startsWith('reasoning-')));
-        
+
         const thinkingMessageId = `reasoning-${message.data?.conversationId || 'default'}-${Date.now()}`;
         setActiveReasoningMessageId(thinkingMessageId);
-        
+
         const thinkingMessage: ChatMessage = {
           id: thinkingMessageId,
           text: '',
@@ -297,62 +296,62 @@ const AIChatPage: React.FC = () => {
           showReasoningSteps: true,
           reasoningSteps: [step]
         };
-        
+
         setMessages(prev => [...prev, thinkingMessage]);
       } else {
         // Update existing thinking message with latest step only (not accumulating)
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === activeReasoningMessageId 
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === activeReasoningMessageId
               ? {
-                  ...msg,
-                  reasoningPhase: 'thinking',
-                  showReasoningSteps: true,
-                  reasoningSteps: [step] // Only show current step
-                }
+                ...msg,
+                reasoningPhase: 'thinking',
+                showReasoningSteps: true,
+                reasoningSteps: [step] // Only show current step
+              }
               : msg
           )
         );
       }
     }
-    
+
     // Handle reasoning complete message
     if (message.type === 'reasoning_complete') {
       console.log('=== AI CHAT: Reasoning complete, hiding thinking animation ===');
       setCurrentReasoningStep(null);
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === activeReasoningMessageId 
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === activeReasoningMessageId
             ? {
-                ...msg,
-                reasoningPhase: 'complete',
-                showReasoningSteps: false
-              }
+              ...msg,
+              reasoningPhase: 'complete',
+              showReasoningSteps: false
+            }
             : msg
         )
       );
     }
-    
+
     // Handle final AI response - Replace reasoning message with final response
     if ((message.type === 'ai_message' || message.type === 'final_response') && message.data.content) {
       console.log('=== AI CHAT: Processing final response ===', message.data.content);
-      
+
       if (activeReasoningMessageId) {
         // Clear reasoning step and hide thinking animation
         setCurrentReasoningStep(null);
-        
+
         // Replace reasoning message with final response and hide thinking
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === activeReasoningMessageId 
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === activeReasoningMessageId
               ? {
-                  ...msg,
-                  text: message.data.content || '',
-                  reasoningPhase: 'hidden',
-                  showReasoningSteps: false,
-                  reasoningSteps: undefined,
-                  isStreaming: false
-                }
+                ...msg,
+                text: message.data.content || '',
+                reasoningPhase: 'hidden',
+                showReasoningSteps: false,
+                reasoningSteps: undefined,
+                isStreaming: false
+              }
               : msg
           )
         );
@@ -366,48 +365,48 @@ const AIChatPage: React.FC = () => {
           timestamp: new Date(),
           messageId: msgId
         };
-        
+
         setMessages(prev => [...prev, aiMessage]);
       }
-      
+
       setIsTyping(false);
     }
-    
+
     // Handle streaming chunks - Accumulate content for complete sentences
     if (message.type === 'chunk') {
       const { content, messageId, conversationId, is_complete, isFinal } = message.data;
       const isComplete = is_complete || isFinal;
-      
+
       console.log('=== CHUNK DEBUG ===', {
         content: `"${content}"`,
         contentLength: content?.length,
         isComplete,
         activeReasoningMessageId
       });
-      
+
       // Hide reasoning steps when streaming starts
       if (activeReasoningMessageId) {
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === activeReasoningMessageId 
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === activeReasoningMessageId
               ? {
-                  ...msg,
-                  reasoningPhase: 'complete',
-                  showReasoningSteps: false
-                }
+                ...msg,
+                reasoningPhase: 'complete',
+                showReasoningSteps: false
+              }
               : msg
           )
         );
       }
-      
+
       // Create new streaming message if none exists or use existing one
       let currentStreamId = activeReasoningMessageId;
-      
+
       if (!currentStreamId) {
         // Create new streaming message to replace reasoning message
         const streamMessageId = `stream-${Date.now()}`;
         setActiveReasoningMessageId(streamMessageId);
-        
+
         const streamMessage: ChatMessage = {
           id: streamMessageId,
           text: content || '',
@@ -418,7 +417,7 @@ const AIChatPage: React.FC = () => {
           reasoningPhase: 'complete',
           showReasoningSteps: false
         };
-        
+
         setMessages(prev => [...prev, streamMessage]);
         setStreamBuffer(prev => new Map(prev.set(streamMessageId, content || '')));
       } else {
@@ -426,7 +425,7 @@ const AIChatPage: React.FC = () => {
         setStreamBuffer(prev => {
           const currentBuffer = prev.get(currentStreamId!) || '';
           const newBuffer = currentBuffer + (content || '');
-          
+
           console.log('=== BUFFER UPDATE ===', {
             currentBuffer: `"${currentBuffer}"`,
             newChunk: `"${content}"`,
@@ -434,26 +433,26 @@ const AIChatPage: React.FC = () => {
             bufferLength: newBuffer.length,
             streamId: currentStreamId
           });
-          
+
           const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
-          
+
           // Use setTimeout to batch multiple rapid chunks together
           const updateUI = () => {
-            setMessages(prevMessages => 
-              prevMessages.map(msg => 
-                msg.id === currentStreamId 
+            setMessages(prevMessages =>
+              prevMessages.map(msg =>
+                msg.id === currentStreamId
                   ? {
-                      ...msg,
-                      text: newBuffer,
-                      isStreaming: !isComplete,
-                      reasoningPhase: 'complete',
-                      showReasoningSteps: false
-                    }
+                    ...msg,
+                    text: newBuffer,
+                    isStreaming: !isComplete,
+                    reasoningPhase: 'complete',
+                    showReasoningSteps: false
+                  }
                   : msg
               )
             );
           };
-          
+
           if (isComplete) {
             // Final update - show complete response immediately
             updateUI();
@@ -463,13 +462,13 @@ const AIChatPage: React.FC = () => {
             clearTimeout(window.streamUpdateTimeout);
             window.streamUpdateTimeout = setTimeout(updateUI, 50);
           }
-          
+
           return updatedBuffer;
         });
       }
     }
-    
-    
+
+
     // Handle regular AI messages (fallback)
     if (message.data?.content && !activeReasoningMessageId) {
       const aiMessage: ChatMessage = {
@@ -479,7 +478,7 @@ const AIChatPage: React.FC = () => {
         timestamp: new Date(),
         messageId: msgId
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
       setIsTyping(false);
     }
@@ -493,12 +492,12 @@ const AIChatPage: React.FC = () => {
     const initializeWebSocket = async () => {
       try {
         await websocketService.initializeConnection();
-        
+
         // Check if already connected
         if (websocketService.isConnected()) {
           setIsConnected(true);
         }
-        
+
         // Set up event listeners
         websocketService.on('connected', () => {
           console.log('Chat page: WebSocket connected');
@@ -516,14 +515,14 @@ const AIChatPage: React.FC = () => {
             console.warn('Backend heartbeat error (filtered):', error.message);
             return;
           }
-          
+
           // Filter out processing errors that don't require disconnection
           if (error?.message && error.message.includes('Failed to process message')) {
             console.warn('Message processing error (non-critical):', error.message);
             setIsTyping(false);
             return;
           }
-          
+
           console.error('WebSocket error:', error);
           // Don't disconnect on every error - only on connection errors
           if (error?.type === 'connection_error') {
@@ -569,9 +568,9 @@ const AIChatPage: React.FC = () => {
         isActive: false
       }
     ];
-    
+
     setConversations(sampleConversations);
-    
+
     // Initialize with welcome message
     const welcomeMessage: ChatMessage = {
       id: genId('welcome'),
@@ -603,25 +602,25 @@ const AIChatPage: React.FC = () => {
       setStreamBuffer(new Map());
       setIsThinking(false);
       setCurrentStepIndex(0);
-      
+
       // Remove any existing thinking/streaming messages
-      setMessages(prev => prev.filter(msg => 
-        !msg.id.startsWith('thinking-') && 
-        !msg.id.startsWith('stream-') && 
+      setMessages(prev => prev.filter(msg =>
+        !msg.id.startsWith('thinking-') &&
+        !msg.id.startsWith('stream-') &&
         !msg.id.startsWith('response-')
       ));
-      
+
       // Send message via WebSocket
       websocketService.send('chat_message', {
         content: messageText,
         conversationId: activeConversationId || 'default'
       });
-      
+
       // Don't set isTyping to false here - let the WebSocket response handle it
     } catch (error) {
       console.error('Failed to send message:', error);
       setIsTyping(false);
-      
+
       // Add error message
       const errorMessage: ChatMessage = {
         id: genId('error'),
@@ -629,7 +628,7 @@ const AIChatPage: React.FC = () => {
         sender: 'bot',
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
     }
   };
@@ -647,17 +646,17 @@ const AIChatPage: React.FC = () => {
       const newConversation = await conversationService.createConversation({
         title: `Chat - ${new Date().toLocaleDateString()}`
       });
-      
+
       const newConvId = newConversation.conversation_id;
       setActiveConversationId(newConvId);
       setMessages([]);
       setActiveReasoningMessageId(null);
       setCurrentReasoningSteps(new Map());
       setProcessedMessageIds(new Set());
-      
+
       // Reload conversations to include the new one
       await loadConversations();
-      
+
       // Add welcome message for new conversation
       const welcomeMessage: ChatMessage = {
         id: genId('welcome'),
@@ -675,10 +674,10 @@ const AIChatPage: React.FC = () => {
       setActiveReasoningMessageId(null);
       setCurrentReasoningSteps(new Map());
       setProcessedMessageIds(new Set());
-      
+
       // Update conversations list
       setConversations(prev => prev.map(conv => ({ ...conv, isActive: false })));
-      
+
       // Add welcome message for new conversation
       const welcomeMessage: ChatMessage = {
         id: genId('welcome'),
@@ -693,25 +692,25 @@ const AIChatPage: React.FC = () => {
   const handleSelectConversation = async (conversationId: string) => {
     try {
       console.log('Selecting conversation:', conversationId);
-      
+
       // Clear current messages and reset state
       setMessages([]);
       setIsTyping(false);
       setActiveReasoningMessageId(null);
       setProcessedMessageIds(new Set());
-      
+
       // Update active conversation
       setActiveConversationId(conversationId);
-      setConversations(prev => prev.map(conv => ({ 
-        ...conv, 
-        isActive: conv.id === conversationId 
+      setConversations(prev => prev.map(conv => ({
+        ...conv,
+        isActive: conv.id === conversationId
       })));
-      
+
       // Load conversation messages from API
       console.log('Loading messages for conversation:', conversationId);
       const response = await conversationService.getConversationMessages(conversationId, 1, 50);
       console.log('Loaded messages response:', response);
-      
+
       const loadedMessages: ChatMessage[] = response.items.map(msg => ({
         id: msg.message_id,
         text: msg.content,
@@ -724,17 +723,17 @@ const AIChatPage: React.FC = () => {
         })),
         reasoningPhase: msg.reasoning_steps && msg.reasoning_steps.length > 0 ? 'hidden' : undefined
       }));
-      
+
       console.log('Setting loaded messages:', loadedMessages);
       setMessages(loadedMessages);
-      
+
       // Update WebSocket to use the selected conversation
       if (websocketService.isConnected()) {
         websocketService.send('join_conversation', {
           conversationId: conversationId
         });
       }
-      
+
     } catch (error) {
       console.error('Failed to load conversation messages:', error);
       // Fallback to mock data for the selected conversation
@@ -752,236 +751,238 @@ const AIChatPage: React.FC = () => {
           timestamp: new Date(Date.now() - 1700000)
         }
       ];
-      
+
       console.log('Using fallback mock messages for conversation:', conversationId);
       setMessages(mockMessages);
     }
   };
 
   return (
-    <div className="h-screen max-h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar */}
-      <div className="w-80 min-w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-2 mb-4">
-            <ChatbotIcon className="w-6 h-6 text-brand-500" />
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              AI Assistant
-            </h1>
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          </div>
-          
-          <button
-            onClick={handleNewConversation}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
-          >
-            <PlusIcon className="w-4 h-4" />
-            <span>New Conversation</span>
-          </button>
-        </div>
-
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
-          {isLoadingConversations ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
-              <span className="ml-2 text-sm text-gray-500">Loading conversations...</span>
+    <div className="h-[calc(100vh-13.125rem)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
+        <div className="w-80 min-w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div className="flex items-center space-x-2 mb-4">
+              <ChatbotIcon className="w-6 h-6 text-brand-500" />
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                AI Assistant
+              </h1>
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             </div>
-          ) : conversations.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <ChatbotIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No conversations yet</p>
-              <p className="text-xs mt-1">Start a new conversation to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => handleSelectConversation(conv.id)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    conv.isActive
-                      ? 'bg-brand-100 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {conv.title}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
-                    {conv.lastMessage}
-                  </div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {conv.timestamp.toLocaleDateString()}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        {/* Chat Header */}
-        <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {activeConversationId ? 'Chat Session' : 'New Conversation'}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {isConnected ? 'Connected' : 'Connecting...'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-4 ${
-                msg.sender === 'user' ? 'justify-end' : 'justify-start'
-              }`}
+            
+            <button
+              onClick={handleNewConversation}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
             >
-              {msg.sender === 'bot' && (
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <PlusIcon className="w-4 h-4" />
+              <span>New Conversation</span>
+            </button>
+          </div>
+  
+          {/* Conversations List - Takes remaining sidebar height */}
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            {isLoadingConversations ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
+                <span className="ml-2 text-sm text-gray-500">Loading conversations...</span>
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <ChatbotIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No conversations yet</p>
+                <p className="text-xs mt-1">Start a new conversation to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {conversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv.id)}
+                    className={`w-full text-left p-3 rounded-lg transition-colors ${
+                      conv.isActive
+                        ? 'bg-brand-100 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {conv.title}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
+                      {conv.lastMessage}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {conv.timestamp.toLocaleDateString()}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+  
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* Chat Header */}
+          <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {activeConversationId ? 'Chat Session' : 'New Conversation'}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {isConnected ? 'Connected' : 'Connecting...'}
+                </p>
+              </div>
+            </div>
+          </div>
+  
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex gap-4 ${
+                  msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                {msg.sender === 'bot' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                      <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              <div className={`${msg.sender === 'user' ? 'order-2 max-w-[80%]' : 'max-w-[85%]'}`}>
-                {/* Show reasoning steps if in thinking phase */}
-                {msg.showReasoningSteps && msg.reasoningPhase === 'thinking' && msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
-                      <div className="flex-shrink-0 mt-1">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                )}
+                
+                <div className={`${msg.sender === 'user' ? 'order-2 max-w-[80%]' : 'max-w-[85%]'}`}>
+                  {/* Show reasoning steps if in thinking phase */}
+                  {msg.showReasoningSteps && msg.reasoningPhase === 'thinking' && msg.reasoningSteps && msg.reasoningSteps.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-start space-x-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 animate-in fade-in duration-300">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="flex items-center space-x-1">
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-lg">{msg.reasoningSteps[msg.reasoningSteps.length - 1]?.icon || '🧠'}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.title || 'Processing...'}
+                            </span>
+                          </div>
+                          {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.description && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                              {msg.reasoningSteps[msg.reasoningSteps.length - 1].description}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-lg">{msg.reasoningSteps[msg.reasoningSteps.length - 1]?.icon || '🧠'}</span>
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.title || 'Processing...'}
-                          </span>
-                        </div>
-                        {msg.reasoningSteps[msg.reasoningSteps.length - 1]?.description && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                            {msg.reasoningSteps[msg.reasoningSteps.length - 1].description}
-                          </p>
+                    </div>
+                  )}
+  
+                  {/* Message content - Show if not in thinking phase */}
+                  {msg.text && msg.reasoningPhase !== 'thinking' && (
+                    <div className={`rounded-2xl px-4 py-3 inline-block ${
+                      msg.sender === 'user'
+                        ? 'bg-brand-500 text-white ml-auto rounded-br-md'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md'
+                    }`}>
+                      <div className="text-sm leading-relaxed">
+                        <MarkdownRenderer content={msg.text} />
+                        {msg.isStreaming && (
+                          <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1" />
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Message content - Show if not in thinking phase */}
-                {msg.text && msg.reasoningPhase !== 'thinking' && (
-                  <div className={`rounded-2xl px-4 py-3 inline-block ${
-                    msg.sender === 'user'
-                      ? 'bg-brand-500 text-white ml-auto rounded-br-md'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md'
-                  }`}>
-                    <div className="text-sm leading-relaxed">
-                      <MarkdownRenderer content={msg.text} />
-                      {msg.isStreaming && (
-                        <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1" />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Timestamp */}
-                {msg.text && (
-                  <div className={`flex items-center space-x-2 mt-2 text-xs text-gray-500 dark:text-gray-400 ${
-                    msg.sender === 'user' ? 'justify-end' : 'justify-start'
-                  }`}>
-                    <span>{msg.timestamp.toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true
-                    })}</span>
-                  </div>
-                )}
-              </div>
-              
-              {msg.sender === 'user' && (
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
-                    <UserIcon className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* Typing indicator - only show when no active reasoning */}
-          {isTyping && !activeReasoningMessageId && (
-            <div className="flex justify-start">
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                  </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-2xl rounded-bl-md inline-block">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    </div>
-                    <span className="text-xs text-gray-500">AI is thinking...</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-end space-x-3 max-w-4xl mx-auto">
-            <div className="flex-1">
-              <div className="relative">
-                <textarea
-                  ref={inputRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask me anything about your ERP system..."
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 resize-none transition-all duration-200"
-                  rows={1}
-                  disabled={!isConnected || isTyping}
-                  style={{ minHeight: '48px', maxHeight: '120px' }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = 'auto';
-                    target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-                  }}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || !isConnected || isTyping}
-                  className="absolute right-2 bottom-2 p-2 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0"
-                >
-                  {isTyping ? (
-                    <TimeIcon className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <SendIcon className="w-4 h-4" />
                   )}
-                </button>
+  
+                  {/* Timestamp */}
+                  {msg.text && (
+                    <div className={`flex items-center space-x-2 mt-2 text-xs text-gray-500 dark:text-gray-400 ${
+                      msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                    }`}>
+                      <span>{msg.timestamp.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {msg.sender === 'user' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
+                      <UserIcon className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+  
+            {/* Typing indicator - only show when no active reasoning */}
+            {isTyping && !activeReasoningMessageId && (
+              <div className="flex justify-start">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                      <ChatbotIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-2xl rounded-bl-md inline-block">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      </div>
+                      <span className="text-xs text-gray-500">AI is thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+  
+            <div ref={messagesEndRef} />
+          </div>
+  
+          {/* Input Area - Fixed at bottom */}
+          <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div className="flex items-end space-x-3 max-w-4xl mx-auto">
+              <div className="flex-1">
+                <div className="relative">
+                  <textarea
+                    ref={inputRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask me anything about your ERP system..."
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 resize-none transition-all duration-200"
+                    rows={1}
+                    disabled={!isConnected || isTyping}
+                    style={{ minHeight: '48px', maxHeight: '120px' }}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                    }}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!message.trim() || !isConnected || isTyping}
+                    className="absolute right-2 bottom-2 p-2 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0"
+                  >
+                    {isTyping ? (
+                      <TimeIcon className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <SendIcon className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -989,6 +990,5 @@ const AIChatPage: React.FC = () => {
       </div>
     </div>
   );
-};
-
+}
 export default AIChatPage;
