@@ -174,7 +174,7 @@ const AIChatPage: React.FC = () => {
   const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
   const [activeReasoningMessageId, setActiveReasoningMessageId] = useState<string | null>(null);
   const [currentReasoningSteps, setCurrentReasoningSteps] = useState<Map<string, ReasoningStep[]>>(new Map());
-  const [streamBuffer, setStreamBuffer] = useState<Map<string, string>>(new Map());
+
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
@@ -185,6 +185,9 @@ const AIChatPage: React.FC = () => {
     stepNumber: number;
     description: string;
   } | null>(null);
+
+  // Timeout for stuck thinking states
+  const thinkingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -279,10 +282,37 @@ const AIChatPage: React.FC = () => {
         description: step.description
       });
 
+      setIsThinking(true);
+
+      // Clear any existing timeout
+      if (thinkingTimeoutRef.current) {
+        clearTimeout(thinkingTimeoutRef.current);
+      }
+
+      // Set timeout to clear thinking state if stuck (30 seconds)
+      thinkingTimeoutRef.current = setTimeout(() => {
+        console.log('=== AI CHAT: Thinking timeout, clearing state ===');
+        setIsThinking(false);
+        setCurrentReasoningStep(null);
+        setActiveReasoningMessageId(null);
+        setIsTyping(false);
+        
+        // Remove stuck thinking messages
+        setMessages(prev => prev.filter(msg => {
+          const shouldRemove = (
+            msg.reasoningPhase === 'thinking' ||
+            msg.showReasoningSteps === true ||
+            msg.id.startsWith('reasoning-') ||
+            msg.id.startsWith('thinking-')
+          );
+          return !shouldRemove;
+        }));
+      }, 30000);
+
       // Create or update single thinking message (not multiple)
       if (!activeReasoningMessageId) {
         // Remove any existing thinking messages to prevent duplicates
-        setMessages(prev => prev.filter(msg => !msg.id.startsWith('reasoning-')));
+        setMessages(prev => prev.filter(msg => !msg.id.startsWith('reasoning-') && !msg.id.startsWith('thinking-')));
 
         const thinkingMessageId = `reasoning-${message.data?.conversationId || 'default'}-${Date.now()}`;
         setActiveReasoningMessageId(thinkingMessageId);
@@ -314,23 +344,35 @@ const AIChatPage: React.FC = () => {
           )
         );
       }
+      return;
     }
 
     // Handle reasoning complete message
     if (message.type === 'reasoning_complete') {
       console.log('=== AI CHAT: Reasoning complete, hiding thinking animation ===');
+      
+      // Clear thinking timeout
+      if (thinkingTimeoutRef.current) {
+        clearTimeout(thinkingTimeoutRef.current);
+        thinkingTimeoutRef.current = null;
+      }
+      
       setCurrentReasoningStep(null);
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === activeReasoningMessageId
-            ? {
-              ...msg,
-              reasoningPhase: 'complete',
-              showReasoningSteps: false
-            }
-            : msg
-        )
-      );
+      setIsThinking(false);
+      if (activeReasoningMessageId) {
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === activeReasoningMessageId
+              ? {
+                ...msg,
+                reasoningPhase: 'complete',
+                showReasoningSteps: false
+              }
+              : msg
+          )
+        );
+      }
+      return;
     }
 
     // Handle final AI response - Only process if streaming hasn't started
@@ -371,53 +413,61 @@ const AIChatPage: React.FC = () => {
       }
 
       setIsTyping(false);
+      setIsThinking(false);
+      return;
     }
 
-    // Handle streaming chunks - Accumulate content for complete sentences
+    // Handle streaming chunks - Simple accumulation without complex buffering
     if (message.type === 'chunk') {
       const { content, messageId, conversationId, is_complete, isFinal } = message.data;
       const isComplete = is_complete || isFinal;
 
-      console.log('=== CHUNK DEBUG ===', {
+      console.log('=== AI CHAT CHUNK ===', {
         content: `"${content}"`,
         contentLength: content?.length,
         isComplete,
         activeReasoningMessageId,
-        hasStartedStreaming
+        hasStartedStreaming,
+        messageCount: messages.length
       });
 
       // Mark that streaming has started and hide reasoning steps immediately
       if (!hasStartedStreaming) {
         setHasStartedStreaming(true);
         setCurrentReasoningStep(null);
+        setIsThinking(false);
         
-        // Aggressively filter out ALL thinking/reasoning messages when streaming starts
+        // Only filter out thinking/reasoning messages, keep existing conversation
         setMessages(prev => prev.filter(msg => {
           const shouldRemove = (
             msg.reasoningPhase === 'thinking' ||
             msg.showReasoningSteps === true ||
             msg.id.startsWith('reasoning-') ||
-            msg.id.startsWith('thinking-') ||
-            msg.id.startsWith('stream-') ||
-            msg.id.startsWith('response-')
+            msg.id.startsWith('thinking-')
           );
           return !shouldRemove;
         }));
         
-        setActiveReasoningMessageId(null);
+        // Don't clear activeReasoningMessageId here - we need it for streaming
       }
 
-      // Create new streaming message if none exists
+      // Find or create streaming message
       let currentStreamId = activeReasoningMessageId;
+      
+      // Check if we have an existing streaming message
+      const existingStreamMessage = messages.find(msg => 
+        msg.id === currentStreamId && msg.isStreaming !== false
+      );
 
-      if (!currentStreamId) {
+      if (!currentStreamId || !existingStreamMessage) {
         // Create new streaming message
         const streamMessageId = `stream-${Date.now()}`;
         setActiveReasoningMessageId(streamMessageId);
+        currentStreamId = streamMessageId;
 
         const streamMessage: ChatMessage = {
           id: streamMessageId,
-          text: '',
+          text: content || '',
           sender: 'bot',
           timestamp: new Date(),
           messageId: streamMessageId,
@@ -427,56 +477,38 @@ const AIChatPage: React.FC = () => {
         };
 
         setMessages(prev => [...prev, streamMessage]);
-        setStreamBuffer(prev => new Map(prev.set(streamMessageId, content || '')));
-        currentStreamId = streamMessageId;
+        console.log('=== AI CHAT: Created new stream message ===', streamMessage);
+      } else {
+        // Update existing streaming message by appending content
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.id === currentStreamId
+              ? {
+                ...msg,
+                text: (msg.text || '') + (content || ''),
+                isStreaming: !isComplete,
+                reasoningPhase: 'hidden',
+                showReasoningSteps: false
+              }
+              : msg
+          )
+        );
+        console.log('=== AI CHAT: Appended to existing stream message ===', { 
+          currentText: existingStreamMessage.text, 
+          newContent: content,
+          totalLength: (existingStreamMessage.text || '').length + (content || '').length
+        });
       }
 
-      // Accumulate content with sentence buffering
-      setStreamBuffer(prev => {
-        const currentBuffer = prev.get(currentStreamId!) || '';
-        const newBuffer = currentBuffer + (content || '');
-        const updatedBuffer = new Map(prev.set(currentStreamId!, newBuffer));
-
-        // Sentence buffering logic - more aggressive flushing
-        const shouldFlush = (
-          isComplete || // Always flush on completion
-          newBuffer.match(/[.!?]\s/) || // Sentence end + space
-          newBuffer.length > 30 || // Flush after 30 characters
-          newBuffer.includes('\n') || // Line breaks
-          content?.includes(' ') // Flush on word boundaries
-        );
-
-        const updateUI = (textToShow: string) => {
-          setMessages(prevMessages =>
-            prevMessages.map(msg =>
-              msg.id === currentStreamId
-                ? {
-                  ...msg,
-                  text: textToShow,
-                  isStreaming: !isComplete,
-                  reasoningPhase: 'hidden',
-                  showReasoningSteps: false
-                }
-                : msg
-            )
-          );
-        };
-
-        if (shouldFlush || isComplete) {
-          // Always show the complete accumulated buffer
-          updateUI(newBuffer);
-          
-          if (isComplete) {
-            setActiveReasoningMessageId(null);
-            setHasStartedStreaming(false);
-          }
-        } else {
-          // Show accumulated content while buffering (not just last part)
-          updateUI(newBuffer);
-        }
-
-        return updatedBuffer;
-      });
+      // Handle completion
+      if (isComplete) {
+        console.log('=== AI CHAT: Stream complete ===');
+        setActiveReasoningMessageId(null);
+        setHasStartedStreaming(false);
+        setIsTyping(false);
+        setIsThinking(false);
+      }
+      return;
     }
 
 
@@ -493,7 +525,7 @@ const AIChatPage: React.FC = () => {
       setMessages(prev => [...prev, aiMessage]);
       setIsTyping(false);
     }
-  }, [activeReasoningMessageId, messages]);
+  }, [activeReasoningMessageId, hasStartedStreaming]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -558,6 +590,11 @@ const AIChatPage: React.FC = () => {
       websocketService.off('disconnected');
       websocketService.off('error');
       websocketService.off('message');
+      
+      // Clear thinking timeout
+      if (thinkingTimeoutRef.current) {
+        clearTimeout(thinkingTimeoutRef.current);
+      }
     };
   }, [handleIncomingMessage]);
 
@@ -610,21 +647,18 @@ const AIChatPage: React.FC = () => {
     try {
       // Clear all state for new message
       setActiveReasoningMessageId(null);
-      setStreamBuffer(new Map());
       setIsThinking(false);
       setCurrentStepIndex(0);
       setHasStartedStreaming(false);
       setCurrentReasoningStep(null);
 
-      // Aggressively remove any existing thinking/streaming messages
+      // Only remove active thinking/reasoning messages, keep completed messages
       setMessages(prev => prev.filter(msg => {
         const shouldRemove = (
-          msg.reasoningPhase === 'thinking' ||
-          msg.showReasoningSteps === true ||
-          msg.id.startsWith('reasoning-') ||
-          msg.id.startsWith('thinking-') ||
-          msg.id.startsWith('stream-') ||
-          msg.id.startsWith('response-')
+          (msg.reasoningPhase === 'thinking' && msg.showReasoningSteps === true) ||
+          (msg.id.startsWith('reasoning-') && msg.reasoningPhase === 'thinking') ||
+          (msg.id.startsWith('thinking-') && msg.reasoningPhase === 'thinking') ||
+          (msg.id.startsWith('stream-') && msg.isStreaming === true)
         );
         return !shouldRemove;
       }));
@@ -854,6 +888,28 @@ const AIChatPage: React.FC = () => {
                   {isConnected ? 'Connected' : 'Connecting...'}
                 </p>
               </div>
+              <div className="flex items-center space-x-2">
+                {messages.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setMessages([{
+                        id: genId('welcome'),
+                        text: "Hi! I'm your AI assistant. How can I help you today?",
+                        sender: 'bot',
+                        timestamp: new Date()
+                      }]);
+                      setActiveReasoningMessageId(null);
+                      setCurrentReasoningSteps(new Map());
+                      setIsThinking(false);
+                      setHasStartedStreaming(false);
+                      setCurrentReasoningStep(null);
+                    }}
+                    className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Clear Chat
+                  </button>
+                )}
+              </div>
             </div>
           </div>
   
@@ -903,15 +959,22 @@ const AIChatPage: React.FC = () => {
                     </div>
                   )}
   
-                  {/* Message content - Show if not in thinking phase */}
-                  {msg.text && msg.reasoningPhase !== 'thinking' && (
-                    <div className={`rounded-2xl px-4 py-3 inline-block ${
+                  {/* Message content - Show if has text and not purely thinking */}
+                  {msg.text && (msg.reasoningPhase !== 'thinking' || msg.text.trim()) && (
+                    <div className={`rounded-2xl px-4 py-3 inline-block max-w-full ${
                       msg.sender === 'user'
                         ? 'bg-brand-500 text-white ml-auto rounded-br-md'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md shadow-sm'
                     }`}>
                       <div className="text-sm leading-relaxed">
-                        <MarkdownRenderer content={msg.text} />
+                        {msg.sender === 'bot' ? (
+                          <MarkdownRenderer 
+                            content={msg.text} 
+                            className=""
+                          />
+                        ) : (
+                          <span className="text-white">{msg.text}</span>
+                        )}
                         {msg.isStreaming && (
                           <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1" />
                         )}
@@ -943,8 +1006,8 @@ const AIChatPage: React.FC = () => {
               </div>
             ))}
   
-            {/* Typing indicator - only show when no active reasoning */}
-            {isTyping && !activeReasoningMessageId && (
+            {/* Typing indicator - show when typing but not thinking */}
+            {isTyping && !isThinking && !activeReasoningMessageId && (
               <div className="flex justify-start">
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
@@ -969,6 +1032,38 @@ const AIChatPage: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
   
+          {/* Quick Actions - Show when no messages or conversation is empty */}
+          {messages.length <= 1 && (
+            <div className="px-4 pb-2">
+              <div className="max-w-4xl mx-auto">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Quick Actions</div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { text: "Show sales dashboard", icon: "📊" },
+                    { text: "Generate inventory report", icon: "📦" },
+                    { text: "List overdue invoices", icon: "💰" },
+                    { text: "Show top customers", icon: "👥" },
+                    { text: "Check cash flow", icon: "💸" },
+                    { text: "Explain ERP architecture", icon: "🏗️" }
+                  ].map((action, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setMessage(action.text);
+                        setTimeout(() => handleSendMessage(), 100);
+                      }}
+                      disabled={!isConnected || isTyping}
+                      className="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>{action.icon}</span>
+                      <span>{action.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Input Area - Fixed at bottom */}
           <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
             <div className="flex items-end space-x-3 max-w-4xl mx-auto">
