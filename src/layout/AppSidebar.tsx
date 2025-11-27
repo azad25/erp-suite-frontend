@@ -152,6 +152,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
       { name: "Insights", path: "/ai/insights", pro: false },
       { name: "Alerts", path: "/ai/alerts", pro: false },
       { name: "Automation", path: "/ai/automation", pro: false },
+      { name: "Provider Settings", path: "/ai/settings", pro: false },
     ],
   },
   {

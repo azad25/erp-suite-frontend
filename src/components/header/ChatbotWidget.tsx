@@ -88,6 +88,12 @@ const ChatbotWidget: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [hasStartedStreaming, setHasStartedStreaming] = useState<boolean>(false);
 
+  // Refs for stable access in callbacks
+  const activeMessageIdRef = useRef<string | null>(null);
+  const hasStartedStreamingRef = useRef<boolean>(false);
+  const isOpenRef = useRef<boolean>(false);
+  const isTypingRef = useRef<boolean>(false);
+
   // New states for enhanced UX
   const [showWelcomeBubble, setShowWelcomeBubble] = useState(false);
   const [showMessagePreview, setShowMessagePreview] = useState(false);
@@ -103,6 +109,19 @@ const ChatbotWidget: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isInitializedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Sync refs with state
+  useEffect(() => {
+    hasStartedStreamingRef.current = hasStartedStreaming;
+  }, [hasStartedStreaming]);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    isTypingRef.current = isTyping;
+  }, [isTyping]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -159,6 +178,7 @@ const ChatbotWidget: React.FC = () => {
   }, [hasPlayedWelcomeSound, shouldHideWidget, pathname]);
 
   // Handle incoming WebSocket messages with modern chatbot-style reasoning
+  // This callback is now stable (no dependencies) to prevent stale closures
   const handleIncomingMessage = useCallback((message: AIChatMessage) => {
     if (!message) return;
 
@@ -181,12 +201,16 @@ const ChatbotWidget: React.FC = () => {
         processing_time: message.processing_time || 0
       };
 
-      if (!activeReasoningMessageId) {
+      // Use ref to check if we already have an active thinking message
+      if (!activeMessageIdRef.current) {
         // Remove any existing thinking messages to prevent duplicates
         setMessages(prev => prev.filter(msg => !msg.id.startsWith('thinking-')));
 
         const thinkingMessageId = `thinking-${Date.now()}`;
+
+        // Update both state and ref
         setActiveReasoningMessageId(thinkingMessageId);
+        activeMessageIdRef.current = thinkingMessageId;
         setIsThinking(true);
 
         const thinkingMessage: ChatMessage = {
@@ -205,7 +229,7 @@ const ChatbotWidget: React.FC = () => {
         // Update existing thinking message with latest step only (not accumulating)
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === activeReasoningMessageId
+            msg.id === activeMessageIdRef.current
               ? {
                 ...msg,
                 reasoningSteps: [step] // Only show current step
@@ -222,10 +246,11 @@ const ChatbotWidget: React.FC = () => {
     // Handle reasoning completion - Hide thinking animation but keep message for streaming
     if (message.type === 'reasoning_complete') {
       console.log('=== CHATBOT: Reasoning complete, hiding thinking animation ===');
-      if (activeReasoningMessageId) {
+      if (activeMessageIdRef.current) {
+        const currentId = activeMessageIdRef.current;
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === activeReasoningMessageId
+            msg.id === currentId
               ? {
                 ...msg,
                 reasoningPhase: 'complete',
@@ -239,16 +264,22 @@ const ChatbotWidget: React.FC = () => {
       return;
     }
 
-    // Handle streaming chunks - Simple accumulation without complex buffering
+    // Handle streaming chunks - Accumulate all chunks and display complete message
     if (message.type === 'chunk' && message.data?.content) {
       const content = message.data.content;
       const isComplete = message.data.isFinal || (message.data as any).is_complete;
 
-      console.log('=== CHATBOT CHUNK ===', { content, isComplete, hasStartedStreaming, activeReasoningMessageId });
+      console.log('=== CHATBOT CHUNK ===', { content, isComplete, hasStartedStreaming: hasStartedStreamingRef.current, activeId: activeMessageIdRef.current });
 
       // Mark that streaming has started and hide reasoning steps immediately
-      if (!hasStartedStreaming) {
+      if (!hasStartedStreamingRef.current) {
         setHasStartedStreaming(true);
+        hasStartedStreamingRef.current = true;
+
+        // Clear the old thinking message ID since we're starting fresh
+        const oldThinkingId = activeMessageIdRef.current;
+        activeMessageIdRef.current = null;
+        setActiveReasoningMessageId(null);
 
         // Only filter out thinking/reasoning messages, keep existing conversation
         setMessages(prev => prev.filter(msg => {
@@ -262,19 +293,22 @@ const ChatbotWidget: React.FC = () => {
         }));
 
         setIsThinking(false);
-        // Don't clear activeReasoningMessageId here - we need it for streaming
+
+        console.log('=== CHATBOT: Cleared thinking message ===', { oldThinkingId });
       }
 
-      // Use existing reasoning message ID or create new one
-      let currentStreamId = activeReasoningMessageId;
+      // Use existing stream ID or create new one
+      let currentStreamId = activeMessageIdRef.current;
 
-      if (!currentStreamId || !hasStartedStreaming) {
+      if (!currentStreamId) {
         currentStreamId = `stream-${Date.now()}`;
         setActiveReasoningMessageId(currentStreamId);
+        activeMessageIdRef.current = currentStreamId;
 
+        // Create initial message with loading state
         const streamMessage: ChatMessage = {
           id: currentStreamId,
-          text: content || '',
+          text: content || '', // Start with first chunk
           sender: 'bot',
           timestamp: new Date(),
           messageId: currentStreamId,
@@ -284,40 +318,56 @@ const ChatbotWidget: React.FC = () => {
         };
 
         setMessages(prev => [...prev, streamMessage]);
-        console.log('=== CHATBOT: Created new stream message ===', streamMessage);
+        console.log('=== CHATBOT: Created new stream message ===', { id: currentStreamId, firstChunk: content });
       } else {
-        // Find existing message and append content
+        // Accumulate content into existing message
         setMessages(prevMessages => {
-          const existingMessage = prevMessages.find(msg => msg.id === currentStreamId);
-          console.log('=== CHATBOT: Appending to existing message ===', { 
-            currentText: existingMessage?.text, 
-            newContent: content,
-            totalLength: (existingMessage?.text || '').length + (content || '').length
-          });
-          
-          return prevMessages.map(msg =>
-            msg.id === currentStreamId
-              ? {
+          return prevMessages.map(msg => {
+            if (msg.id === currentStreamId) {
+              const accumulatedText = (msg.text || '') + (content || '');
+              console.log('=== CHATBOT: Accumulating chunk ===', { id: currentStreamId, chunk: content, total: accumulatedText });
+              return {
                 ...msg,
-                text: (msg.text || '') + (content || ''),
+                text: accumulatedText,
                 isStreaming: !isComplete,
                 reasoningPhase: 'hidden',
                 showReasoningSteps: false
-              }
-              : msg
-          );
+              };
+            }
+            return msg;
+          });
         });
       }
 
-      // Handle completion
+      // Handle completion - process accumulated text with markdown
       if (isComplete) {
-        console.log('=== CHATBOT: Stream complete ===');
+        console.log('=== CHATBOT: Stream complete, processing with markdown ===');
+
+        setMessages(prevMessages => {
+          return prevMessages.map(msg => {
+            if (msg.id === currentStreamId) {
+              // Process the complete accumulated text
+              const finalText = msg.text || '';
+              return {
+                ...msg,
+                text: finalText,
+                isStreaming: false,
+                reasoningPhase: 'hidden',
+                showReasoningSteps: false
+              };
+            }
+            return msg;
+          });
+        });
+
         setActiveReasoningMessageId(null);
+        activeMessageIdRef.current = null;
         setHasStartedStreaming(false);
+        hasStartedStreamingRef.current = false;
         setIsTyping(false);
 
         // Show message preview if widget is closed
-        if (!isOpen && currentStreamId) {
+        if (!isOpenRef.current && currentStreamId) {
           setMessages(prevMessages => {
             const finalMessage = prevMessages.find(msg => msg.id === currentStreamId);
             const finalText = finalMessage?.text || '';
@@ -341,16 +391,17 @@ const ChatbotWidget: React.FC = () => {
     }
 
     // Handle final AI response - Only process if streaming hasn't started
-    if (message.type === 'final_response' && message.data?.content && !hasStartedStreaming) {
+    if (message.type === 'final_response' && message.data?.content && !hasStartedStreamingRef.current) {
       console.log('=== CHATBOT: Processing final response ===', message.data.content);
 
       const responseText = message.data.content || '';
 
-      if (activeReasoningMessageId) {
+      if (activeMessageIdRef.current) {
+        const currentId = activeMessageIdRef.current;
         // Replace reasoning message with final response and hide thinking
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === activeReasoningMessageId
+            msg.id === currentId
               ? {
                 ...msg,
                 text: responseText,
@@ -363,6 +414,7 @@ const ChatbotWidget: React.FC = () => {
           )
         );
         setActiveReasoningMessageId(null);
+        activeMessageIdRef.current = null;
       } else {
         // Create new message if no reasoning was shown
         const aiMessage: ChatMessage = {
@@ -377,7 +429,7 @@ const ChatbotWidget: React.FC = () => {
       }
 
       // Show message preview if widget is closed
-      if (!isOpen && responseText) {
+      if (!isOpenRef.current && responseText) {
         const previewText = responseText.substring(0, 30) + (responseText.length > 30 ? '...' : '');
         setMessagePreviewText(previewText);
         setShowMessagePreview(true);
@@ -393,9 +445,9 @@ const ChatbotWidget: React.FC = () => {
       setIsTyping(false);
       return;
     }
-  }, [activeReasoningMessageId, processedMessageIds, hasStartedStreaming, isOpen, messages]);
+  }, []); // No dependencies needed thanks to refs!
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection - Run once
   useEffect(() => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
@@ -403,43 +455,6 @@ const ChatbotWidget: React.FC = () => {
     const initializeWebSocket = async () => {
       try {
         await websocketService.initializeConnection();
-
-        // Set up event listeners
-        websocketService.on('connected', () => {
-          console.log('ChatbotWidget: Connected to WebSocket');
-          setIsConnected(true);
-        });
-
-        websocketService.on('disconnected', () => {
-          console.log('ChatbotWidget: Disconnected from WebSocket');
-          setIsConnected(false);
-          setIsTyping(false);
-        });
-
-        websocketService.on('error', (error) => {
-          // Filter out backend heartbeat/ping errors that aren't user-relevant
-          if (error?.message && (error.message.includes('PingHandler') || error.message.includes('heartbeat'))) {
-            console.warn('ChatbotWidget: Backend heartbeat error (filtered):', error.message);
-            return;
-          }
-
-          // Filter out processing errors that don't require disconnection
-          if (error?.message && error.message.includes('Failed to process message')) {
-            console.warn('ChatbotWidget: Message processing error (non-critical):', error.message);
-            setIsTyping(false);
-            return;
-          }
-
-          console.error('ChatbotWidget: WebSocket error:', error);
-          // Don't disconnect on every error - only on connection errors
-          if (error?.type === 'connection_error') {
-            setIsConnected(false);
-          }
-          setIsTyping(false);
-        });
-
-        websocketService.on('message', handleIncomingMessage);
-
       } catch (error) {
         console.error('ChatbotWidget: Failed to initialize WebSocket:', error);
         setIsConnected(false);
@@ -447,13 +462,55 @@ const ChatbotWidget: React.FC = () => {
     };
 
     initializeWebSocket();
+  }, []);
+
+  // Set up WebSocket listeners - Run once (handler is stable)
+  useEffect(() => {
+    // Set up event listeners
+    const onConnected = () => {
+      console.log('ChatbotWidget: Connected to WebSocket');
+      setIsConnected(true);
+    };
+
+    const onDisconnected = () => {
+      console.log('ChatbotWidget: Disconnected from WebSocket');
+      setIsConnected(false);
+      setIsTyping(false);
+    };
+
+    const onError = (error: any) => {
+      // Filter out backend heartbeat/ping errors that aren't user-relevant
+      if (error?.message && (error.message.includes('PingHandler') || error.message.includes('heartbeat'))) {
+        console.warn('ChatbotWidget: Backend heartbeat error (filtered):', error.message);
+        return;
+      }
+
+      // Filter out processing errors that don't require disconnection
+      if (error?.message && error.message.includes('Failed to process message')) {
+        console.warn('ChatbotWidget: Message processing error (non-critical):', error.message);
+        setIsTyping(false);
+        return;
+      }
+
+      console.error('ChatbotWidget: WebSocket error:', error);
+      // Don't disconnect on every error - only on connection errors
+      if (error?.type === 'connection_error') {
+        setIsConnected(false);
+      }
+      setIsTyping(false);
+    };
+
+    websocketService.on('connected', onConnected);
+    websocketService.on('disconnected', onDisconnected);
+    websocketService.on('error', onError);
+    websocketService.on('message', handleIncomingMessage);
 
     // Cleanup on unmount
     return () => {
-      websocketService.off('connected');
-      websocketService.off('disconnected');
-      websocketService.off('error');
-      websocketService.off('message');
+      websocketService.off('connected', onConnected);
+      websocketService.off('disconnected', onDisconnected);
+      websocketService.off('error', onError);
+      websocketService.off('message', handleIncomingMessage);
     };
   }, [handleIncomingMessage]);
 
@@ -495,8 +552,10 @@ const ChatbotWidget: React.FC = () => {
     try {
       // Clear all state for new message
       setActiveReasoningMessageId(null);
+      activeMessageIdRef.current = null;
       setIsThinking(false);
       setHasStartedStreaming(false);
+      hasStartedStreamingRef.current = false;
 
       // Only remove thinking/reasoning messages, keep completed messages
       setMessages(prev => prev.filter(msg => {
